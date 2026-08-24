@@ -58,7 +58,7 @@
 <br/>
 
 <div align="center">
-<img src="docs/assets/logo.png" alt="NŌTA Logo" width="120"/>
+<img src="docs/assets/logo.png" alt="NŌTA Logo" width="400"/>
 <br/><br/>
 </div>
 
