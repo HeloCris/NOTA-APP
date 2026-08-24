@@ -196,7 +196,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="docs/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="20%"/>
+<img src="docs/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
 
 </div>
 
