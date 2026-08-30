@@ -3,7 +3,7 @@
 <br/>
 
 <!-- Logo / Banner -->
-<img src="docs/assets/banner.png" alt="NŌTA — Your Scent, Understood." width="100%"/>
+<img src="documentacoes/assets/banner.png" alt="NŌTA — Your Scent, Understood." width="100%"/>
 
 <br/><br/>
 
@@ -58,7 +58,7 @@
 <br/>
 
 <div align="center">
-<img src="docs/assets/logo.png" alt="NŌTA Logo" width="120"/>
+<img src="documentacoes/assets/logo.png" alt="NŌTA Logo" width="350"/>
 <br/><br/>
 </div>
 
@@ -196,7 +196,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="docs/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="80%"/>
+<img src="documentacoes/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
 
 </div>
 
@@ -214,7 +214,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="docs/assets/logo-icon.png" alt="NŌTA Icon" width="180"/>
+<img src="documentacoes/assets/logo-icon.png" alt="NŌTA Icon" width="180"/>
 
 <br/><br/>
 
