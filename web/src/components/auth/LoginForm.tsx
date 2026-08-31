@@ -90,152 +90,115 @@ export function LoginForm() {
   }
 
   return (
-    <>
-      <nav
-        aria-label="Navegação de autenticação"
-        className="mb-10 flex gap-6 border-b border-border-sandstone pb-4"
-      >
-        <span className="-mb-[18px] border-b-2 border-primary pb-4 font-inter text-xs font-semibold uppercase tracking-[0.05em] text-primary">
-          Entrar na conta
-        </span>
+    <div className="auth-form-container">
+      <div className="auth-tabs">
+        <Link to="/login" className="active">ENTRAR NA CONTA</Link>
+        <Link to="/register">CRIAR CONTA</Link>
+      </div>
 
-        <Link
-          to="/register"
-          className="-mb-[18px] pb-4 font-inter text-xs font-semibold uppercase tracking-[0.05em] text-on-surface-variant transition-colors hover:text-primary"
-        >
-          Criar conta
-        </Link>
-      </nav>
-
-      <header className="mb-8">
-        <h1 className="mb-2 font-jakarta text-2xl font-semibold leading-8 text-primary">
-          Bem-vindo de volta
-        </h1>
-
-        <p className="font-inter text-sm leading-5 text-text-mineral">
-          Acesse sua conta NŌTA para gerenciar inventário
-          e pedidos.
-        </p>
-      </header>
+      <div className="auth-header">
+        <h1>Bem-vindo de volta</h1>
+        <p>Acesse sua conta NŌTA para gerenciar catálogo, pedidos e métricas da sua loja.</p>
+      </div>
 
       {successMessage && (
-        <div className="mb-6 rounded-md border border-secondary bg-surface-container-low px-4 py-3 font-inter text-sm text-secondary">
+        <div className="auth-error" style={{ background: '#E8F5E9', borderColor: '#81C784', color: '#2E7D32' }}>
           {successMessage}
+        </div>
+      )}
+
+      {serverError && (
+        <div className="auth-error">
+          {serverError}
         </div>
       )}
 
       <form
         noValidate
         onSubmit={handleSubmit(onSubmit)}
-        className="space-y-6"
+        className="auth-form"
       >
-        <div className="space-y-2">
-          <label
-            htmlFor="email"
-            className="block font-inter text-xs font-semibold uppercase tracking-[0.05em] text-primary"
-          >
-            E-mail
-          </label>
-
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="contato@suamarca.com"
-            aria-invalid={Boolean(errors.email)}
-            className="w-full rounded-md border border-border-sandstone bg-surface-porcelain px-4 py-3 font-inter text-base text-on-surface outline-none transition-shadow placeholder:text-text-mineral focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register("email")}
-          />
-
+        <div className="form-group">
+          <label htmlFor="email">E-mail</label>
+          <div className="input-wrapper">
+            <svg className="icon-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="contato@suamarca.com"
+              aria-invalid={Boolean(errors.email)}
+              {...register("email")}
+            />
+          </div>
           {errors.email && (
-            <p
-              role="alert"
-              className="font-inter text-sm text-error"
-            >
-              {errors.email.message}
-            </p>
+            <p className="auth-form-error">{errors.email.message}</p>
           )}
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor="password"
-            className="block font-inter text-xs font-semibold uppercase tracking-[0.05em] text-primary"
-          >
-            Senha
-          </label>
-
-          <div className="relative">
+        <div className="form-group">
+          <label htmlFor="password">Senha</label>
+          <div className="input-wrapper">
+            <svg className="icon-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
             <input
               id="password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               placeholder="••••••••"
               aria-invalid={Boolean(errors.password)}
-              className="w-full rounded-md border border-border-sandstone bg-surface-porcelain py-3 pl-4 pr-20 font-inter text-base text-on-surface outline-none transition-shadow placeholder:text-text-mineral focus:border-primary focus:ring-1 focus:ring-primary"
               {...register("password")}
             />
-
             <button
               type="button"
-              onClick={() => {
-                setShowPassword((current) => !current);
-              }}
-              aria-label={
-                showPassword
-                  ? "Ocultar senha"
-                  : "Mostrar senha"
-              }
-              className="absolute inset-y-0 right-0 flex items-center px-4 font-inter text-xs font-semibold uppercase tracking-[0.05em] text-text-mineral transition-colors hover:text-primary"
+              className="btn-eye"
+              onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? "Ocultar" : "Mostrar"}
+              {showPassword ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              )}
             </button>
           </div>
-
           {errors.password && (
-            <p
-              role="alert"
-              className="font-inter text-sm text-error"
-            >
-              {errors.password.message}
-            </p>
+            <p className="auth-form-error">{errors.password.message}</p>
           )}
+          <Link to="/forgot-password" className="forgot-link">Esqueci minha senha</Link>
         </div>
-
-        <div className="pt-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border-sandstone bg-surface-container-low px-3 py-1.5">
-            <span
-              aria-hidden="true"
-              className="text-sm text-secondary"
-            >
-              ✦
-            </span>
-
-            <span className="font-inter text-xs font-semibold uppercase tracking-[0.05em] text-secondary">
-              Comunidade NŌTA
-            </span>
-          </div>
-        </div>
-
-        {serverError && (
-          <div
-            role="alert"
-            className="rounded-md border border-error bg-error-container px-4 py-3 font-inter text-sm text-error"
-          >
-            {serverError}
-          </div>
-        )}
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-8 w-full rounded-md bg-primary py-4 font-inter text-xs font-semibold uppercase tracking-[0.05em] text-surface-porcelain transition-colors hover:bg-on-primary-fixed-variant disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-submit"
         >
-          {isSubmitting
-            ? "Acessando..."
-            : "Acessar NŌTA"}
+          {isSubmitting ? "Acessando..." : "ENTRAR"}
         </button>
       </form>
-    </>
+
+      <div className="auth-divider">OU</div>
+
+      <button type="button" className="btn-google">
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
+        Continuar com Google
+      </button>
+
+
+
+      <div className="auth-footer">
+        Ainda não vende na NŌTA? <Link to="/register">Criar conta</Link>
+      </div>
+    </div>
   );
 }
