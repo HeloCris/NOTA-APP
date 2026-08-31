@@ -1,0 +1,1 @@
+export { SellerHomePage as default } from "./SellerHomePage";

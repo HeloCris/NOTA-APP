@@ -1,0 +1,175 @@
+# ============================================================
+# NŌTA APP — Django/DRF + React/Vite
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Python / Django
+# ------------------------------------------------------------
+
+# Bytecode e caches Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# SQLite local
+backend/db.sqlite3
+backend/db.sqlite3-journal
+*.sqlite3
+*.sqlite3-journal
+
+# Testes, cobertura e caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# Ferramentas de análise Python
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Logs e arquivos temporários Python/Django
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Configurações locais e segredos Django
+backend/local_settings.py
+backend/config/local_settings.py
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Arquivos estáticos e mídia gerados localmente
+backend/staticfiles/
+backend/media/
+
+
+# ------------------------------------------------------------
+# Node.js / React / Vite
+# ------------------------------------------------------------
+
+# Dependências instaladas pelo npm
+web/node_modules/
+node_modules/
+
+# Build de produção
+web/dist/
+dist/
+web/dist-ssr/
+dist-ssr/
+
+# Cache do Vite
+web/.vite/
+.vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Arquivos de ambiente do frontend
+web/.env
+web/.env.*
+!web/.env.example
+
+# Logs do Node/npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Cache e relatórios de testes JS/TS
+web/coverage/
+coverage/
+web/.vitest/
+.vitest/
+
+# Cache de ferramentas frontend
+web/.eslintcache
+.eslintcache
+web/.cache/
+.cache/
+
+
+# ------------------------------------------------------------
+# Editor / IDE
+# ------------------------------------------------------------
+
+# VS Code: ignora configurações pessoais, preserva recomendações
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains / IntelliJ / PyCharm
+.idea/
+*.iml
+
+# Visual Studio
+.vs/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+
+# ------------------------------------------------------------
+# Sistema operacional
+# ------------------------------------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+
+# ------------------------------------------------------------
+# Arquivos temporários, backups e segredos gerais
+# ------------------------------------------------------------
+
+# Arquivos temporários / editores
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.orig
+*.rej
+
+# Arquivos de ambiente na raiz ou em outros módulos
+.env
+.env.*
+!.env.example
+
+# Chaves, certificados e arquivos sensíveis
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Arquivos de relatório local
+reports/

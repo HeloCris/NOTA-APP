@@ -58,7 +58,7 @@
 <br/>
 
 <div align="center">
-<img src="documentacoes/assets/logo.png" alt="NŌTA Logo" width="350"/>
+<img src="docs/assets/logo.png" alt="NŌTA Logo" width="400"/>
 <br/><br/>
 </div>
 
@@ -196,7 +196,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="documentacoes/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
+<img src="docs/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
 
 </div>
 
