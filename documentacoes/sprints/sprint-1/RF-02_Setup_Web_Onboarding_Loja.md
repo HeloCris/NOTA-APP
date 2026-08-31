@@ -15,11 +15,11 @@ Usuário autenticado com perfil `SELLER` acessa o painel web e configura sua loj
 | ID | Descrição |
 | :--- | :--- |
 | **RF-02.1** | Setup base do frontend web (React + Vite): roteamento, layout com Sidebar fixa, Header e Axios configurado |
-| **RF-02.2** | Model `Store` no Django: `OneToOneField(User)`, campos `cnpj`, `name`, `bio`, `logo_url`, `is_active`, migrations SQLite |
-| **RF-02.3** | `POST /api/v1/stores/` — cria loja vinculada ao usuário logado |
+| **RF-02.2** | Model `Store` no Django: `OneToOneField(User)`, campos `cnpj`, `name`, `bio`, `logo_url`, `cover_url`, `is_active`, `vacation_mode`, migrations SQLite |
+| **RF-02.3** | `POST /api/v1/stores/` — cria loja vinculada ao usuário logado (suporta `multipart/form-data` para envio de imagens) |
 | **RF-02.4** | `GET /api/v1/stores/me/` — retorna dados da loja do usuário autenticado |
-| **RF-02.5** | `PATCH /api/v1/stores/me/` — atualização parcial de dados e bio olfativa |
-| **RF-02.6** | Formulário de onboarding com validação de CNPJ (formato e unicidade) e toast de sucesso |
+| **RF-02.5** | `PATCH /api/v1/stores/me/` — atualização parcial de dados, bio olfativa, logo e capa (suporta `multipart/form-data`) |
+| **RF-02.6** | Formulário de onboarding com validação matemática de CNPJ e formato via `zod`, unicidade via API e toast de sucesso |
 | **RF-02.7** | Permission class `IsStoreOwner` garantindo que o lojista só acesse/edite sua própria loja |
 
 > [!IMPORTANT]
@@ -40,9 +40,9 @@ Usuário autenticado com perfil `SELLER` acessa o painel web e configura sua loj
 
 ## Testes (TDD)
 
-**Backend** (`apps/stores/tests/test_stores.py`): criação de loja `201`, CNPJ duplicado `400`, criação por usuário não-seller `403`, acesso de Seller A à loja de Seller B `403/404`.
+**Backend** (`apps/stores/tests/test_stores.py`): criação de loja `201`, CNPJ duplicado `400`, criação por usuário não-seller `403`, acesso de Seller A à loja de Seller B `403/404`. Validação de atualização parcial via `PATCH` permitindo apenas campos autorizados.
 
-**Frontend** (`StoreProfileForm.test.tsx`): renderização dos campos, submissão válida chama serviço com payload correto, toast de sucesso exibido.
+**Frontend** (`StoreProfileForm.test.tsx`): renderização dos campos, submissão válida chama serviço com payload correto (incluindo tratamento de arquivos), toast de sucesso exibido. Validação de erro de CNPJ inválido barrado pelo `zod`.
 
 ---
 
@@ -55,7 +55,9 @@ Usuário autenticado com perfil `SELLER` acessa o painel web e configura sua loj
   - Upload de Logo e Capa.
   - Campos: Nome Fantasia, Razão Social, CNPJ, Telefone.
   - Textarea: "Bio Olfativa da Loja".
+  - **Toggle (Chave): "Modo Férias"** (deixa a vitrine visível mas desativa novas compras).
   - Botão **"Salvar Perfil da Loja"** (destaque âmbar `#C5A880`).
+  - Se a loja estiver **Desativada** (`is_active: false`), os campos ficam cinzas (somente leitura), e na Zona de Perigo exibe-se um botão verde **"Reativar Loja"** em vez do botão vermelho de desativação.
 
 ---
 

@@ -3,6 +3,8 @@ import { useLocation } from "react-router-dom";
 import { AuthLayout } from "../components/auth/AuthLayout";
 import { LoginForm } from "../components/auth/LoginForm";
 import { RegisterForm } from "../components/auth/RegisterForm";
+import "./WelcomePage.css";
+import "./AuthPage.css";
 
 export function AuthPage() {
   const location = useLocation();
@@ -11,12 +13,14 @@ export function AuthPage() {
     location.pathname === "/register";
 
   return (
-    <AuthLayout>
-      {isRegisterPage ? (
-        <RegisterForm />
-      ) : (
-        <LoginForm />
-      )}
-    </AuthLayout>
+    <div className="welcome-wrapper auth-wrapper">
+      <AuthLayout>
+        {isRegisterPage ? (
+          <RegisterForm />
+        ) : (
+          <LoginForm />
+        )}
+      </AuthLayout>
+    </div>
   );
 }

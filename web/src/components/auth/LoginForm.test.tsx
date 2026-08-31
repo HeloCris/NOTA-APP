@@ -46,7 +46,7 @@ describe("LoginForm", () => {
 
     expect(
       screen.getByRole("button", {
-        name: /acessar nōta/i,
+        name: /entrar/i,
       }),
     ).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe("LoginForm", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: /acessar nōta/i,
+        name: /entrar/i,
       }),
     );
 
@@ -103,7 +103,7 @@ describe("LoginForm", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: /acessar nōta/i,
+        name: /entrar/i,
       }),
     );
 

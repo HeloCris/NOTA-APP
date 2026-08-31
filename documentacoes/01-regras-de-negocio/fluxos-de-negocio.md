@@ -12,6 +12,13 @@ Este fluxo descreve os passos desde o interesse de um lojista até a sua ativaç
     *   **Rejeitado:** O Admin rejeita, podendo informar o motivo (ex: documento inválido). O lojista é notificado e pode reenviar.
 5.  **Configuração Inicial:** O lojista acessa o painel, configura frete, meios de pagamento (se aplicável por loja) e começa a gerenciar seu catálogo.
 
+### 1.1 Estados da Loja (Visibilidade e Funcionalidade)
+
+Após aprovada, a loja pode transitar pelos seguintes estados, controlados pelo próprio lojista no painel de configurações:
+*   **Loja Ativa:** Fluxo normal. A loja aparece nas buscas, seu catálogo é público e os clientes podem adicionar produtos ao carrinho e fechar pedidos.
+*   **Modo Férias (`vacation_mode = True`):** A loja continua visível na plataforma e seu catálogo pode ser navegado pelos clientes (mantendo SEO e engajamento), mas o botão de "Comprar" ou adicionar ao carrinho fica desabilitado com um aviso de que o lojista está temporariamente ausente.
+*   **Loja Desativada (`is_active = False`):** A loja é totalmente ocultada da plataforma pública. Seus produtos não aparecem nas buscas e sua página fica offline (404). Novos pedidos não podem ser feitos. O lojista não consegue alterar configurações do perfil até que clique expressamente em "Reativar Loja" na zona de perigo. Pedidos em andamento devem ser finalizados normalmente.
+
 ## 2. Fluxo do Catálogo
 
 O sistema utiliza um modelo de **Catálogo Global**, onde o produto base é único na plataforma, evitando duplicidade e melhorando a busca olfativa.

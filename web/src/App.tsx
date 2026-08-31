@@ -10,9 +10,9 @@ import {
 
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
+const WelcomePage = lazy(() => import("./pages/WelcomePage.lazy"));
 const AuthPage = lazy(() => import("./pages/AuthPage.lazy"));
 const AdminHomePage = lazy(() => import("./pages/AdminHomePage.lazy"));
-const CustomerHomePage = lazy(() => import("./pages/CustomerHomePage.lazy"));
 const SellerHomePage = lazy(() => import("./pages/SellerHomePage.lazy"));
 
 export default function App() {
@@ -27,12 +27,7 @@ export default function App() {
       <Routes>
         <Route
           path="/"
-          element={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
+          element={<WelcomePage />}
         />
 
         <Route
@@ -57,17 +52,8 @@ export default function App() {
         <Route
           path="/seller"
           element={
-            <ProtectedRoute allowedRoles={["SELLER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
               <SellerHomePage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/customer"
-          element={
-            <ProtectedRoute allowedRoles={["CUSTOMER"]}>
-              <CustomerHomePage />
             </ProtectedRoute>
           }
         />
