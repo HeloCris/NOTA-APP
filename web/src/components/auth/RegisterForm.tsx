@@ -8,6 +8,14 @@ import { z } from "zod";
 import { useAuth } from "../../contexts/useAuth";
 import type { RegisterPayload } from "../../types/auth";
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+  }
+  return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
+}
+
 const registerSchema = z.object({
   first_name: z
     .string()
@@ -20,12 +28,13 @@ const registerSchema = z.object({
   phone: z
     .string()
     .trim()
-    .min(1, "Informe seu telefone."),
+    .min(1, "Informe seu telefone.")
+    .regex(/^\(\d{2}\) \d{4,5}-\d{4}$/, "Telefone inv\u00E1lido."),
   email: z
     .string()
     .trim()
     .min(1, "Informe seu e-mail.")
-    .email("Informe um e-mail válido."),
+    .email("Informe um e-mail v\u00E1lido."),
   password: z
     .string()
     .min(
@@ -43,7 +52,7 @@ function getRegisterErrorMessage(error: unknown) {
   return (
     axiosError.response?.data?.email?.[0] ??
     axiosError.response?.data?.detail ??
-    "Não foi possível criar sua conta. Tente novamente."
+    "N\u00E3o foi poss\u00EDvel criar sua conta. Tente novamente."
   );
 }
 
@@ -80,7 +89,7 @@ export function RegisterForm() {
         replace: true,
         state: {
           successMessage:
-            "Conta criada com sucesso. Faça login para continuar.",
+            "Conta criada com sucesso. Fa\u00E7a login para continuar.",
         },
       });
     } catch (error) {
@@ -91,7 +100,7 @@ export function RegisterForm() {
   return (
     <>
       <nav
-        aria-label="Navegação de autenticação"
+        aria-label="Navega\u00E7\u00E3o de autentica\u00E7\u00E3o"
         className="mb-10 flex gap-6 border-b border-border-sandstone pb-4"
       >
         <Link
@@ -112,8 +121,8 @@ export function RegisterForm() {
         </h1>
 
         <p className="font-inter text-sm leading-5 text-text-mineral">
-          Cadastre-se para começar a explorar o universo
-          NŌTA.
+          Cadastre-se para come\u00E7ar a explorar o universo
+          N\u00D4TA.
         </p>
       </header>
 
@@ -134,7 +143,7 @@ export function RegisterForm() {
             id="first_name"
             type="text"
             autoComplete="given-name"
-            placeholder="João"
+            placeholder="Jose"
             aria-invalid={Boolean(errors.first_name)}
             className="w-full rounded-md border border-border-sandstone bg-surface-porcelain px-4 py-3 font-inter text-base text-on-surface outline-none transition-shadow placeholder:text-text-mineral focus:border-primary focus:ring-1 focus:ring-primary"
             {...register("first_name")}
@@ -190,10 +199,14 @@ export function RegisterForm() {
             id="phone"
             type="tel"
             autoComplete="tel"
-            placeholder="11999990000"
+            placeholder="(99) 99999-9999"
             aria-invalid={Boolean(errors.phone)}
             className="w-full rounded-md border border-border-sandstone bg-surface-porcelain px-4 py-3 font-inter text-base text-on-surface outline-none transition-shadow placeholder:text-text-mineral focus:border-primary focus:ring-1 focus:ring-primary"
-            {...register("phone")}
+            {...register("phone", {
+              onChange: (e) => {
+                e.target.value = formatPhone(e.target.value);
+              },
+            })}
           />
 
           {errors.phone && (
@@ -247,7 +260,7 @@ export function RegisterForm() {
               id="password"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              placeholder="Mínimo de 8 caracteres"
+              placeholder="Minimo de 8 caracteres"
               aria-invalid={Boolean(errors.password)}
               className="w-full rounded-md border border-border-sandstone bg-surface-porcelain py-3 pl-4 pr-20 font-inter text-base text-on-surface outline-none transition-shadow placeholder:text-text-mineral focus:border-primary focus:ring-1 focus:ring-primary"
               {...register("password")}

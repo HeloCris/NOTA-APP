@@ -50,12 +50,21 @@ export function ProtectedRoute({
     allowedRoles &&
     !allowedRoles.includes(user.role)
   ) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    // Redireciona para o dashboard correto conforme a role
+    if (user.role === "CUSTOMER") {
+      return <Navigate to="/customer" replace />;
+    }
+
+    if (user.role === "SELLER") {
+      return <Navigate to="/seller" replace />;
+    }
+
+    if (user.role === "ADMIN") {
+      return <Navigate to="/admin" replace />;
+    }
+
+    // Fallback genérico
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

@@ -47,6 +47,20 @@ function saveTokens(tokens: AuthTokens) {
   );
 }
 
+function loadCurrentUserFromStorage(): Partial<AuthenticatedUser> | null {
+  const storedUser = localStorage.getItem("user");
+
+  if (!storedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(storedUser);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({
   children,
 }: AuthProviderProps) {
@@ -61,6 +75,7 @@ export function AuthProvider({
 
   const logout = useCallback(() => {
     clearStoredTokens();
+    localStorage.removeItem("user");
     setAccessToken(null);
     setUser(null);
   }, []);
@@ -84,8 +99,11 @@ export function AuthProvider({
         );
 
       setUser(response.data);
-      setAccessToken(
-        localStorage.getItem(ACCESS_TOKEN_KEY),
+      setAccessToken(storedAccessToken);
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(response.data),
       );
 
       return response.data;
@@ -102,6 +120,11 @@ export function AuthProvider({
 
   useEffect(() => {
     async function initializeSession() {
+      const stored = loadCurrentUserFromStorage();
+      if (stored) {
+        setUser(stored as AuthenticatedUser);
+      }
+
       await loadCurrentUser();
       setIsLoading(false);
     }
@@ -127,6 +150,11 @@ export function AuthProvider({
         );
 
       setUser(userResponse.data);
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(userResponse.data),
+      );
 
       return userResponse.data;
     },
