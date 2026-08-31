@@ -1,5 +1,5 @@
-from django.conf import settings
-from django.db import models
+from django.conf import settings  # type: ignore
+from django.db import models  # type: ignore
 
 
 class Store(models.Model):
@@ -47,10 +47,16 @@ class Store(models.Model):
         verbose_name="Bio Olfativa",
     )
 
-    logo_url = models.URLField(
+    logo_url = models.TextField(
         blank=True,
         default="",
         verbose_name="URL da Logo",
+    )
+
+    cover_url = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="URL da Capa",
     )
 
     is_active = models.BooleanField(
@@ -58,8 +64,15 @@ class Store(models.Model):
         verbose_name="Loja Ativa",
     )
 
+    vacation_mode = models.BooleanField(
+        default=False,
+        verbose_name="Modo Férias",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = models.Manager()
 
     class Meta:
         db_table = "stores"

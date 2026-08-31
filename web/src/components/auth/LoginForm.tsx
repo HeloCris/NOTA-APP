@@ -26,11 +26,7 @@ function getRedirectPath(role: UserRole) {
     return "/admin";
   }
 
-  if (role === "SELLER") {
-    return "/seller";
-  }
-
-  return "/customer";
+  return "/seller";
 }
 
 function getLoginErrorMessage(error: unknown) {

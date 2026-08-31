@@ -1,6 +1,11 @@
 import { useState } from "react";
+import type { Store } from "../../types/store";
 
-export function CatalogTab() {
+interface CatalogTabProps {
+    store: Store | null;
+}
+
+export function CatalogTab({ store }: CatalogTabProps) {
     const [items, setItems] = useState([
         { id: 1, icon: "#bt-libre", name: "Libre", brand: "Yves Saint Laurent", spec: "EDP · 50ml", price: "R$ 620,00", qty: 2, active: true, low: false },
         { id: 2, icon: "#bt-baccarat", name: "Baccarat Rouge 540", brand: "Maison Francis Kurkdjian", spec: "EDP · 70ml", price: "R$ 1.890,00", qty: 14, active: true, low: false },
@@ -18,11 +23,22 @@ export function CatalogTab() {
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
-                <div>
-                    <h1 className="text-[27px] font-extrabold text-[#263847] mb-1 tracking-[-0.01em] font-jakarta">Meus Perfumes</h1>
-                    <p className="text-[13px] text-[#5A6067] m-0">18 perfumes cadastrados · 2 com estoque baixo</p>
-                </div>
+            {!store?.is_active && (
+                <div className="mb-6 bg-[#FEF0EB] border border-[#F5C9B3] rounded-[16px] p-[20px_24px] flex items-start gap-4">
+                     <svg className="w-6 h-6 text-[#A24726] flex-shrink-0 mt-0.5"><use href="#ic-warning" /></svg>
+                     <div>
+                         <h3 className="text-[#7E4228] font-bold text-[15px] m-0 mb-1">Sua loja está inativa</h3>
+                         <p className="text-[#A24726] text-[13px] m-0">Sua vitrine não está visível para os clientes e novos pedidos não podem ser feitos. Reative sua loja na aba Configurações.</p>
+                     </div>
+                 </div>
+            )}
+
+            <div className={!store?.is_active ? "pointer-events-none opacity-60 grayscale-[0.2]" : ""}>
+                <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
+                    <div>
+                        <h1 className="text-[27px] font-extrabold text-[#263847] mb-1 tracking-[-0.01em] font-jakarta">Meus Perfumes</h1>
+                        <p className="text-[13px] text-[#5A6067] m-0">18 perfumes cadastrados · 2 com estoque baixo</p>
+                    </div>
                 <div className="flex gap-2.5">
                     <button className="font-jakarta font-bold text-[13px] rounded-full px-5 py-[11px] inline-flex items-center gap-2 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors">
                         <svg className="w-[15px] h-[15px]"><use href="#ic-plus" /></svg> Adicionar Perfume
@@ -107,6 +123,7 @@ export function CatalogTab() {
                         <button className="w-[26px] h-[26px] rounded-md border border-[#354B5E] bg-[#354B5E] text-[11.5px] font-bold text-white flex items-center justify-center">1</button>
                         <button className="w-[26px] h-[26px] rounded-md border border-[#E6E1D2] bg-white text-[11.5px] font-bold text-[#5A6067] flex items-center justify-center hover:border-[#23282D] hover:text-[#23282D]">2</button>
                         <button className="w-[26px] h-[26px] rounded-md border border-[#E6E1D2] bg-white text-[11.5px] font-bold text-[#5A6067] flex items-center justify-center hover:border-[#23282D] hover:text-[#23282D]">3</button>
+                    </div>
                     </div>
                 </div>
             </div>

@@ -1,7 +1,9 @@
 {
   "pythonVersion": "3.13",
   "pythonPlatform": "Windows",
-  "extraPaths": ["."],
-  "venvPath": ".",
-  "reportMissingModuleSource": "none"
+  "extraPaths": [".", "apps", "apps/stores", "apps/users", "apps/core"],
+  "reportMissingModuleSource": "none",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none",
+  "plugins": ["django-stubs"]
 }

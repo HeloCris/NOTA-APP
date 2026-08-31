@@ -13,7 +13,7 @@ class StorePublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Store
-        fields = ["id", "name", "logo_url", "is_active"]
+        fields = ["id", "name", "logo_url", "cover_url", "is_active", "vacation_mode"]
 
 
 class StoreOwnerSerializer(serializers.ModelSerializer):
@@ -22,6 +22,10 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
     Usado em GET /stores/me/ e PATCH /stores/me/.
     Inclui validação de formato e unicidade de CNPJ.
     """
+
+    # max_length=18 aceita tanto dígitos puros quanto formato com máscara
+    # (ex: "12.345.678/0001-99"). O validate_cnpj sanitiza antes de persistir.
+    cnpj = serializers.CharField(max_length=18)
 
     class Meta:
         model = Store
@@ -33,7 +37,9 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             "phone",
             "bio",
             "logo_url",
+            "cover_url",
             "is_active",
+            "vacation_mode",
             "created_at",
             "updated_at",
         ]

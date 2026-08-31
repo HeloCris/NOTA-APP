@@ -1,1 +1,0 @@
-export { CustomerHomePage as default } from "./CustomerHomePage";
