@@ -150,13 +150,13 @@ def test_cnpj_invalid_format_returns_400(api_client, seller_a):
 
 
 @pytest.mark.django_db
-def test_customer_cannot_access_store_me_returns_403(api_client, customer):
-    """CUSTOMER não deve acessar /stores/me/ — retorna 403."""
+def test_customer_access_store_me_returns_404_if_no_store(api_client, customer):
+    """CUSTOMER agora pode acessar /stores/me/ (para criar loja), mas se não tiver, retorna 404."""
     api_client.force_authenticate(user=customer)
 
     response = api_client.get("/api/v1/stores/me/")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 @pytest.mark.django_db
