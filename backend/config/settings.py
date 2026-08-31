@@ -138,6 +138,9 @@ SIMPLE_JWT = {
     "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
+    "TOKEN_OBTAIN_SERIALIZER": (
+        "apps.users.token_serializer.CustomTokenObtainPairSerializer"
+    ),
 }
 
 CORS_ALLOWED_ORIGINS = [

@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound
 
+# pyrefly: ignore [missing-import]
 from apps.core.permissions import IsStoreOwner
 
 from .models import Store
