@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { OlfactoryPyramidModal } from "./OlfactoryPyramidModal";
+import { ProductAutocomplete } from "./ProductAutocomplete";
 import type { Store } from "../../types/store";
+import type { Product } from "../../types/catalog";
 
 interface CatalogTabProps {
     store: Store | null;
 }
 
 export function CatalogTab({ store }: CatalogTabProps) {
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [items, setItems] = useState([
         { id: 1, icon: "#bt-libre", name: "Libre", brand: "Yves Saint Laurent", spec: "EDP · 50ml", price: "R$ 620,00", qty: 2, active: true, low: false },
         { id: 2, icon: "#bt-baccarat", name: "Baccarat Rouge 540", brand: "Maison Francis Kurkdjian", spec: "EDP · 70ml", price: "R$ 1.890,00", qty: 14, active: true, low: false },
@@ -46,12 +50,9 @@ export function CatalogTab({ store }: CatalogTabProps) {
                 </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3.5 flex-wrap mb-5">
+                <div className="flex items-center justify-between gap-3.5 flex-wrap mb-5">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                    <div className="flex items-center gap-2 bg-white border border-[#E6E1D2] rounded-xl px-3.5 py-[9px] min-w-[220px]">
-                        <svg className="w-[15px] h-[15px] text-[#93927F]"><use href="#ic-search" /></svg>
-                        <input type="text" placeholder="Buscar por nome ou marca..." className="border-none outline-none bg-transparent text-[12.5px] w-full" />
-                    </div>
+                    <ProductAutocomplete onSelect={setSelectedProduct} />
                     <select className="appearance-none font-inter text-[12.5px] font-semibold text-[#5A6067] bg-white border border-[#E6E1D2] rounded-xl py-[9px] pl-[13px] pr-[30px] cursor-pointer outline-none focus:border-[#354B5E]" style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393927F' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '13px' }}>
                         <option>Concentração</option><option>EDP</option><option>EDT</option><option>Decant</option>
                     </select>
@@ -127,6 +128,7 @@ export function CatalogTab({ store }: CatalogTabProps) {
                     </div>
                 </div>
             </div>
+            {selectedProduct ? <OlfactoryPyramidModal onClose={() => setSelectedProduct(null)} product={selectedProduct} /> : null}
         </div>
     );
 }
