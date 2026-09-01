@@ -3,6 +3,7 @@ import type { Product } from "../../types/catalog";
 interface OlfactoryPyramidModalProps {
   product: Product;
   onClose: () => void;
+  onAddToStock?: (product: Product) => void;
 }
 
 interface NoteLayerProps {
@@ -32,6 +33,7 @@ function NoteLayer({ label, notes, className }: NoteLayerProps) {
 export function OlfactoryPyramidModal({
   product,
   onClose,
+  onAddToStock,
 }: OlfactoryPyramidModalProps) {
   return (
     <div
@@ -87,6 +89,7 @@ export function OlfactoryPyramidModal({
         <footer className="flex justify-end border-t border-[#E6E1D2] p-4">
           <button
             className="rounded-md bg-[#354B5E] px-4 py-2.5 font-jakarta text-sm font-bold text-white hover:bg-[#263847]"
+            onClick={() => onAddToStock?.(product)}
             type="button"
           >
             Adicionar ao Meu Estoque

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { catalogService } from "../../services/catalogService";
 import type { Product } from "../../types/catalog";
 import { OlfactoryPyramidModal } from "./OlfactoryPyramidModal";
-import { ProductAutocomplete } from "./ProductAutocomplete";
+import { ProductAutoComplete } from "./ProductAutoComplete";
 
 vi.mock("../../services/catalogService", () => ({
   catalogService: {
@@ -32,7 +32,7 @@ function CatalogSearch() {
 
   return (
     <>
-      <ProductAutocomplete onSelect={setSelectedProduct} />
+      <ProductAutoComplete onSelect={setSelectedProduct} />
       {selectedProduct ? (
         <OlfactoryPyramidModal
           onClose={() => setSelectedProduct(null)}
@@ -43,7 +43,7 @@ function CatalogSearch() {
   );
 }
 
-describe("ProductAutocomplete", () => {
+describe("ProductAutoComplete", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     searchProducts.mockReset();
@@ -54,7 +54,7 @@ describe("ProductAutocomplete", () => {
   });
 
   it("renderiza o campo de busca do catálogo", () => {
-    render(<ProductAutocomplete onSelect={vi.fn()} />);
+    render(<ProductAutoComplete onSelect={vi.fn()} />);
 
     expect(
       screen.getByRole("searchbox", { name: /buscar no catálogo oficial/i }),
@@ -63,7 +63,7 @@ describe("ProductAutocomplete", () => {
 
   it("busca após o debounce de 300 ms e exibe os resultados do mock", async () => {
     searchProducts.mockResolvedValueOnce([product]);
-    render(<ProductAutocomplete onSelect={vi.fn()} />);
+    render(<ProductAutoComplete onSelect={vi.fn()} />);
 
     fireEvent.change(
       screen.getByRole("searchbox", { name: /buscar no catálogo oficial/i }),
