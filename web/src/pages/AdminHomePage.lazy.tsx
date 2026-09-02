@@ -1,0 +1,1 @@
+export { AdminHomePage as default } from "./AdminHomePage";
