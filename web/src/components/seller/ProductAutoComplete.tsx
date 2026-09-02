@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { catalogService } from "../../services/catalogService";
 import type { Product } from "../../types/catalog";
 
-interface ProductAutocompleteProps {
+interface ProductAutoCompleteProps {
   onSelect: (product: Product) => void;
 }
 
-export function ProductAutocomplete({ onSelect }: ProductAutocompleteProps) {
+export function ProductAutoComplete({ onSelect }: ProductAutoCompleteProps) {
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);

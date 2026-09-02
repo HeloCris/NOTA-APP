@@ -42,7 +42,7 @@ Base centralizada de marcas e perfumes com pirâmide olfativa completa (Notas de
 
 **Backend** (`apps/catalog/tests/test_catalog.py`): seed popula corretamente, listagem `200` com notas presentes, filtro por nome retorna apenas resultados correspondentes, filtro por família retorna subset correto, `POST` sem auth → `401`.
 
-**Frontend** (`ProductAutocomplete.test.tsx`): renderização do input, digitação dispara busca (mock), resultados exibidos, clique em item abre modal com as 3 camadas olfativas.
+**Frontend** (`ProductAutoComplete.test.tsx`): renderização do input, digitação dispara busca (mock), resultados exibidos, clique em item abre modal com as 3 camadas olfativas.
 
 ---
 
@@ -64,7 +64,7 @@ Base centralizada de marcas e perfumes com pirâmide olfativa completa (Notas de
 
 **Backend:** `apps/catalog/models.py`, `serializers.py`, `views.py`, `urls.py`, `tests/test_catalog.py` — **[NOVO]**. `apps/catalog/management/commands/seed_catalog.py` — **[NOVO]**.
 
-**Frontend:** `src/features/catalog/ProductAutocomplete.tsx`, `src/features/catalog/OlfactoryPyramidModal.tsx`, `src/services/catalogService.ts` — **[NOVO]**.
+**Frontend:** `src/features/catalog/ProductAutoComplete.tsx`, `src/features/catalog/OlfactoryPyramidModal.tsx`, `src/services/catalogService.ts` — **[NOVO]**.
 
 ---
 

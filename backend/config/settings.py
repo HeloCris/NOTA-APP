@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Carrega variáveis de ambiente do arquivo .env
 load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-me-in-production")
@@ -31,6 +30,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.stores",
     "apps.catalog",
+    "apps.inventory",
 ]
 
 MIDDLEWARE = [
