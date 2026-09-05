@@ -58,7 +58,7 @@
 <br/>
 
 <div align="center">
-<img src="docs/assets/logo.png" alt="NŌTA Logo" width="400"/>
+<img src="documentacoes/assets/logo.png" alt="NŌTA Logo" width="400"/>
 <br/><br/>
 </div>
 
@@ -148,7 +148,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
     <td align="center">
       <a href="https://github.com/HeloCris">
         <img src="https://github.com/HeloCris.png" width="80" style="border-radius:50%"/><br/>
-        <sub><b>Helorrayne Cristine</b></sub>
+        <sub><b>Helorrayne Cristine de Alcantara Rodrigues</b></sub>
       </a>
     </td>
     <td align="center">
@@ -160,19 +160,19 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
     <td align="center">
       <a href="https://github.com/luc4sm0ur4">
         <img src="https://github.com/luc4sm0ur4.png" width="80" style="border-radius:50%"/><br/>
-        <sub><b>Lucas Moura</b></sub>
+        <sub><b>Lucas Carvalho da Luz Moura</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/iohanan-cephas">
         <img src="https://github.com/iohanan-cephas.png" width="80" style="border-radius:50%"/><br/>
-        <sub><b>João Pedro O. Barbosa</b></sub>
+        <sub><b>João Pedro Oliveira Barbosa</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/nhangamona">
         <img src="https://github.com/nhangamona.png" width="80" style="border-radius:50%"/><br/>
-        <sub><b>Mona</b></sub>
+        <sub><b>Laurinda Nhanga Mona</b></sub>
       </a>
     </td>
   </tr>
@@ -196,7 +196,7 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="docs/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
+<img src="documentacoes/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
 
 </div>
 
