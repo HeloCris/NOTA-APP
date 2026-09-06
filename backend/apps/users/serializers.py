@@ -25,6 +25,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
+            "olfactory_families",
+            "preferred_notes",
         ]
 
     def validate_email(self, value):
@@ -68,6 +70,8 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "role",
             "store_id",
+            "olfactory_families",
+            "preferred_notes",
         ]
         read_only_fields = fields
 
@@ -120,3 +124,29 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                     "detail": "Credenciais inválidas.",
                 }
             )
+
+
+class OlfactoryProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            "olfactory_families",
+            "preferred_notes"
+        ]
+
+    def validate_olfactory_families(self, value):
+        valid_families = [
+            "Amadeirado",
+            "Cítrico",
+            "Oriental",
+            "Floral",
+            "Fougère",
+            "Aquático",
+            "Gourmand"
+        ]
+        
+        for family in value:
+            if family not in valid_families:
+                raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
+                
+        return value

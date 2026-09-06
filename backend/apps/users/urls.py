@@ -5,6 +5,8 @@ from .views import (
     CustomTokenObtainPairView,
     MeView,
     RegisterView,
+    GoogleAuthView,
+    OlfactoryProfileView,
 )
 
 
@@ -30,5 +32,15 @@ urlpatterns = [
         "me/",
         MeView.as_view(),
         name="me",
+    ),
+    path(
+        "google/",
+        GoogleAuthView.as_view(),
+        name="google_auth",
+    ),
+    path(
+        "me/olfactory-profile/",
+        OlfactoryProfileView.as_view(),
+        name="olfactory_profile",
     ),
 ]
