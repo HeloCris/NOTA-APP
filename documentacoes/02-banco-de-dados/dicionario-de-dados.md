@@ -8,7 +8,7 @@ Especificação das principais tabelas e campos do banco de dados. Os tipos de d
 | `id` | `BigAutoField` (INTEGER) | Não | PK | Identificador único, auto-incrementado |
 | `email` | `EmailField` (TEXT) | Não | Única | E-mail de acesso |
 | `password` | `CharField` (TEXT) | Não | - | Senha em hash (bcrypt via Django) |
-| `role` | `CharField(max_length=10)` (TEXT) | Não | - | Papel: ADMIN, SELLER, CUSTOMER |
+| `role` | `CharField(max_length=15)` (TEXT) | Não | - | Papel: `ADMIN`, `SELLER`, `CUSTOMER`, `BRAND_OWNER` |
 | `first_name` | `CharField(max_length=150)` (TEXT) | Sim | - | Nome |
 | `last_name` | `CharField(max_length=150)` (TEXT) | Sim | - | Sobrenome |
 | `phone` | `CharField(max_length=20)` (TEXT) | Sim | - | Telefone de contato |
@@ -28,6 +28,12 @@ Especificação das principais tabelas e campos do banco de dados. Os tipos de d
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `BigAutoField` (INTEGER) | Não | PK | Identificador da Marca |
 | `name` | `CharField(max_length=255)` (TEXT) | Não | Única | Nome da Marca (Ex: Dior) |
+| `owner_id` | `BigIntegerField` (INTEGER) | Sim | FK(User) | `BRAND_OWNER` responsável pela marca; `null` para marcas do catálogo base |
+| `cnpj` | `CharField(max_length=14)` (TEXT) | Sim | Única | CNPJ da marca (só dígitos); obrigatório no Brand Onboarding |
+| `inpi_registration` | `CharField(max_length=50)` (TEXT) | Sim | - | Número de registro no INPI; obrigatório no Brand Onboarding |
+| `status` | `CharField(max_length=10)` (TEXT) | Não | - | `PENDING`, `APPROVED`, `REJECTED` |
+| `is_official` | `BooleanField` (INTEGER 0/1) | Não | - | Se `True`, exibe selo "Marca Oficial" na plataforma |
+| `d2c_store_id` | `BigIntegerField` (INTEGER) | Sim | FK(Store) | Loja Oficial gerada ao ativar o modelo D2C; `null` se D2C inativo |
 
 ## Tabela: `Product` (Catálogo Global)
 | Nome | Tipo Django ORM (SQLite nativo) | Nullable | Chave | Descrição |
@@ -35,12 +41,15 @@ Especificação das principais tabelas e campos do banco de dados. Os tipos de d
 | `id` | `BigAutoField` (INTEGER) | Não | PK | Identificador do Produto |
 | `brand_id` | `BigIntegerField` (INTEGER) | Não | FK(Brand) | Marca do perfume |
 | `name` | `CharField(max_length=255)` (TEXT) | Não | - | Nome do Perfume |
+| `ean` | `CharField(max_length=13)` (TEXT) | Não | Única | Código EAN-13 (GTIN/Código de Barras); obrigatório |
+| `anvisa_code` | `CharField(max_length=30)` (TEXT) | Não | Única | Número de Processo da Anvisa; obrigatório |
 | `description` | `TextField` (TEXT) | Sim | - | Descrição rica |
-| `olfactory_family` | `CharField(max_length=100)` (TEXT) | Sim | - | Família (Amadeirado, Cítrico, etc) |
-| `top_notes` | `JSONField` (TEXT — JSON Array) | Sim | - | Notas de Saída (Cabeça). Ex: `["Bergamota", "Limão"]` |
-| `heart_notes` | `JSONField` (TEXT — JSON Array) | Sim | - | Notas de Corpo (Coração). Ex: `["Jasmim", "Rosa"]` |
-| `base_notes` | `JSONField` (TEXT — JSON Array) | Sim | - | Notas de Fundo (Base). Ex: `["Baunilha", "Patchouli"]` |
+| `olfactory_family` | `CharField(max_length=100)` (TEXT) | Não | - | Família (Amadeirado, Cítrico, etc) |
+| `top_notes` | `JSONField` (TEXT — JSON Array) | Não | - | Notas de Saída (Cabeça). Ex: `["Bergamota", "Limão"]` |
+| `heart_notes` | `JSONField` (TEXT — JSON Array) | Não | - | Notas de Corpo (Coração). Ex: `["Jasmim", "Rosa"]` |
+| `base_notes` | `JSONField` (TEXT — JSON Array) | Não | - | Notas de Fundo (Base). Ex: `["Baunilha", "Patchouli"]` |
 | `image_url` | `URLField` (TEXT) | Sim | - | Foto oficial do produto |
+| `is_approved` | `BooleanField` (INTEGER 0/1) | Não | - | Aprovado pelo Admin ou `BRAND_OWNER` da marca. Somente aprovados aparecem na vitrine |
 
 ## Tabela: `StoreProduct` (Estoque/Catálogo da Loja)
 | Nome | Tipo Django ORM (SQLite nativo) | Nullable | Chave | Descrição |

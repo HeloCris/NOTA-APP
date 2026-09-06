@@ -28,10 +28,13 @@ O sistema utiliza um modelo de **Catálogo Global**, onde o produto base é úni
     *   O sistema retorna o produto do catálogo global.
     *   O lojista clica em "Adicionar ao meu estoque".
     *   O lojista define seu preço de venda e quantidade em estoque (`StoreProduct`).
-2.  **Novo Cadastro (Solicitação):**
+2.  **Novo Cadastro (Solicitação do Lojista):**
     *   O lojista não encontra o perfume no catálogo global.
     *   Ele preenche um formulário de solicitação de novo produto, incluindo: Nome, Marca, Foto, Descrição, e a **Pirâmide Olfativa** (Notas de Saída, Notas de Corpo, Notas de Fundo), e Família Olfativa.
     *   O Admin Plataforma revisa a solicitação. Se correta, adiciona ao Catálogo Global (`Product`), tornando-o disponível para o lojista solicitante e para todos os outros no futuro.
+3.  **Cadastro Direto pelo BRAND_OWNER:**
+    *   O dono de marca (`BRAND_OWNER`) acessa o **Brand Hub** e cadastra novos perfumes diretamente, com validação obrigatória de `ean`, `anvisa_code` e pirâmide olfativa completa.
+    *   O produto é adicionado ao catálogo global com `is_approved=True` automaticamente para marcas com status `APPROVED`.
 
 ## 3. Fluxo do Pedido
 
@@ -42,3 +45,17 @@ Acompanhamento do ciclo de vida de uma compra no marketplace.
 3.  **Em Separação:** O lojista inicia a preparação do pacote.
 4.  **Enviado:** O lojista emite a nota fiscal, gera a etiqueta de frete, despacha o produto e insere o código de rastreio no painel. O status muda para **Enviado**. O Cliente é notificado no App.
 5.  **Entregue:** A transportadora confirma a entrega ou o lojista altera manualmente. Status final: **Entregue**.
+
+## 4. Fluxo de Brand Onboarding e Ativação D2C
+
+Fluxo exclusivo para marcas que desejam ter presença oficial e/ou vendas diretas (D2C) na plataforma.
+
+1.  **Solicitação de Marca:** O representante da marca preenche o formulário de Brand Onboarding informando: Nome da Marca, CNPJ, Número de Registro no INPI e documentos comprobatórios. O status da marca fica `PENDING`.
+2.  **Aprovação pelo Admin:** O Admin Plataforma valida os documentos.
+    *   **Aprovado:** Status muda para `APPROVED`, `is_official=True`. O usuário recebe role `BRAND_OWNER` e acesso ao **Brand Hub**.
+    *   **Rejeitado:** Notificação com motivo, possibilidade de reenvio.
+3.  **Gestão do Portfólio:** O `BRAND_OWNER` acessa o Brand Hub e cadastra perfumes com `ean`, `anvisa_code` e pirâmide olfativa completa. Produtos são auto-aprovados no catálogo global.
+4.  **Ativação do Modelo D2C (Loja Oficial):** O `BRAND_OWNER` pode opcionalmente ativar as vendas diretas via `POST /api/v1/brands/me/activate-d2c/`.
+    *   O sistema gera automaticamente uma `Store` vinculada à marca com o campo `is_official=True` e selo **"Loja Oficial"** visível na plataforma.
+    *   O usuário passa a ter as permissões combinadas de `BRAND_OWNER` + `SELLER` — o `store_id` da Loja Oficial é injetado no JWT.
+    *   A partir deste ponto, o `BRAND_OWNER` pode precificar, gerenciar estoque e receber pedidos como qualquer `SELLER` convencional, mantendo o diferencial do selo oficial.
