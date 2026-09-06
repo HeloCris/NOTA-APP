@@ -5,7 +5,7 @@ O App Cliente será desenvolvido em React Native utilizando o framework Expo e a
 ## Árvore de Diretórios Sugerida
 
 ```text
-mobile-app/
+mobile/
 ├── src/
 │   ├── app/                    # Rotas da aplicação (Expo Router)
 │   │   ├── _layout.tsx         # Layout raiz (Providers, Auth guard)
