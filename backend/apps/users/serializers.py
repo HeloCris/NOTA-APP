@@ -17,6 +17,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[],
     )
 
+    # Adicione estes campos explicitamente para garantir que o DRF aceite listas de strings
+    olfactory_families = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+    preferred_notes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+
     class Meta:
         model = CustomUser
         fields = [
@@ -25,6 +37,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
+            "olfactory_families",
+            "preferred_notes",
         ]
 
     def validate_email(self, value):
@@ -68,6 +82,8 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "role",
             "store_id",
+            "olfactory_families",
+            "preferred_notes",
         ]
         read_only_fields = fields
 
@@ -120,3 +136,29 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                     "detail": "Credenciais inválidas.",
                 }
             )
+
+
+class OlfactoryProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            "olfactory_families",
+            "preferred_notes"
+        ]
+
+    def validate_olfactory_families(self, value):
+        valid_families = [
+            "Amadeirado",
+            "Cítrico",
+            "Oriental",
+            "Floral",
+            "Fougère",
+            "Aquático",
+            "Gourmand"
+        ]
+        
+        for family in value:
+            if family not in valid_families:
+                raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
+                
+        return value
