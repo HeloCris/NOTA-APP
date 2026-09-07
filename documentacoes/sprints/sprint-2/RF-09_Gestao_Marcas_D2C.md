@@ -181,10 +181,10 @@ Estrutura completa para o onboarding, validação e gestão de marcas oficiais n
 
 ## Referências
 
-- [`perfis-e-permissoes.md`](../../../01-regras-de-negocio/perfis-e-permissoes.md) — Perfil `BRAND_OWNER` e modelo D2C
-- [`politicas-permissoes-drf.md`](../../../01-regras-de-negocio/politicas-permissoes-drf.md) — `IsBrandOwner`, payload JWT e tabela de endpoints
-- [`fluxos-de-negocio.md`](../../../01-regras-de-negocio/fluxos-de-negocio.md) — Fluxo 4: Brand Onboarding e Ativação D2C
-- [`dicionario-de-dados.md`](../../../02-banco-de-dados/dicionario-de-dados.md) — Campos `ean`, `anvisa_code`, `Brand` expandida
-- [`modelo-relacional.md`](../../../02-banco-de-dados/modelo-relacional.md) — Relacionamento `Brand` ↔ `User` ↔ `Store`
-- [`especificacao-api-rest.md`](../../../03-arquitetura/especificacao-api-rest.md) — Contratos de `/brands/` e `/products/`
-- [RF-03](../../sprint-1/RF-03_Catalogo_Base_Piramide_Olfativa.md) — Modelo base de `Brand` e `Product`
+- [`perfis-e-permissoes.md`](../../01-regras-de-negocio/perfis-e-permissoes.md) — Perfil `BRAND_OWNER` e modelo D2C
+- [`politicas-permissoes-drf.md`](../../01-regras-de-negocio/politicas-permissoes-drf.md) — `IsBrandOwner`, payload JWT e tabela de endpoints
+- [`fluxos-de-negocio.md`](../../01-regras-de-negocio/fluxos-de-negocio.md) — Fluxo 4: Brand Onboarding e Ativação D2C
+- [`dicionario-de-dados.md`](../../02-banco-de-dados/dicionario-de-dados.md) — Campos `ean`, `anvisa_code`, `Brand` expandida
+- [`modelo-relacional.md`](../../02-banco-de-dados/modelo-relacional.md) — Relacionamento `Brand` ↔ `User` ↔ `Store`
+- [`especificacao-api-rest.md`](../../03-arquitetura/especificacao-api-rest.md) — Contratos de `/brands/` e `/products/`
+- [RF-03](../sprint-1/RF-03_Catalogo_Base_Piramide_Olfativa.md) — Modelo base de `Brand` e `Product`

@@ -70,10 +70,10 @@ export default function RegisterScreen() {
   const onSubmit = async (data: RegisterData) => {
     setApiError('');
     try {
-      await authService.register({ 
-        ...data, 
-        olfactory_families: [], 
-        preferred_notes: [] 
+      await authService.register({
+        ...data,
+        olfactory_families: [],
+        preferred_notes: []
       });
       await signIn({ email: data.email, password: data.password });
       router.push('/(auth)/onboarding/families');
@@ -146,9 +146,9 @@ export default function RegisterScreen() {
 
       <Text style={styles.orText}>ou</Text>
 
-      <TouchableOpacity 
-        style={styles.secondaryButton} 
-        onPress={() => promptAsync()} 
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => promptAsync()}
         disabled={!request}
       >
         <Text style={styles.secondaryButtonText}>Continuar com Google</Text>
