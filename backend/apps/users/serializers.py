@@ -17,6 +17,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[],
     )
 
+    # Adicione estes campos explicitamente para garantir que o DRF aceite listas de strings
+    olfactory_families = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+    preferred_notes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+
     class Meta:
         model = CustomUser
         fields = [
