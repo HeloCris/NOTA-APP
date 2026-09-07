@@ -41,7 +41,7 @@ export default function RegisterScreen() {
   });
 
   // Configuração da descoberta automática do Google OAuth
-  console.log("CLIENT ID Carregado:", process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
+  // console.log("CLIENT ID Carregado:", process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
   const discovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest({
