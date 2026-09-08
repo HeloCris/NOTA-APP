@@ -1,5 +1,6 @@
 from django.conf import settings  # type: ignore
 from django.db import models  # type: ignore
+from django.utils.text import slugify
 
 
 class Store(models.Model):
@@ -15,6 +16,8 @@ class Store(models.Model):
         max_length=200,
         verbose_name="Nome Fantasia",
     )
+
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
 
     legal_name = models.CharField(
         max_length=200,
@@ -85,3 +88,14 @@ class Store(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} (CNPJ: {self.cnpj})"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name) or f"loja-{self.pk or 'nova'}"
+            candidate = base_slug
+            suffix = 2
+            while type(self).objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+                candidate = f"{base_slug}-{suffix}"
+                suffix += 1
+            self.slug = candidate
+        return super().save(*args, **kwargs)
