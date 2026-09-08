@@ -17,7 +17,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[],
     )
 
-    # Adicione estes campos explicitamente para garantir que o DRF aceite listas de strings
+
     olfactory_families = serializers.ListField(
         child=serializers.CharField(),
         required=False,
@@ -150,9 +150,9 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
             "Aquático",
             "Gourmand"
         ]
-        
+
         for family in value:
             if family not in valid_families:
                 raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
-                
+
         return value

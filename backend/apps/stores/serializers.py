@@ -6,10 +6,6 @@ from .models import Store
 
 
 class StorePublicSerializer(serializers.ModelSerializer):
-    """
-    Serializer para listagem pública de lojas no marketplace.
-    Expõe apenas campos seguros para consumo não autenticado.
-    """
 
     class Meta:
         model = Store
@@ -17,14 +13,9 @@ class StorePublicSerializer(serializers.ModelSerializer):
 
 
 class StoreOwnerSerializer(serializers.ModelSerializer):
-    """
-    Serializer completo para o lojista autenticado.
-    Usado em GET /stores/me/ e PATCH /stores/me/.
-    Inclui validação de formato e unicidade de CNPJ.
-    """
 
-    # max_length=18 aceita tanto dígitos puros quanto formato com máscara
-    # (ex: "12.345.678/0001-99"). O validate_cnpj sanitiza antes de persistir.
+
+
     cnpj = serializers.CharField(max_length=18)
 
     class Meta:
@@ -47,10 +38,6 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "is_official", "created_at", "updated_at"]
 
     def validate_cnpj(self, value: str) -> str:
-        """
-        Sanitiza (remove pontuação) e valida o CNPJ.
-        Garante unicidade excluindo a instância atual no caso de PATCH.
-        """
         digits = re.sub(r"\D", "", value)
 
         if len(digits) != 14:
@@ -58,7 +45,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
                 "CNPJ inválido — deve conter 14 dígitos numéricos."
             )
 
-        # Verifica unicidade, excluindo a própria loja em caso de atualização
+
         qs = Store.objects.filter(cnpj=digits)
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
@@ -68,5 +55,5 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
                 "Este CNPJ já está cadastrado na plataforma."
             )
 
-        # Persiste apenas dígitos (formato limpo)
+
         return digits

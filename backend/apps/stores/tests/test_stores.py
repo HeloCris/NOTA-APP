@@ -1,12 +1,3 @@
-"""
-Testes TDD — RF-02: Model Store, endpoints e permissões.
-
-Critérios de Aceitação cobertos:
-  CA-01: CNPJ duplicado → 400 com campo `cnpj` descritivo
-  CA-02: Criação com sucesso → 201 e dados retornados corretamente
-  CA-03: Usuário sem role SELLER → 403 em qualquer endpoint de loja
-  CA-04: Lojista A não consegue acessar dados da Loja B → 404
-"""
 
 import pytest
 from django.urls import reverse  # type: ignore
@@ -18,9 +9,9 @@ from apps.stores.models import Store
 from apps.users.models import CustomUser
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.fixture
@@ -81,21 +72,20 @@ def store_b(seller_b):
     )
 
 
-# ---------------------------------------------------------------------------
-# CA-02 — Criação com sucesso → 201
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.mark.django_db
 def test_create_store_returns_201(api_client, seller_a):
-    """Lojista autenticado cria sua loja com sucesso."""
     api_client.force_authenticate(user=seller_a)
 
     response = api_client.post(
         "/api/v1/stores/",
         {
             "name": "Maison d'Essence",
-            "cnpj": "12.345.678/0001-99",  # formato com pontuação (sanitizado no serializer)
+            "cnpj": "12.345.678/0001-99",
             "bio": "Especialistas em perfumaria de nicho.",
         },
         format="json",
@@ -103,24 +93,23 @@ def test_create_store_returns_201(api_client, seller_a):
 
     assert response.status_code == 201
     assert response.data["name"] == "Maison d'Essence"
-    assert response.data["cnpj"] == "12345678000199"  # persistido como dígitos
+    assert response.data["cnpj"] == "12345678000199"
 
 
-# ---------------------------------------------------------------------------
-# CA-01 — CNPJ duplicado → 400 com campo `cnpj`
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.mark.django_db
 def test_cnpj_duplicate_returns_400(api_client, seller_a, seller_b, store_a):
-    """CNPJ já cadastrado por outra loja deve retornar 400 com erro no campo cnpj."""
     api_client.force_authenticate(user=seller_b)
 
     response = api_client.post(
         "/api/v1/stores/",
         {
             "name": "Outra Loja",
-            "cnpj": "12.345.678/0001-99",  # mesmo CNPJ de store_a
+            "cnpj": "12.345.678/0001-99",
         },
         format="json",
     )
@@ -131,7 +120,6 @@ def test_cnpj_duplicate_returns_400(api_client, seller_a, seller_b, store_a):
 
 @pytest.mark.django_db
 def test_cnpj_invalid_format_returns_400(api_client, seller_a):
-    """CNPJ com menos de 14 dígitos deve retornar 400."""
     api_client.force_authenticate(user=seller_a)
 
     response = api_client.post(
@@ -144,14 +132,13 @@ def test_cnpj_invalid_format_returns_400(api_client, seller_a):
     assert "cnpj" in response.data
 
 
-# ---------------------------------------------------------------------------
-# CA-03 — Usuário sem role SELLER → 403
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.mark.django_db
 def test_customer_access_store_me_returns_404_if_no_store(api_client, customer):
-    """CUSTOMER agora pode acessar /stores/me/ (para criar loja), mas se não tiver, retorna 404."""
     api_client.force_authenticate(user=customer)
 
     response = api_client.get("/api/v1/stores/me/")
@@ -161,23 +148,18 @@ def test_customer_access_store_me_returns_404_if_no_store(api_client, customer):
 
 @pytest.mark.django_db
 def test_unauthenticated_cannot_access_store_me_returns_401(api_client):
-    """Requisição sem token não deve acessar /stores/me/ — retorna 401."""
     response = api_client.get("/api/v1/stores/me/")
 
     assert response.status_code == 401
 
 
-# ---------------------------------------------------------------------------
-# CA-04 — Seller A não acessa dados da Loja B → 404
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.mark.django_db
 def test_seller_a_cannot_see_store_b_via_me(api_client, seller_a, store_a, store_b):
-    """
-    GET /stores/me/ retorna apenas a loja do próprio seller.
-    Seller A nunca enxerga os dados de Seller B.
-    """
     api_client.force_authenticate(user=seller_a)
 
     response = api_client.get("/api/v1/stores/me/")
@@ -185,13 +167,12 @@ def test_seller_a_cannot_see_store_b_via_me(api_client, seller_a, store_a, store
     assert response.status_code == 200
     assert response.data["id"] == store_a.id
     assert response.data["name"] == store_a.name
-    # Garante que dados de store_b não vazaram
+
     assert response.data["cnpj"] != store_b.cnpj
 
 
 @pytest.mark.django_db
 def test_seller_without_store_gets_404(api_client, seller_a):
-    """SELLER sem loja cadastrada recebe 404 em /stores/me/."""
     api_client.force_authenticate(user=seller_a)
 
     response = api_client.get("/api/v1/stores/me/")
@@ -199,14 +180,13 @@ def test_seller_without_store_gets_404(api_client, seller_a):
     assert response.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# Listagem pública
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.mark.django_db
 def test_public_store_list_returns_only_active(api_client, store_a, store_b):
-    """GET /stores/ lista apenas lojas ativas, sem autenticação."""
     store_b.is_active = False
     store_b.save()
 
@@ -220,7 +200,6 @@ def test_public_store_list_returns_only_active(api_client, store_a, store_b):
 
 @pytest.mark.django_db
 def test_public_store_list_search(api_client, store_a, store_b):
-    """GET /stores/?search= filtra por nome."""
     response = api_client.get("/api/v1/stores/?search=Maison")
 
     assert response.status_code == 200
@@ -228,13 +207,12 @@ def test_public_store_list_search(api_client, store_a, store_b):
     assert response.data["results"][0]["name"] == "Maison d'Essence"
 
 
-# ---------------------------------------------------------------------------
-# Férias e Desativação (RF-02)
-# ---------------------------------------------------------------------------
+
+
+
 
 @pytest.mark.django_db
 def test_store_vacation_mode_update(api_client, seller_a, store_a):
-    """Garante que o lojista consegue ativar o modo férias (PATCH)."""
     api_client.force_authenticate(user=seller_a)
 
     assert not store_a.vacation_mode
@@ -252,12 +230,11 @@ def test_store_vacation_mode_update(api_client, seller_a, store_a):
 
 @pytest.mark.django_db
 def test_store_deactivate_and_reactivate(api_client, seller_a, store_a):
-    """Garante que o lojista consegue alterar o status is_active."""
     api_client.force_authenticate(user=seller_a)
 
     assert store_a.is_active
 
-    # Desativar
+
     response = api_client.patch(
         "/api/v1/stores/me/",
         {"is_active": False},
@@ -267,7 +244,7 @@ def test_store_deactivate_and_reactivate(api_client, seller_a, store_a):
     store_a.refresh_from_db()
     assert not store_a.is_active
 
-    # Reativar
+
     response = api_client.patch(
         "/api/v1/stores/me/",
         {"is_active": True},

@@ -10,7 +10,7 @@ class BrandOnboardingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
         fields = ["name", "cnpj", "inpi_registration", "social_contract", "inpi_certificate"]
-    
+
     def validate_cnpj(self, value):
         cnpj = re.sub(r'[^0-9]', '', value) if value else None
         if not cnpj or len(cnpj) != 14:
@@ -62,7 +62,7 @@ class BrandProductSerializer(ProductSerializer):
 
     class Meta(ProductSerializer.Meta):
         read_only_fields = ["id", "is_approved", "brand", "brand_id"]
-        
+
     def validate_ean(self, value):
         if not value or len(value) != 13 or not value.isdigit():
             raise serializers.ValidationError("O EAN deve ter exatamente 13 dígitos numéricos.")

@@ -1,17 +1,3 @@
-"""
-Testes TDD — RF-04: Gestão de Estoque & Precificação do Lojista.
-
-Critérios de Aceitação cobertos:
-  CA-01: Lojista B acessa StoreProduct da Loja A → 404/403
-  CA-02: promotional_price > price → 400 com campo descritivo
-  CA-03: price <= 0 ou stock_quantity < 0 → 400
-  CA-04: toggle is_available reflete via PATCH
-  RF-04.1: volume_ml, promotional_price opcional e unicidade por volume
-  RF-04.2/04.3/04.5: listagem filtrada, criação e exclusão
-
-Os testes autenticam via JWT real (POST /auth/token/), pois o isolamento
-multi-tenant lê o `store_id` do payload do token.
-"""
 
 import pytest
 from rest_framework.test import APIClient
@@ -159,7 +145,7 @@ def _store_product_payload(product, **overrides):
     return payload
 
 
-# RF-04.3 -> adiciona perfume ao estoque da loja
+
 
 
 @pytest.mark.django_db
@@ -179,11 +165,12 @@ def test_create_store_product_returns_201(
     assert response.data["price"] == "349.90"
     assert response.data["stock_quantity"] == 15
     assert response.data["is_available"] is True
-    # Resumo compacto do produto
+
     assert response.data["product"] == {
         "id": product_sauvage.id,
         "name": "Sauvage",
         "brand": "Dior",
+        "image_url": product_sauvage.image_url,
     }
 
     from apps.inventory.models import StoreProduct
@@ -226,7 +213,7 @@ def test_customer_without_store_cannot_create_returns_403(
     assert response.status_code == 403
 
 
-# CA-01 — Isolamento multi-tenant
+
 
 
 @pytest.mark.django_db
@@ -285,7 +272,7 @@ def test_seller_a_lists_only_own_items(
     assert response.data["results"][0]["product"]["id"] == product_sauvage.id
 
 
-# CA-02 -> valor promocional maior que preço normal
+
 
 
 @pytest.mark.django_db
@@ -324,7 +311,7 @@ def test_promotional_price_equal_to_price_returns_400(
     assert "promotional_price" in response.data
 
 
-# CA-03 -> retorna 400 se preço <= 0 ou quantidade de itens no stock < 0
+
 
 
 @pytest.mark.django_db
@@ -383,7 +370,7 @@ def test_zero_volume_returns_400(authenticate, store_a, product_sauvage):
     assert "volume_ml" in response.data
 
 
-# RF-04.7 -> seleciona perfume, informa ML, preço e estoque
+
 
 
 @pytest.mark.django_db
@@ -446,7 +433,7 @@ def test_unapproved_product_cannot_be_added_returns_400(
     assert "product_id" in response.data
 
 
-# RF-04.4 -> atualização de preço e estoque
+
 
 
 @pytest.mark.django_db
@@ -504,7 +491,7 @@ def test_patch_invalid_promotional_price_returns_400(
     assert "promotional_price" in response.data
 
 
-# RF-04.5 -> deleta o item do estoque
+
 
 
 @pytest.mark.django_db
@@ -525,7 +512,7 @@ def test_delete_by_owner_returns_204(
     assert not StoreProduct.objects.filter(pk=item.id).exists()
 
 
-# RF-04.2 -> listagem filtrada
+
 
 
 @pytest.mark.django_db

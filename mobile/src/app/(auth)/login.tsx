@@ -130,8 +130,6 @@ export default function LoginScreen() {
 
       <Text style={styles.orText}>ou</Text>
 
-      {/* RF-07.3: Entrar com Google desabilitado temporariamente —
-          aguardando correção do fluxo expo-auth-session pela equipe. */}
       <TouchableOpacity style={styles.secondaryButton} disabled activeOpacity={1}>
         <Text style={styles.googleIcon}>G</Text>
         <Text style={styles.secondaryButtonText}>Entrar com Google</Text>

@@ -3,11 +3,6 @@ from django.db import models  # type: ignore
 
 
 class Store(models.Model):
-    """
-    Representa uma loja/tenant no marketplace NŌTA.
-    Um usuário SELLER pode ter múltiplas lojas (filiais),
-    mas no MVP os endpoints operam sobre stores.first().
-    """
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -29,7 +24,7 @@ class Store(models.Model):
     )
 
     cnpj = models.CharField(
-        max_length=14,  # Armazenado somente dígitos (sanitizado no serializer)
+        max_length=14,
         unique=True,
         verbose_name="CNPJ",
     )

@@ -6,9 +6,6 @@ import LoginScreen from '@/app/(auth)/login';
 const mockReplace = jest.fn();
 const mockSignIn = jest.fn();
 
-// ==========================================
-// MOCK DO EXPO ROUTER
-// ==========================================
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -20,9 +17,6 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// ==========================================
-// MOCK DO AUTH CONTEXT
-// ==========================================
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({

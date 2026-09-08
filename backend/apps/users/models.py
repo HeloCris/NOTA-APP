@@ -47,7 +47,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default=False,
     )
 
-    # RF-06: Campos para Perfil Olfativo
+
     olfactory_families = models.JSONField(
         default=list,
         blank=True,

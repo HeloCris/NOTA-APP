@@ -25,11 +25,7 @@ export const authService = {
   logout: async () => {
     const refreshToken = await getToken(REFRESH_TOKEN_KEY);
     if (refreshToken) {
-      try {
-        await api.post('/auth/token/blacklist/', { refresh: refreshToken });
-      } catch {
-        // Invalidação no servidor é best-effort; o logout local sempre ocorre.
-      }
+      await api.post('/auth/token/blacklist/', { refresh: refreshToken }).catch(() => {});
     }
   },
   me: async () => {

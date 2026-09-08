@@ -29,7 +29,11 @@ export default function NotesScreen() {
 
   const handleSkip = () => {
     const msg = "Tudo bem! Você pode completar seu perfil olfativo depois em 'Minha Conta'.";
-    Platform.OS === 'android' ? ToastAndroid.show(msg, ToastAndroid.LONG) : Alert.alert("Aviso", msg);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.LONG);
+    } else {
+      Alert.alert("Aviso", msg);
+    }
     router.replace('/(shop)');
   };
 
@@ -38,7 +42,7 @@ export default function NotesScreen() {
     try {
       await updateOlfactoryProfile({ olfactory_families: parsedFamilies, preferred_notes: selectedNotes });
       router.replace('/(shop)');
-    } catch (error) {
+    } catch {
       Alert.alert("Erro", "Não foi possível salvar seu perfil olfativo.");
     } finally {
       setLoading(false);

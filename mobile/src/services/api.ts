@@ -1,12 +1,10 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { create, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import { getToken, saveToken, deleteToken } from '../utils/storage';
 
-// Descobre o IP automaticamente através do Metro Bundler do Expo
 const debuggerHost = Constants.expoConfig?.hostUri;
 const machineIP = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
 
-// Monta a URL final (vai funcionar na Web, no Emulador e no Celular Físico)
 const API_URL = `http://${machineIP}:8000/api/v1`;
 
 export const ACCESS_TOKEN_KEY = 'nota_access_token';
@@ -16,12 +14,12 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
-export const api = axios.create({
+export const api = create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-const refreshClient = axios.create({
+const refreshClient = create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -33,16 +31,6 @@ api.interceptors.request.use(async (config) => {
   }
   return config;
 });
-
-// ---------------------------------------------------------------------
-// Renovação silenciosa do access_token (RF-07.4)
-//
-// - Uma única promise de refresh é compartilhada por todas as requests
-//   que falharem com 401, evitando múltiplos refresh simultâneos
-//   (race condition).
-// - Se o refresh falhar (token revogado/expirado), limpa os tokens e
-//   notifica o AuthContext para deslogar e redirecionar (CA-04).
-// ---------------------------------------------------------------------
 
 type RefreshFailureListener = () => void;
 const refreshFailureListeners: RefreshFailureListener[] = [];
@@ -99,8 +87,6 @@ async function handleUnauthorized(error: AxiosError) {
     return Promise.reject(error);
   }
 
-  // Sem refresh token (ex.: 401 do POST /auth/token/ com senha errada)
-  // não há o que renovar — apenas repassa o erro para a UI tratar inline.
   if (!(await getToken(REFRESH_TOKEN_KEY))) {
     return Promise.reject(error);
   }

@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Circle } from 'react-native-svg';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -14,21 +13,15 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../hooks/use-theme';
 
-// A logo SVG foi removida porque o estilo 3D dourado requirido pela marca (textura e sombreamento) 
-// não pode ser renderizado com perfeição usando apenas paths e strokes sólidos via código puro.
-// Voltamos a utilizar o asset de alta qualidade.
-
 export default function WelcomeScreen() {
   const router = useRouter();
   const colors = useTheme();
 
-  // Valores de animação para o Fade In encadeado
   const logoOpacity = useSharedValue(0);
   const textOpacity = useSharedValue(0);
   const buttonsOpacity = useSharedValue(0);
   const buttonsTranslateY = useSharedValue(20);
 
-  // Valor de animação para o Breathing Effect da Logo
   const logoBreathingScale = useSharedValue(0.98);
 
   useEffect(() => {
@@ -45,7 +38,7 @@ export default function WelcomeScreen() {
       -1, 
       true
     );
-  }, []);
+  }, [buttonsOpacity, buttonsTranslateY, logoBreathingScale, logoOpacity, textOpacity]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
@@ -69,7 +62,6 @@ export default function WelcomeScreen() {
     >
       <View style={styles.content}>
         
-        {/* Usando o asset da imagem para preservar a textura 3D dourada da marca */}
         <Animated.Image 
           source={require('../../../assets/images/logo-icon-fundoTransp.png')}
           style={[styles.logo, logoStyle]}
@@ -85,7 +77,6 @@ export default function WelcomeScreen() {
 
       </View>
 
-      {/* Botões de Ação Inferior (Fade In e Slide Up encadeado) */}
       <Animated.View style={[styles.footer, buttonsStyle]}>
         <Pressable 
           style={({ pressed }) => [

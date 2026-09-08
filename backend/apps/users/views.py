@@ -33,10 +33,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class TokenBlacklistView(SimpleJWTTokenBlacklistView):
-    """
-    Invalida o `refresh_token` no servidor e responde `205 No Content`
-    (contrato RF-07.5).
-    """
 
     _serializer_class = api_settings.TOKEN_BLACKLIST_SERIALIZER
     permission_classes = [
@@ -78,13 +74,13 @@ class GoogleAuthView(APIView):
             )
 
         try:
-            # Validação do token diretamente nos servidores do Google
+
             idinfo = id_token.verify_oauth2_token(
-                token, 
-                google_requests.Request(), 
+                token,
+                google_requests.Request(),
                 getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
             )
-            
+
             email = idinfo.get("email")
             if not email:
                 return Response(
@@ -92,7 +88,7 @@ class GoogleAuthView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Busca ou cria o usuário B2C (Customer)
+
             try:
                 user = CustomUser.objects.get(email=email)
             except CustomUser.DoesNotExist:
@@ -103,7 +99,7 @@ class GoogleAuthView(APIView):
                     role=CustomUser.Roles.CUSTOMER
                 )
 
-            # Reutiliza o Serializer do CustomToken para obter Access e Refresh
+
             refresh = CustomTokenObtainPairSerializer.get_token(user)
 
             return Response(
@@ -113,10 +109,10 @@ class GoogleAuthView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
-            
+
         except ValueError:
             return Response(
-                {"detail": "Token do Google inválido."}, 
+                {"detail": "Token do Google inválido."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

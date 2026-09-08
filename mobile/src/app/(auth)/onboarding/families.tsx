@@ -15,8 +15,12 @@ export default function FamiliesScreen() {
 
   const handleSkip = () => {
     const msg = "Tudo bem! Você pode completar seu perfil olfativo depois em 'Minha Conta'.";
-    Platform.OS === 'android' ? ToastAndroid.show(msg, ToastAndroid.LONG) : Alert.alert("Aviso", msg);
-    router.replace('/(shop)'); // Requer criação da pasta (shop)
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.LONG);
+    } else {
+      Alert.alert("Aviso", msg);
+    }
+    router.replace('/(shop)');
   };
 
   const handleNext = () => {
