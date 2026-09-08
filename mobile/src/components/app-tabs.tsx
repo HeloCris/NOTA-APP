@@ -29,7 +29,7 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
+      <NativeTabs.Trigger name="account">
         <NativeTabs.Trigger.Label>Conta</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={

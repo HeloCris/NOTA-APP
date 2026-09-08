@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, usePathname, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/use-theme';
 
@@ -16,6 +16,7 @@ function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
   const colors = useTheme();
 
   useEffect(() => {
@@ -24,14 +25,16 @@ function RootNavigator() {
     }
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding =
+      pathname.startsWith('/onboarding') || segments.includes('onboarding');
     const inShopGroup = segments[0] === '(shop)';
 
     if (!isAuthenticated && inShopGroup) {
       router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup && !inOnboarding) {
       router.replace('/(shop)');
     }
-  }, [isLoading, isAuthenticated, segments, router]);
+  }, [isLoading, isAuthenticated, segments, pathname, router]);
 
   if (isLoading) {
     return (

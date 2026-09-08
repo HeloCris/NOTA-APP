@@ -9,9 +9,9 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { OlfactoryFamilyCard } from '../../components/common/OlfactoryFamilyCard';
-import { NoteChip } from '../../components/common/NoteChip';
-import { useAuth } from '../../context/AuthContext';
+import { OlfactoryFamilyCard } from '../../../components/common/OlfactoryFamilyCard';
+import { NoteChip } from '../../../components/common/NoteChip';
+import { useAuth } from '../../../context/AuthContext';
 
 const FAMILIES = ['Amadeirado', 'Cítrico', 'Oriental', 'Floral', 'Fougère', 'Aquático', 'Gourmand'];
 
