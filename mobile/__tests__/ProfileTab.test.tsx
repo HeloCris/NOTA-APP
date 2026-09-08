@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
-import ProfileScreen from '@/app/(shop)/profile';
+import ProfileScreen from '@/app/(shop)/account/index';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();

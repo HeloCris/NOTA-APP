@@ -24,11 +24,12 @@ function RootNavigator() {
     }
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = inAuthGroup && segments.includes('onboarding');
     const inShopGroup = segments[0] === '(shop)';
 
     if (!isAuthenticated && inShopGroup) {
       router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup && !inOnboarding) {
       router.replace('/(shop)');
     }
   }, [isLoading, isAuthenticated, segments, router]);

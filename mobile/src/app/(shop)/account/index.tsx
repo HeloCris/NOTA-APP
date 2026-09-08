@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -57,16 +57,25 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSignOut = async () => {
+  const performSignOut = async () => {
+    await signOut();
+    router.replace('/(auth)/login');
+  };
+
+  const handleSignOut = () => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Deseja realmente sair da sua conta?')) {
+        performSignOut();
+      }
+      return;
+    }
+
     Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Sair',
         style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          router.replace('/(auth)/login');
-        },
+        onPress: performSignOut,
       },
     ]);
   };
@@ -129,7 +138,7 @@ export default function ProfileScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() => router.push('/(shop)/edit-olfactory-profile')}
+                onPress={() => router.push('/(shop)/account/edit-olfactory-profile')}
               >
                 <Text style={styles.primaryButtonText}>Completar agora</Text>
               </TouchableOpacity>
@@ -164,7 +173,7 @@ export default function ProfileScreen() {
 
               <TouchableOpacity
                 style={styles.editPreferenceButton}
-                onPress={() => router.push('/(shop)/edit-olfactory-profile')}
+                onPress={() => router.push('/(shop)/account/edit-olfactory-profile')}
               >
                 <Text style={styles.editPreferenceText}>Editar preferências</Text>
               </TouchableOpacity>
