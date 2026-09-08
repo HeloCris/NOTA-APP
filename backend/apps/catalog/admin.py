@@ -8,17 +8,17 @@ class BrandAdmin(admin.ModelAdmin):
     list_filter = ("status", "is_official")
     search_fields = ("name", "cnpj")
     actions = ["approve_brands", "reject_brands"]
-    
+
     def save_model(self, request, obj, form, change):
-        # Automatically update user role and active status if brand is approved
+
         if obj.status == Brand.BrandStatus.APPROVED and obj.owner:
             obj.owner.is_active = True
             obj.owner.role = CustomUser.Roles.BRAND_OWNER
             obj.owner.save()
             obj.is_official = True
-            
+
         super().save_model(request, obj, form, change)
-        
+
     @admin.action(description="Aprovar marcas selecionadas")
     def approve_brands(self, request, queryset):
         for brand in queryset:
@@ -29,7 +29,7 @@ class BrandAdmin(admin.ModelAdmin):
                 brand.owner.role = CustomUser.Roles.BRAND_OWNER
                 brand.owner.save()
             brand.save()
-            
+
     @admin.action(description="Rejeitar marcas selecionadas")
     def reject_brands(self, request, queryset):
         queryset.update(status=Brand.BrandStatus.REJECTED)

@@ -13,7 +13,7 @@ const NOTES = {
 export default function NotesScreen() {
   const router = useRouter();
   const { families } = useLocalSearchParams<{ families: string }>();
-  const { updateProfile } = useAuth();
+  const { updateOlfactoryProfile } = useAuth();
   const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -29,16 +29,20 @@ export default function NotesScreen() {
 
   const handleSkip = () => {
     const msg = "Tudo bem! Você pode completar seu perfil olfativo depois em 'Minha Conta'.";
-    Platform.OS === 'android' ? ToastAndroid.show(msg, ToastAndroid.LONG) : Alert.alert("Aviso", msg);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(msg, ToastAndroid.LONG);
+    } else {
+      Alert.alert("Aviso", msg);
+    }
     router.replace('/(shop)');
   };
 
   const handleFinish = async () => {
     setLoading(true);
     try {
-      await updateProfile({ olfactory_families: parsedFamilies, preferred_notes: selectedNotes });
+      await updateOlfactoryProfile({ olfactory_families: parsedFamilies, preferred_notes: selectedNotes });
       router.replace('/(shop)');
-    } catch (error) {
+    } catch {
       Alert.alert("Erro", "Não foi possível salvar seu perfil olfativo.");
     } finally {
       setLoading(false);

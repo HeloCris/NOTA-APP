@@ -3,9 +3,6 @@ import { render, fireEvent } from '@testing-library/react-native';
 
 import RegisterScreen from '@/app/(auth)/register';
 
-// ==========================================
-// MOCK DO EXPO ROUTER
-// ==========================================
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -17,9 +14,6 @@ jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// ==========================================
-// MOCK DO AUTH CONTEXT
-// ==========================================
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -28,9 +22,6 @@ jest.mock('@/context/AuthContext', () => ({
   }),
 }));
 
-// ==========================================
-// MOCK DO AUTH SERVICE
-// ==========================================
 
 jest.mock('@/services/auth', () => ({
   authService: {
@@ -38,9 +29,6 @@ jest.mock('@/services/auth', () => ({
   },
 }));
 
-// ==========================================
-// MOCK DO EXPO AUTH SESSION
-// ==========================================
 
 jest.mock('expo-auth-session', () => ({
   useAutoDiscovery: jest.fn(() => ({
@@ -57,25 +45,15 @@ jest.mock('expo-auth-session', () => ({
   makeRedirectUri: jest.fn(() => 'notaapp://redirect'),
 }));
 
-// ==========================================
-// MOCK DO EXPO WEB BROWSER
-// ==========================================
 
 jest.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: jest.fn(),
 }));
 
-// ==========================================
-// TESTES
-// ==========================================
 
 describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
   jest.setTimeout(15000);
 
-  // ------------------------------------------
-  // TESTE 1
-  // Renderização inicial da tela
-  // ------------------------------------------
 
   it(
     'renderiza todos os campos do formulário de cadastro corretamente',
@@ -87,14 +65,10 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       } = await render(<RegisterScreen />);
 
 
-      // Título da tela
-
       expect(
         getByText('Crie sua conta')
       ).toBeTruthy();
 
-
-      // Subtítulo
 
       expect(
         getByText(
@@ -103,56 +77,40 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       ).toBeTruthy();
 
 
-      // Campo Nome
-
       expect(
         getByPlaceholderText('Ana')
       ).toBeTruthy();
 
-
-      // Campo Sobrenome
 
       expect(
         getByPlaceholderText('Ferreira')
       ).toBeTruthy();
 
 
-      // Campo E-mail
-
       expect(
         getByPlaceholderText('ana@email.com')
       ).toBeTruthy();
 
-
-      // Campo Telefone
 
       expect(
         getByPlaceholderText('11 99999-0000')
       ).toBeTruthy();
 
 
-      // Campo Senha
-
       expect(
         getByPlaceholderText('••••••••')
       ).toBeTruthy();
 
-
-      // Botão principal
 
       expect(
         getByText('Próximo →')
       ).toBeTruthy();
 
 
-      // Botão Google
-
       expect(
         getByText('Continuar com Google')
       ).toBeTruthy();
 
-
-      // Link de login
 
       expect(
         getByText('Já tem uma conta? Entrar')
@@ -161,11 +119,6 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
     }
   );
 
-
-  // ------------------------------------------
-  // TESTE 2
-  // Verifica botão desabilitado inicialmente
-  // ------------------------------------------
 
   it(
     'mantém o botão de cadastro desabilitado quando o formulário está vazio',
@@ -186,11 +139,6 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
   );
 
 
-  // ------------------------------------------
-  // TESTE 3
-  // Preenchimento dos campos
-  // ------------------------------------------
-
   it(
     'permite preencher todos os campos do formulário',
     async () => {
@@ -201,15 +149,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       } = await render(<RegisterScreen />);
 
 
-      // Nome
-
       await fireEvent.changeText(
         getByPlaceholderText('Ana'),
         'João'
       );
 
-
-      // Sobrenome
 
       await fireEvent.changeText(
         getByPlaceholderText('Ferreira'),
@@ -217,15 +161,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       );
 
 
-      // E-mail
-
       await fireEvent.changeText(
         getByPlaceholderText('ana@email.com'),
         'joao@email.com'
       );
 
-
-      // Telefone
 
       await fireEvent.changeText(
         getByPlaceholderText('11 99999-0000'),
@@ -233,15 +173,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       );
 
 
-      // Senha
-
       await fireEvent.changeText(
         getByPlaceholderText('••••••••'),
         'senha123'
       );
 
-
-      // Verificações dos valores preenchidos
 
       expect(
         getByDisplayValue('João')
@@ -271,11 +207,6 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
   );
 
 
-  // ------------------------------------------
-  // TESTE 4
-  // Preenchimento completo do formulário
-  // ------------------------------------------
-
   it(
     'habilita o formulário após preenchimento de todos os campos válidos',
     async () => {
@@ -286,15 +217,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       } = await render(<RegisterScreen />);
 
 
-      // Preenche Nome
-
       await fireEvent.changeText(
         getByPlaceholderText('Ana'),
         'Maria'
       );
 
-
-      // Preenche Sobrenome
 
       await fireEvent.changeText(
         getByPlaceholderText('Ferreira'),
@@ -302,15 +229,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       );
 
 
-      // Preenche E-mail
-
       await fireEvent.changeText(
         getByPlaceholderText('ana@email.com'),
         'maria@email.com'
       );
 
-
-      // Preenche Telefone
 
       await fireEvent.changeText(
         getByPlaceholderText('11 99999-0000'),
@@ -318,15 +241,11 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
       );
 
 
-      // Preenche Senha
-
       await fireEvent.changeText(
         getByPlaceholderText('••••••••'),
         'senha123'
       );
 
-
-      // Verifica se o botão continua presente
 
       expect(
         getByText('Próximo →')

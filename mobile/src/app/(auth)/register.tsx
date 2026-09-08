@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -40,7 +40,6 @@ export default function RegisterScreen() {
     }
   });
 
-  // Configuração da descoberta automática do Google OAuth
   console.log("CLIENT ID Carregado:", process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
   const discovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
 
@@ -52,20 +51,21 @@ export default function RegisterScreen() {
     scopes: ['openid', 'profile', 'email'],
   }, discovery);
 
-  useEffect(() => {
-    if (response?.type === 'success' && response.authentication?.accessToken) {
-      handleGoogleSuccess(response.authentication.accessToken);
-    }
-  }, [response]);
-
-  const handleGoogleSuccess = async (accessToken: string) => {
+  const handleGoogleSuccess = useCallback(async (accessToken: string) => {
     try {
       await signInWithGoogle(accessToken);
       router.push('/(auth)/onboarding/families');
-    } catch (error: any) {
+    } catch {
       setApiError('Erro ao autenticar com o Google.');
     }
-  };
+  }, [router, signInWithGoogle]);
+
+  useEffect(() => {
+    if (response?.type === 'success' && response.authentication?.accessToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reação assíncrona ao resultado do OAuth
+      handleGoogleSuccess(response.authentication.accessToken);
+    }
+  }, [response, handleGoogleSuccess]);
 
   const onSubmit = async (data: RegisterData) => {
     setApiError('');

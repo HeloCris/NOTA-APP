@@ -17,7 +17,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[],
     )
 
-    # Adicione estes campos explicitamente para garantir que o DRF aceite listas de strings
+
     olfactory_families = serializers.ListField(
         child=serializers.CharField(),
         required=False,
@@ -69,7 +69,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         }
 
 
-class UserSerializer(serializers.ModelSerializer):
+class MeSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        validators=[],
+    )
     store_id = serializers.SerializerMethodField()
 
     class Meta:
@@ -85,7 +88,21 @@ class UserSerializer(serializers.ModelSerializer):
             "olfactory_families",
             "preferred_notes",
         ]
-        read_only_fields = fields
+        read_only_fields = ["id", "role", "store_id"]
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+
+        queryset = CustomUser.objects.filter(email__iexact=email)
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "Este e-mail já está em uso."
+            )
+
+        return email
 
     def get_store_id(self, obj):
         if obj.role != CustomUser.Roles.SELLER:
@@ -99,6 +116,17 @@ class UserSerializer(serializers.ModelSerializer):
         store = stores_manager.first()
 
         return store.id if store else None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        if instance.role == CustomUser.Roles.CUSTOMER:
+            data.pop("store_id", None)
+        else:
+            data.pop("olfactory_families", None)
+            data.pop("preferred_notes", None)
+
+        return data
 
 
 from .token_serializer import CustomTokenObtainPairSerializer
@@ -122,9 +150,9 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
             "Aquático",
             "Gourmand"
         ]
-        
+
         for family in value:
             if family not in valid_families:
                 raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
-                
+
         return value

@@ -3,14 +3,6 @@ from apps.users.models import CustomUser
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Injeta claims customizados no payload do JWT:
-    - `user_id` — ID do usuário
-    - `email` — identificação legível do usuário
-    - `role`  — perfil do usuário (ADMIN, SELLER, CUSTOMER, BRAND_OWNER)
-    - `store_id` — ID da loja (para SELLER ou BRAND_OWNER com D2C)
-    - `brand_id` — ID da marca (para BRAND_OWNER)
-    """
     default_error_messages = {
         "no_active_account": "Credenciais inválidas.",
     }
@@ -51,7 +43,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         email = attrs.get("email") or attrs.get(self.username_field)
 
-        # Interceptamos antes da super().validate para checar se o usuário existe mas está inativo
+
         user = CustomUser.objects.filter(email=email).first()
         if user and not user.is_active:
             has_pending = user.brands.filter(status="PENDING").exists()

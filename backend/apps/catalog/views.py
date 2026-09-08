@@ -9,9 +9,9 @@ from apps.users.models import CustomUser
 
 from .models import Brand, Product
 from .serializers import (
-    BrandSerializer, 
-    ProductSerializer, 
-    BrandOnboardingSerializer, 
+    BrandSerializer,
+    ProductSerializer,
+    BrandOnboardingSerializer,
     BrandProductSerializer
 )
 
@@ -59,27 +59,27 @@ class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.filter(is_approved=True).select_related("brand")
 
 
-# ==========================================
-# RF-09: BRAND HUB VIEWS
-# ==========================================
+
+
+
 
 class BrandStatusView(APIView):
     permission_classes = [permissions.AllowAny]
-    
+
     def get(self, request, *args, **kwargs):
         cnpj = request.query_params.get("cnpj")
         inpi = request.query_params.get("inpi")
-        
+
         if not cnpj or not inpi:
             return Response({"detail": "CNPJ e INPI são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
-            
-        # Remover pontuações do CNPJ se vier com máscara
+
+
         cnpj_raw = "".join(filter(str.isdigit, cnpj))
-        
+
         brand = Brand.objects.filter(cnpj=cnpj_raw, inpi_registration=inpi).first()
         if not brand:
             return Response({"detail": "Não encontramos nenhuma solicitação com os dados informados."}, status=status.HTTP_404_NOT_FOUND)
-            
+
         return Response({
             "name": brand.name,
             "status": brand.status
@@ -101,47 +101,47 @@ class BrandOnboardingView(APIView):
 
     def post(self, request, *args, **kwargs):
         data = request.data
-        
-        # User details
+
+
         first_name = data.get("first_name")
         last_name = data.get("last_name")
         email = data.get("email")
         password = data.get("password")
         phone = data.get("phone")
-        
-        # Brand details
+
+
         brand_name = data.get("brand_name")
         cnpj = data.get("cnpj")
         inpi = data.get("inpi_registration")
-        
-        # Files
+
+
         social_contract = request.FILES.get("social_contract")
         inpi_certificate = request.FILES.get("inpi_certificate")
-        
+
         if not all([first_name, email, password, brand_name, cnpj]):
             return Response({"detail": "Preencha todos os campos obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
-            
+
         if CustomUser.objects.filter(email=email).exists():
             return Response({"detail": "E-mail já cadastrado."}, status=status.HTTP_400_BAD_REQUEST)
-            
+
         if Brand.objects.filter(cnpj=cnpj).exists():
             return Response({"detail": "CNPJ já cadastrado."}, status=status.HTTP_400_BAD_REQUEST)
-            
+
         try:
             with transaction.atomic():
-                # 1. Create User (inactive)
+
                 user = CustomUser(
                     email=email,
                     first_name=first_name,
                     last_name=last_name or "",
                     phone=phone or "",
                     role=CustomUser.Roles.CUSTOMER,
-                    is_active=False  # Block login until approved
+                    is_active=False
                 )
                 user.set_password(password)
                 user.save()
-                
-                # 2. Create Brand
+
+
                 brand = Brand(
                     name=brand_name,
                     cnpj=cnpj,
@@ -154,7 +154,7 @@ class BrandOnboardingView(APIView):
                 if inpi_certificate:
                     brand.inpi_certificate = inpi_certificate
                 brand.save()
-                
+
                 return Response({"detail": "Cadastro recebido com sucesso. Aguardando aprovação."}, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -176,13 +176,13 @@ class AdminBrandApproveView(APIView):
         brand.status = new_status
         if new_status == Brand.BrandStatus.APPROVED:
             brand.is_official = True
-            
-            # Update user role and activate account
+
+
             if brand.owner:
                 brand.owner.role = CustomUser.Roles.BRAND_OWNER
                 brand.owner.is_active = True
                 brand.owner.save()
-        
+
         brand.save()
         return Response(BrandSerializer(brand).data)
 
@@ -221,11 +221,11 @@ class ActivateD2CView(APIView):
         brand = request.user.brands.first()
         if not brand:
             return Response({"detail": "Marca não encontrada."}, status=status.HTTP_404_NOT_FOUND)
-        
+
         if brand.d2c_store:
             return Response({"detail": "D2C já ativo."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verifica se o CNPJ já está sendo usado por alguma loja existente
+
         if Store.objects.filter(cnpj=brand.cnpj).exists():
              return Response({"detail": "Já existe uma loja com este CNPJ."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -236,7 +236,7 @@ class ActivateD2CView(APIView):
             is_official=True,
             is_active=True
         )
-        
+
         brand.d2c_store = store
         brand.save()
 

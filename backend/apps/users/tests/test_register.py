@@ -6,7 +6,6 @@ from apps.users.models import CustomUser
 @pytest.mark.django_db
 class TestRegister:
     def test_register_success(self, client):
-        """Garante que um usuário consegue se cadastrar com sucesso preenchendo os dados básicos"""
         url = reverse('users:register')
         data = {
             "first_name": "Ana",
@@ -19,7 +18,6 @@ class TestRegister:
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_register_with_olfactory_profile(self, client):
-        """Garante que o registro de usuário salva corretamente as famílias e notas olfativas opcionais"""
         url = reverse('users:register')
         data = {
             "first_name": "Carlos",
@@ -32,8 +30,8 @@ class TestRegister:
         }
         response = client.post(url, data, format='json')
         assert response.status_code == status.HTTP_201_CREATED
-        
-        # Valida se os dados foram salvos corretamente no banco de dados
+
+
         user = CustomUser.objects.get(email="carlos.teste@email.com")
         assert user.olfactory_families == ["Amadeirado", "Floral"]
         assert user.preferred_notes == ["Baunilha", "Sândalo"]

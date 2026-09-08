@@ -1,13 +1,10 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { create, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import { getToken, saveToken, deleteToken } from '../utils/storage';
 
-// Descobre o IP automaticamente através do Metro Bundler do Expo
 const debuggerHost = Constants.expoConfig?.hostUri;
 const machineIP = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
 
-// Monta a URL final (vai funcionar na Web, no Emulador e no Celular Físico)
 const API_URL = `http://${machineIP}:8000/api/v1`;
 
 export const ACCESS_TOKEN_KEY = 'nota_access_token';
@@ -17,12 +14,12 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
-export const api = axios.create({
+export const api = create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-const refreshClient = axios.create({
+const refreshClient = create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -35,39 +32,85 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+type RefreshFailureListener = () => void;
+const refreshFailureListeners: RefreshFailureListener[] = [];
+
+export function onRefreshFailure(listener: RefreshFailureListener): () => void {
+  refreshFailureListeners.push(listener);
+  return () => {
+    const index = refreshFailureListeners.indexOf(listener);
+    if (index >= 0) {
+      refreshFailureListeners.splice(index, 1);
+    }
+  };
+}
+
+function notifyRefreshFailure() {
+  refreshFailureListeners.forEach((listener) => listener());
+}
+
+async function requestRefresh(): Promise<string> {
+  const refreshToken = await getToken(REFRESH_TOKEN_KEY);
+  if (!refreshToken) {
+    throw new Error('Refresh token não disponível.');
+  }
+
+  const { data } = await refreshClient.post(
+    '/auth/token/refresh/',
+    { refresh: refreshToken },
+  );
+
+  await saveToken(ACCESS_TOKEN_KEY, data.access);
+
+  if (data.refresh) {
+    await saveToken(REFRESH_TOKEN_KEY, data.refresh);
+  }
+
+  return data.access as string;
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+function getRefreshPromise(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = requestRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function handleUnauthorized(error: AxiosError) {
+  const originalRequest = error.config as RetryableRequestConfig;
+
+  if (!originalRequest || originalRequest._retry) {
+    return Promise.reject(error);
+  }
+
+  if (!(await getToken(REFRESH_TOKEN_KEY))) {
+    return Promise.reject(error);
+  }
+
+  originalRequest._retry = true;
+
+  try {
+    const accessToken = await getRefreshPromise();
+    originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+    return api(originalRequest);
+  } catch (refreshError) {
+    await deleteToken(ACCESS_TOKEN_KEY);
+    await deleteToken(REFRESH_TOKEN_KEY);
+    notifyRefreshFailure();
+    return Promise.reject(refreshError);
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as RetryableRequestConfig;
-    const isUnauthorized = error.response?.status === 401;
-
-    if (!isUnauthorized || !originalRequest || originalRequest._retry) {
-      return Promise.reject(error);
+    if (error.response?.status === 401) {
+      return handleUnauthorized(error);
     }
-
-    originalRequest._retry = true;
-    const refreshToken = await getToken(REFRESH_TOKEN_KEY);
-
-    if (!refreshToken) {
-      await deleteToken(ACCESS_TOKEN_KEY);
-      await deleteToken(REFRESH_TOKEN_KEY);
-      return Promise.reject(error);
-    }
-
-    try {
-      const { data } = await refreshClient.post('/auth/token/refresh/', { refresh: refreshToken });
-      await saveToken(ACCESS_TOKEN_KEY, data.access);
-      
-      if (data.refresh) {
-        await saveToken(REFRESH_TOKEN_KEY, data.refresh);
-      }
-
-      originalRequest.headers.Authorization = `Bearer ${data.access}`;
-      return api(originalRequest);
-    } catch (refreshError) {
-      await deleteToken(ACCESS_TOKEN_KEY);
-      await deleteToken(REFRESH_TOKEN_KEY);
-      return Promise.reject(refreshError);
-    }
+    return Promise.reject(error);
   }
 );
