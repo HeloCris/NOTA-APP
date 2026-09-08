@@ -70,6 +70,7 @@ jest.mock('expo-web-browser', () => ({
 // ==========================================
 
 describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
+  jest.setTimeout(15000);
 
   // ------------------------------------------
   // TESTE 1

@@ -51,6 +51,10 @@ export function ProtectedRoute({
     !allowedRoles.includes(user.role)
   ) {
     // Redireciona para o dashboard correto conforme a role
+    if (user.role === "BRAND_OWNER") {
+      return <Navigate to="/brand" replace />;
+    }
+
     if (user.role === "CUSTOMER" || user.role === "SELLER") {
       return <Navigate to="/seller" replace />;
     }

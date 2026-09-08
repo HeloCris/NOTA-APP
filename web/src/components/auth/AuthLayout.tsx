@@ -4,9 +4,12 @@ import logoIcon from "../../assets/logo-icon.png";
 
 interface AuthLayoutProps {
   children: ReactNode;
+  customBrand?: ReactNode;
+  cardStyle?: React.CSSProperties;
+  cardClassName?: string;
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout({ children, customBrand, cardStyle, cardClassName }: AuthLayoutProps) {
   return (
     <>
       <nav className="nav">
@@ -19,6 +22,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
                   <Link to="/#welcome">Benefícios</Link>
                   <Link to="/#how">Como Funciona</Link>
                   <Link to="/#historias">Histórias de Sucesso</Link>
+                  <Link to="/#marcas" className="nav-link-brand">
+                      <span className="nav-brand-badge">✦</span>
+                      Marcas Oficiais
+                  </Link>
               </div>
               <div className="nav-actions">
                   <Link to="/login" className="btn-ghost-nav">Entrar</Link>
@@ -30,7 +37,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </nav>
 
       <main className="auth-main">
-        <section className="auth-card">
+        <section className={`auth-card ${cardClassName || ""}`.trim()} style={cardStyle}>
           <Link to="/" className="auth-back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -38,10 +45,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             Voltar para o site
           </Link>
 
-          <div className="auth-brand">
-            <img src={logoIcon} alt="NŌTA Logo" />
-            <span>NŌTA</span>
-          </div>
+          {customBrand ? (
+            customBrand
+          ) : (
+            <div className="auth-brand">
+              <img src={logoIcon} alt="NŌTA Logo" />
+              <span>NŌTA</span>
+            </div>
+          )}
 
           {children}
         </section>

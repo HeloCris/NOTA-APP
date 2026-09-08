@@ -64,6 +64,11 @@ class Store(models.Model):
         verbose_name="Loja Ativa",
     )
 
+    is_official = models.BooleanField(
+        default=False,
+        verbose_name="Loja Oficial",
+    )
+
     vacation_mode = models.BooleanField(
         default=False,
         verbose_name="Modo Férias",

@@ -1,7 +1,8 @@
 export type UserRole =
   | "ADMIN"
   | "SELLER"
-  | "CUSTOMER";
+  | "CUSTOMER"
+  | "BRAND_OWNER";
 
 export interface AuthTokens {
   access: string;
@@ -49,5 +50,8 @@ export interface AuthContextValue {
   register: (
     payload: RegisterPayload,
   ) => Promise<RegisterResponse>;
+  updateSession: (
+    tokens: AuthTokens,
+  ) => Promise<AuthenticatedUser>;
   logout: () => void;
 }

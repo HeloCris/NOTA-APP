@@ -1,28 +1,72 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from apps.users.models import CustomUser
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Injeta claims customizados no payload do JWT:
+    - `user_id` — ID do usuário
     - `email` — identificação legível do usuário
-    - `role`  — perfil do usuário (ADMIN, SELLER, CUSTOMER)
-    - `store_id` — ID da primeira loja do lojista (apenas para role == SELLER)
-
-    O `store_id` no token elimina queries extras para identificar
-    o tenant em cada request protegido por IsStoreOwner.
+    - `role`  — perfil do usuário (ADMIN, SELLER, CUSTOMER, BRAND_OWNER)
+    - `store_id` — ID da loja (para SELLER ou BRAND_OWNER com D2C)
+    - `brand_id` — ID da marca (para BRAND_OWNER)
     """
+    default_error_messages = {
+        "no_active_account": "Credenciais inválidas.",
+    }
 
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
 
-        # Claims padrão para todos os perfis
+        token["user_id"] = user.id
         token["email"] = user.email
         token["role"] = user.role
 
-        # Claim exclusivo para lojistas
-        if user.role == "SELLER":
-            store = user.stores.first()
+        if user.role == CustomUser.Roles.SELLER:
+            stores_manager = getattr(user, "stores", None)
+            store = (
+                stores_manager.first()
+                if stores_manager is not None
+                else None
+            )
             token["store_id"] = store.id if store else None
 
+        if user.role == CustomUser.Roles.BRAND_OWNER:
+            brands_manager = getattr(user, "brands", None)
+            brand = brands_manager.first() if brands_manager is not None else None
+
+            if brand:
+                token["brand_id"] = brand.id
+                if brand.d2c_store_id:
+                    token["store_id"] = brand.d2c_store_id
+            else:
+                token["brand_id"] = None
+                token["store_id"] = None
+
         return token
+
+    def validate(self, attrs):
+        from rest_framework.exceptions import AuthenticationFailed
+
+        email = attrs.get("email") or attrs.get(self.username_field)
+
+        # Interceptamos antes da super().validate para checar se o usuário existe mas está inativo
+        user = CustomUser.objects.filter(email=email).first()
+        if user and not user.is_active:
+            has_pending = user.brands.filter(status="PENDING").exists()
+            has_rejected = user.brands.filter(status="REJECTED").exists()
+
+            if has_pending:
+                raise AuthenticationFailed("Sua solicitação ainda não foi aceita, aguarde.")
+            elif has_rejected:
+                raise AuthenticationFailed("Sua solicitação de marca foi rejeitada.")
+            else:
+                raise AuthenticationFailed("Sua conta ainda não foi ativada. Aguarde a aprovação.")
+
+        try:
+            return super().validate(attrs)
+        except AuthenticationFailed:
+            raise
+        except Exception:
+            raise AuthenticationFailed("Credenciais inválidas.")

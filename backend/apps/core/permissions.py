@@ -21,7 +21,7 @@ class IsStoreOwner(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role in ["SELLER", "CUSTOMER"]
+            and request.user.role in ["SELLER", "CUSTOMER", "BRAND_OWNER"]
         )
 
     def has_object_permission(self, request, view, obj):
@@ -55,3 +55,13 @@ class IsCustomerOwner(BasePermission):
             return obj.user_id == request.user.id
 
         return False
+
+
+class IsBrandOwner(BasePermission):
+    message = "Acesso restrito a proprietários de marcas oficiais (BRAND_OWNER)."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == "BRAND_OWNER"
+        )

@@ -1,10 +1,17 @@
 export interface Brand {
   id: number;
   name: string;
+  cnpj?: string;
+  inpi_registration?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  is_official?: boolean;
+  d2c_store?: number | null;
 }
 
 export interface Product {
   id: number;
+  ean: string;
+  anvisa_code: string;
   name: string;
   brand: Brand;
   olfactory_family: string;
@@ -13,6 +20,7 @@ export interface Product {
   base_notes: string[];
   description: string;
   image_url: string;
+  is_approved?: boolean;
 }
 
 export interface PaginatedProducts {

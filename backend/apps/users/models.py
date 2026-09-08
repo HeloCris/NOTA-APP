@@ -10,6 +10,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ADMIN = "ADMIN", "Administrador"
         SELLER = "SELLER", "Lojista"
         CUSTOMER = "CUSTOMER", "Cliente"
+        BRAND_OWNER = "BRAND_OWNER", "Dono de Marca"
 
     email = models.EmailField(
         unique=True,

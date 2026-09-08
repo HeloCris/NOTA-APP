@@ -2,23 +2,23 @@ import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../hooks/use-theme';
 
 export default function Index() {
   const { user, isLoading } = useAuth();
+  const colors = useTheme();
 
-  // Exibe um loading enquanto verifica o SecureStore
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F3E9' }}>
-        <ActivityIndicator size="large" color="#1E3446" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
 
-  // Se tem usuário logado, vai para a loja. Se não, vai para o cadastro.
   if (user) {
     return <Redirect href="/(shop)" />;
   }
 
-  return <Redirect href="/(auth)/register" />;
+  return <Redirect href="/(auth)/welcome" />;
 }

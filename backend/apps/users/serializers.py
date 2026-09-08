@@ -101,41 +101,7 @@ class UserSerializer(serializers.ModelSerializer):
         return store.id if store else None
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    default_error_messages = {
-        "no_active_account": "Credenciais inválidas.",
-    }
-
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-
-        token["user_id"] = user.id
-        token["email"] = user.email
-        token["role"] = user.role
-
-        if user.role == CustomUser.Roles.SELLER:
-            stores_manager = getattr(user, "stores", None)
-
-            store = (
-                stores_manager.first()
-                if stores_manager is not None
-                else None
-            )
-
-            token["store_id"] = store.id if store else None
-
-        return token
-
-    def validate(self, attrs):
-        try:
-            return super().validate(attrs)
-        except serializers.ValidationError:
-            raise serializers.ValidationError(
-                {
-                    "detail": "Credenciais inválidas.",
-                }
-            )
+from .token_serializer import CustomTokenObtainPairSerializer
 
 
 class OlfactoryProfileSerializer(serializers.ModelSerializer):

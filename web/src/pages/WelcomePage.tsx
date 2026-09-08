@@ -58,6 +58,10 @@ export function WelcomePage() {
                         <a href="#welcome">Benefícios</a>
                         <a href="#how">Como Funciona</a>
                         <a href="#historias">Histórias de Sucesso</a>
+                        <a href="#marcas" className="nav-link-brand">
+                            <span className="nav-brand-badge">✦</span>
+                            Marcas Oficiais
+                        </a>
                     </div>
                     <div className="nav-actions">
                         <Link to="/login" className="btn-ghost-nav">Entrar</Link>
@@ -218,6 +222,58 @@ export function WelcomePage() {
                                 <div className="name">Fernanda Lima</div>
                                 <div className="store">Ateliê Olfativo — loja parceira desde 2024</div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* BRAND OFFICIAL SECTION */}
+            <section className="section" id="marcas" style={{ paddingTop: 0 }}>
+                <div className="wrap">
+                    <div className="brand-official-band">
+                        <div className="brand-official-content">
+                            <p className="eyebrow" style={{ textAlign: "left", marginBottom: "12px", color: "var(--terracotta)" }}>BRAND HUB · EXCLUSIVO</p>
+                            <h2>Você é dono de uma marca de perfumaria?</h2>
+                            <p>
+                                Torne-se uma <strong>Marca Oficial Verificada</strong> na NŌTA. Venda direto ao consumidor com o selo de autenticidade, gerencie seu portfólio completo e alcance clientes apaixonados por fragrâncias de nicho.
+                            </p>
+                            <ul className="brand-benefits">
+                                <li>
+                                    <svg viewBox="0 0 24 24"><use href="#ic-check" /></svg>
+                                    Selo "Loja Oficial" visível em todos os produtos
+                                </li>
+                                <li>
+                                    <svg viewBox="0 0 24 24"><use href="#ic-check" /></svg>
+                                    Produtos auto-aprovados no catálogo global
+                                </li>
+                                <li>
+                                    <svg viewBox="0 0 24 24"><use href="#ic-check" /></svg>
+                                    Vendas D2C (direto ao consumidor)
+                                </li>
+                                <li>
+                                    <svg viewBox="0 0 24 24"><use href="#ic-check" /></svg>
+                                    Acesso ao Brand Hub com métricas exclusivas
+                                </li>
+                            </ul>
+                            <div style={{ display: "flex", gap: "16px", marginTop: "8px", flexWrap: "wrap" }}>
+                                <Link to="/brand-onboarding" className="btn btn-primary" style={{ width: "fit-content" }}>
+                                    Cadastrar minha marca
+                                    <svg><use href="#ic-arrow" /></svg>
+                                </Link>
+                                <Link to="/brand-status" className="btn-secondary" style={{ width: "fit-content", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 24px", borderRadius: "8px", textDecoration: "none", color: "var(--navy)", border: "1px solid var(--gray-300)" }}>
+                                    Acompanhar minha solicitação
+                                </Link>
+                            </div>
+                        </div>
+                        <div className="brand-official-badge">
+                            <div className="bo-badge-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    <path d="M9 12l2 2 4-4" />
+                                </svg>
+                            </div>
+                            <p className="bo-badge-label">Marca Oficial</p>
+                            <p className="bo-badge-sub">Verificada pela NŌTA</p>
                         </div>
                     </div>
                 </div>
