@@ -53,10 +53,11 @@ export default function RegisterScreen() {
 
   const handleGoogleSuccess = useCallback(async (accessToken: string) => {
     try {
+      router.replace('/(auth)/onboarding/families');
       await signInWithGoogle(accessToken);
-      router.push('/(auth)/onboarding/families');
     } catch {
       setApiError('Erro ao autenticar com o Google.');
+      router.replace('/(auth)/login');
     }
   }, [router, signInWithGoogle]);
 
@@ -75,8 +76,12 @@ export default function RegisterScreen() {
         olfactory_families: [],
         preferred_notes: []
       });
-      await signIn({ email: data.email, password: data.password });
       router.push('/(auth)/onboarding/families');
+      try {
+        await signIn({ email: data.email, password: data.password });
+      } catch {
+        router.replace('/(auth)/login');
+      }
     } catch (error: any) {
       const errorData = error.response?.data;
       if (errorData) {
@@ -140,7 +145,7 @@ export default function RegisterScreen() {
 
       {apiError ? <Text style={styles.errorText}>{apiError}</Text> : null}
 
-      <TouchableOpacity style={[styles.primaryButton, !isValid && styles.disabledButton]} onPress={handleSubmit(onSubmit)} disabled={!isValid || isSubmitting}>
+      <TouchableOpacity testID="submit-register" style={[styles.primaryButton, !isValid && styles.disabledButton]} onPress={handleSubmit(onSubmit)} disabled={!isValid || isSubmitting}>
         {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Próximo →</Text>}
       </TouchableOpacity>
 
