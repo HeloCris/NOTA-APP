@@ -40,10 +40,11 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             "cover_url",
             "is_active",
             "vacation_mode",
+            "is_official",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_official", "created_at", "updated_at"]
 
     def validate_cnpj(self, value: str) -> str:
         """

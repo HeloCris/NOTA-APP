@@ -110,8 +110,12 @@ export function InventoryTable({
                 >
                   <td className="p-[14px_22px] align-middle">
                     <div className="flex items-center gap-3">
-                      <div className="w-[34px] h-[58px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded-lg">
-                        <svg className="h-[48px] w-auto"><use href="#bt-libre" /></svg>
+                      <div className="w-[34px] h-[58px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded-lg overflow-hidden">
+                        {item.product.image_url ? (
+                          <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <svg className="h-[48px] w-auto"><use href="#bt-libre" /></svg>
+                        )}
                       </div>
                       <div>
                         <div className="font-bold text-[13px] text-[#23282D]">{item.product.name}</div>

@@ -16,6 +16,7 @@ const AdminHomePage = lazy(() => import("./pages/AdminHomePage.lazy"));
 const SellerHomePage = lazy(() => import("./pages/SellerHomePage.lazy"));
 const BrandOnboardingPage = lazy(() => import("./pages/BrandOnboardingPage.lazy"));
 const BrandStatusPage = lazy(() => import("./pages/BrandStatusPage.lazy"));
+const BrandHomePage = lazy(() => import("./pages/BrandHomePage.lazy"));
 
 export default function App() {
   return (
@@ -64,8 +65,17 @@ export default function App() {
         <Route
           path="/seller"
           element={
-            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
               <SellerHomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/brand"
+          element={
+            <ProtectedRoute allowedRoles={["BRAND_OWNER"]}>
+              <BrandHomePage />
             </ProtectedRoute>
           }
         />

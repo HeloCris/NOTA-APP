@@ -68,12 +68,10 @@ export function DashboardTab({ store }: DashboardTabProps) {
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <h2 className="text-[20px] font-extrabold text-[#23282D] flex items-center gap-2.5 flex-wrap font-jakarta">
+                    <h2 className="text-[20px] font-extrabold text-[#23282D] flex items-center gap-1.5 flex-wrap font-jakarta">
                         {storeName}
-                        {data.is_verified && (
-                            <span className="inline-flex items-center gap-1.5 bg-[#EDF0E7] text-[#454F3A] text-[11px] font-bold px-2.5 py-1 rounded-full">
-                                <svg className="w-3 h-3"><use href="#ic-check-badge" /></svg> Vendedor Verificado
-                            </span>
+                        {store?.is_official && (
+                            <svg className="w-5 h-5 text-[#1D9BF0] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.918-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.337 2.25c-.416-.165-.866-.25-1.336-.25-2.21 0-3.918 1.79-3.918 4 0 .495.084.965.238 1.4-1.273.65-2.148 2.02-2.148 3.6 0 1.46.733 2.73 1.83 3.395-.084.288-.13.593-.13.905 0 2.21 1.71 3.998 3.918 3.998.47 0 .92-.084 1.336-.25C8.98 21.585 10.29 22.5 11.8 22.5c1.51 0 2.818-.915 3.338-2.25.416.165.866.25 1.336.25 2.21 0 3.918-1.79 3.918-4 0-.312-.046-.617-.13-.905 1.097-.665 1.83-1.935 1.83-3.395zM10.98 16.99L7.22 13.23l1.96-1.96 1.8 1.8 5.8-5.8 1.96 1.96-7.76 7.76z"/></svg>
                         )}
                     </h2>
                     <div className="text-[12.5px] text-[#93927F] mt-1.5">
