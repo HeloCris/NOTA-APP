@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -13,8 +13,6 @@ import Animated, {
   Easing 
 } from 'react-native-reanimated';
 import { useTheme } from '../../hooks/use-theme';
-
-const { width } = Dimensions.get('window');
 
 // A logo SVG foi removida porque o estilo 3D dourado requirido pela marca (textura e sombreamento) 
 // não pode ser renderizado com perfeição usando apenas paths e strokes sólidos via código puro.
@@ -128,12 +126,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingBottom: 40,
   },
   logo: {
-    width: width * 0.4,
-    height: width * 0.4,
+    width: '45%',
+    aspectRatio: 1,
+    maxWidth: 240,
+    maxHeight: 240,
     marginBottom: 24,
   },
   textContainer: {
@@ -153,9 +153,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   footer: {
-    paddingHorizontal: 40,
+    paddingHorizontal: 24,
     paddingBottom: 60,
     width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
     alignItems: 'center',
   },
   primaryButton: {

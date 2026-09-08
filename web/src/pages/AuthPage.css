@@ -345,3 +345,57 @@
 .auth-form .checkbox-group label a:hover {
     text-decoration: underline;
 }
+
+/* BRAND HINT BANNER (Register) */
+.brand-hint-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--navy-tint, #E9EDF0);
+    border: 1px solid rgba(53, 75, 94, 0.14);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 20px;
+}
+
+.brand-hint-icon {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--navy-deep, #263847);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.brand-hint-icon svg {
+    width: 17px;
+    height: 17px;
+    color: #fff;
+}
+
+.brand-hint-text strong {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--navy-deep, #263847);
+    display: block;
+    margin-bottom: 3px;
+}
+
+.brand-hint-text p {
+    font-size: 12px;
+    color: var(--ink-soft, #5A6067);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.brand-hint-text p a {
+    color: var(--terracotta, #A85A38);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.brand-hint-text p a:hover {
+    text-decoration: underline;
+}

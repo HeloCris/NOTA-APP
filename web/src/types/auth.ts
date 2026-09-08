@@ -1,7 +1,8 @@
 export type UserRole =
   | "ADMIN"
   | "SELLER"
-  | "CUSTOMER";
+  | "CUSTOMER"
+  | "BRAND_OWNER";
 
 export interface AuthTokens {
   access: string;
