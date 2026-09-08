@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     CustomTokenObtainPairView,
+    TokenBlacklistView,
     MeView,
     RegisterView,
     GoogleAuthView,
@@ -27,6 +28,11 @@ urlpatterns = [
         "token/refresh/",
         TokenRefreshView.as_view(),
         name="token_refresh",
+    ),
+    path(
+        "token/blacklist/",
+        TokenBlacklistView.as_view(),
+        name="token_blacklist",
     ),
     path(
         "me/",

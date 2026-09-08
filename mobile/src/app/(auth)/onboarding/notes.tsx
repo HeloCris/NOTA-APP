@@ -13,7 +13,7 @@ const NOTES = {
 export default function NotesScreen() {
   const router = useRouter();
   const { families } = useLocalSearchParams<{ families: string }>();
-  const { updateProfile } = useAuth();
+  const { updateOlfactoryProfile } = useAuth();
   const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +36,7 @@ export default function NotesScreen() {
   const handleFinish = async () => {
     setLoading(true);
     try {
-      await updateProfile({ olfactory_families: parsedFamilies, preferred_notes: selectedNotes });
+      await updateOlfactoryProfile({ olfactory_families: parsedFamilies, preferred_notes: selectedNotes });
       router.replace('/(shop)');
     } catch (error) {
       Alert.alert("Erro", "Não foi possível salvar seu perfil olfativo.");

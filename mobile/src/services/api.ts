@@ -1,5 +1,4 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { getToken, saveToken, deleteToken } from '../utils/storage';
 
@@ -35,39 +34,97 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// ---------------------------------------------------------------------
+// Renovação silenciosa do access_token (RF-07.4)
+//
+// - Uma única promise de refresh é compartilhada por todas as requests
+//   que falharem com 401, evitando múltiplos refresh simultâneos
+//   (race condition).
+// - Se o refresh falhar (token revogado/expirado), limpa os tokens e
+//   notifica o AuthContext para deslogar e redirecionar (CA-04).
+// ---------------------------------------------------------------------
+
+type RefreshFailureListener = () => void;
+const refreshFailureListeners: RefreshFailureListener[] = [];
+
+export function onRefreshFailure(listener: RefreshFailureListener): () => void {
+  refreshFailureListeners.push(listener);
+  return () => {
+    const index = refreshFailureListeners.indexOf(listener);
+    if (index >= 0) {
+      refreshFailureListeners.splice(index, 1);
+    }
+  };
+}
+
+function notifyRefreshFailure() {
+  refreshFailureListeners.forEach((listener) => listener());
+}
+
+async function requestRefresh(): Promise<string> {
+  const refreshToken = await getToken(REFRESH_TOKEN_KEY);
+  if (!refreshToken) {
+    throw new Error('Refresh token não disponível.');
+  }
+
+  const { data } = await refreshClient.post(
+    '/auth/token/refresh/',
+    { refresh: refreshToken },
+  );
+
+  await saveToken(ACCESS_TOKEN_KEY, data.access);
+
+  if (data.refresh) {
+    await saveToken(REFRESH_TOKEN_KEY, data.refresh);
+  }
+
+  return data.access as string;
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+function getRefreshPromise(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = requestRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function handleUnauthorized(error: AxiosError) {
+  const originalRequest = error.config as RetryableRequestConfig;
+
+  if (!originalRequest || originalRequest._retry) {
+    return Promise.reject(error);
+  }
+
+  // Sem refresh token (ex.: 401 do POST /auth/token/ com senha errada)
+  // não há o que renovar — apenas repassa o erro para a UI tratar inline.
+  if (!(await getToken(REFRESH_TOKEN_KEY))) {
+    return Promise.reject(error);
+  }
+
+  originalRequest._retry = true;
+
+  try {
+    const accessToken = await getRefreshPromise();
+    originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+    return api(originalRequest);
+  } catch (refreshError) {
+    await deleteToken(ACCESS_TOKEN_KEY);
+    await deleteToken(REFRESH_TOKEN_KEY);
+    notifyRefreshFailure();
+    return Promise.reject(refreshError);
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as RetryableRequestConfig;
-    const isUnauthorized = error.response?.status === 401;
-
-    if (!isUnauthorized || !originalRequest || originalRequest._retry) {
-      return Promise.reject(error);
+    if (error.response?.status === 401) {
+      return handleUnauthorized(error);
     }
-
-    originalRequest._retry = true;
-    const refreshToken = await getToken(REFRESH_TOKEN_KEY);
-
-    if (!refreshToken) {
-      await deleteToken(ACCESS_TOKEN_KEY);
-      await deleteToken(REFRESH_TOKEN_KEY);
-      return Promise.reject(error);
-    }
-
-    try {
-      const { data } = await refreshClient.post('/auth/token/refresh/', { refresh: refreshToken });
-      await saveToken(ACCESS_TOKEN_KEY, data.access);
-      
-      if (data.refresh) {
-        await saveToken(REFRESH_TOKEN_KEY, data.refresh);
-      }
-
-      originalRequest.headers.Authorization = `Bearer ${data.access}`;
-      return api(originalRequest);
-    } catch (refreshError) {
-      await deleteToken(ACCESS_TOKEN_KEY);
-      await deleteToken(REFRESH_TOKEN_KEY);
-      return Promise.reject(refreshError);
-    }
+    return Promise.reject(error);
   }
 );

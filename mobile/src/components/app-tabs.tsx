@@ -1,4 +1,5 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -21,9 +22,22 @@ export default function AppTabs() {
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Explorar</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
           src={require('@/assets/images/tabIcons/explore.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Conta</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={
+            <NativeTabs.Trigger.VectorIcon
+              family={MaterialCommunityIcons}
+              name="account"
+            />
+          }
           renderingMode="template"
         />
       </NativeTabs.Trigger>

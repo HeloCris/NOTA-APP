@@ -4,13 +4,16 @@ from google.auth.transport import requests as google_requests
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.views import TokenBlacklistView as SimpleJWTTokenBlacklistView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import CustomUser
 from .serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
-    UserSerializer,
+    MeSerializer,
     OlfactoryProfileSerializer,
 )
 
@@ -29,8 +32,30 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-class MeView(generics.RetrieveAPIView):
-    serializer_class = UserSerializer
+class TokenBlacklistView(SimpleJWTTokenBlacklistView):
+    """
+    Invalida o `refresh_token` no servidor e responde `205 No Content`
+    (contrato RF-07.5).
+    """
+
+    _serializer_class = api_settings.TOKEN_BLACKLIST_SERIALIZER
+    permission_classes = [
+        permissions.AllowAny,
+    ]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0]) from e
+
+        return Response(status=status.HTTP_205_RESET_CONTENT)
+
+
+class MeView(generics.RetrieveUpdateAPIView):
+    serializer_class = MeSerializer
     permission_classes = [
         permissions.IsAuthenticated,
     ]
