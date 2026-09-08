@@ -17,6 +17,11 @@ const SellerHomePage = lazy(() => import("./pages/SellerHomePage.lazy"));
 const BrandOnboardingPage = lazy(() => import("./pages/BrandOnboardingPage.lazy"));
 const BrandStatusPage = lazy(() => import("./pages/BrandStatusPage.lazy"));
 const BrandHomePage = lazy(() => import("./pages/BrandHomePage.lazy"));
+const StoreShowcasePage = lazy(() =>
+  import("./features/showcase/StoreShowcasePage").then((module) => ({
+    default: module.StoreShowcasePage,
+  })),
+);
 
 export default function App() {
   return (
@@ -41,6 +46,11 @@ export default function App() {
         <Route
           path="/register"
           element={<AuthPage />}
+        />
+
+        <Route
+          path="/lojas/:slug"
+          element={<StoreShowcasePage />}
         />
 
         <Route
