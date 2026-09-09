@@ -10,6 +10,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ADMIN = "ADMIN", "Administrador"
         SELLER = "SELLER", "Lojista"
         CUSTOMER = "CUSTOMER", "Cliente"
+        BRAND_OWNER = "BRAND_OWNER", "Dono de Marca"
 
     email = models.EmailField(
         unique=True,
@@ -44,6 +45,17 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     is_staff = models.BooleanField(
         default=False,
+    )
+
+
+    olfactory_families = models.JSONField(
+        default=list,
+        blank=True,
+    )
+
+    preferred_notes = models.JSONField(
+        default=list,
+        blank=True,
     )
 
     objects = CustomUserManager()

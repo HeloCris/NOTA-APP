@@ -85,7 +85,11 @@ export function RegisterForm() {
     try {
       await registerUser(payload);
 
-      navigate("/login", {
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirect = searchParams.get("redirect");
+      const url = redirect ? `/login?redirect=${redirect}` : "/login";
+
+      navigate(url, {
         replace: true,
         state: {
           successMessage:
@@ -263,6 +267,19 @@ export function RegisterForm() {
         </button>
       </form>
 
+
+      <div className="brand-hint-banner">
+        <div className="brand-hint-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+        </div>
+        <div className="brand-hint-text">
+          <strong>Você tem uma marca de perfumaria?</strong>
+          <p>Cadastre-se como <Link to="/brand-onboarding">Marca Oficial NŌTA</Link> e venda diretamente com selo verificado.</p>
+        </div>
+      </div>
 
       <div className="auth-footer">
         Já tem uma conta? <Link to="/login">Entrar</Link>

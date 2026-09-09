@@ -39,6 +39,26 @@ Quando o usuário possui role `SELLER`, o `store_id` é injetado no token, elimi
 }
 ```
 
+### Payload Estendido (Dono de Marca — role `BRAND_OWNER`)
+
+Quando o usuário é `BRAND_OWNER`, o `brand_id` é injetado no token. Se o D2C estiver ativo, o `store_id` da Loja Oficial também é incluído:
+
+```json
+{
+  "token_type": "access",
+  "exp": 1756591200,
+  "iat": 1756504800,
+  "jti": "unique-token-id-uuid",
+  "user_id": 3,
+  "email": "marca@dior.com",
+  "role": "BRAND_OWNER",
+  "brand_id": 2,
+  "store_id": 10
+}
+```
+
+---
+
 ### Implementação do Serializer Customizado
 
 ```python
@@ -58,6 +78,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             # Assume que cada SELLER tem uma Store associada (1:1 ou 1:N)
             store = user.stores.first()
             token["store_id"] = store.id if store else None
+
+        if user.role == "BRAND_OWNER":
+            # Injeta brand_id e, se D2C ativo, o store_id da Loja Oficial
+            brand = user.owned_brands.first()
+            token["brand_id"] = brand.id if brand else None
+            if brand and brand.d2c_store:
+                token["store_id"] = brand.d2c_store.id
 
         return token
 ```
@@ -148,6 +175,49 @@ class StoreProductViewSet(ModelViewSet):
 
 ---
 
+### 2.4 `IsBrandOwner`
+
+Garante que o dono de marca (`BRAND_OWNER`) acesse **apenas** produtos e dados associados à sua própria `Brand`. Bloqueia acesso ao portfólio de outras marcas.
+
+```python
+class IsBrandOwner(BasePermission):
+    """
+    Permite acesso somente ao BRAND_OWNER e apenas para recursos
+    associados à sua própria Brand.
+    """
+    message = "Você não tem permissão para gerenciar produtos de outra marca."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == "BRAND_OWNER"
+        )
+
+    def has_object_permission(self, request, view, obj):
+        brand_id = request.auth.get("brand_id")  # Lido do JWT
+        if hasattr(obj, "brand_id"):
+            return obj.brand_id == brand_id
+        if hasattr(obj, "brand"):
+            return obj.brand.id == brand_id
+        return False
+```
+
+**Padrão de QuerySet (isolamento de portfólio):**
+
+```python
+class BrandProductViewSet(ModelViewSet):
+    permission_classes = [IsBrandOwner]
+
+    def get_queryset(self):
+        brand_id = self.request.auth.get("brand_id")
+        return Product.objects.filter(brand_id=brand_id)
+```
+
+> [!IMPORTANT]
+> Quando `BRAND_OWNER` também tem D2C ativo (`store_id` presente no JWT), as views de `StoreProduct`, `Order` e estoque devem aceitar `IsBrandOwner | IsStoreOwner` — usando composição de permissões do DRF (`|` operator).
+
+---
+
 ### 2.3 `IsCustomerOwner`
 
 Garante que o cliente (`CUSTOMER`) acesse **apenas seus próprios** pedidos, endereços e dados pessoais.
@@ -195,20 +265,30 @@ class OrderViewSet(ModelViewSet):
 
 ## 3. Tabela Resumo — Permissão por Endpoint
 
-| Endpoint | Método | `IsPlatformAdmin` | `IsStoreOwner` | `IsCustomerOwner` | `AllowAny` |
-| :--- | :--- | :---: | :---: | :---: | :---: |
-| `/auth/register/` | POST | — | — | — | ✅ |
-| `/auth/token/` | POST | — | — | — | ✅ |
-| `/stores/` | GET | — | — | — | ✅ |
-| `/stores/me/` | GET, PATCH | — | ✅ | — | — |
-| `/products/` | GET | — | — | — | ✅ |
-| `/store-products/` | GET, POST | — | ✅ | — | — |
-| `/store-products/{id}/` | PATCH, DELETE | — | ✅ | — | — |
-| `/orders/` | POST | — | — | ✅ | — |
-| `/orders/` | GET | ✅ | ✅ | ✅ | — |
-| `/orders/{id}/` | GET | ✅ | ✅ | ✅ | — |
-| `/orders/{id}/status/` | PATCH | — | ✅ | — | — |
-| `/admin/stores/approve/{id}/` | PATCH | ✅ | — | — | — |
+| Endpoint | Método | `IsPlatformAdmin` | `IsBrandOwner` | `IsStoreOwner` | `IsCustomerOwner` | `AllowAny` |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `/auth/register/` | POST | — | — | — | — | ✅ |
+| `/auth/token/` | POST | — | — | — | — | ✅ |
+| `/brands/` | GET | — | — | — | — | ✅ |
+| `/brands/` | POST | ✅ | — | — | — | — |
+| `/brands/me/` | GET, PATCH | — | ✅ | — | — | — |
+| `/brands/me/products/` | GET, POST | — | ✅ | — | — | — |
+| `/brands/me/products/{id}/` | PATCH, DELETE | — | ✅ | — | — | — |
+| `/brands/me/activate-d2c/` | POST | — | ✅ | — | — | — |
+| `/stores/` | GET | — | — | — | — | ✅ |
+| `/stores/me/` | GET, PATCH | — | ✅¹ | ✅ | — | — |
+| `/products/` | GET | — | — | — | — | ✅ |
+| `/products/` | POST | ✅ | ✅ | — | — | — |
+| `/store-products/` | GET, POST | — | ✅¹ | ✅ | — | — |
+| `/store-products/{id}/` | PATCH, DELETE | — | ✅¹ | ✅ | — | — |
+| `/orders/` | POST | — | — | — | ✅ | — |
+| `/orders/` | GET | ✅ | ✅¹ | ✅ | ✅ | — |
+| `/orders/{id}/` | GET | ✅ | ✅¹ | ✅ | ✅ | — |
+| `/orders/{id}/status/` | PATCH | — | ✅¹ | ✅ | — | — |
+| `/admin/stores/approve/{id}/` | PATCH | ✅ | — | — | — | — |
+| `/admin/brands/approve/{id}/` | PATCH | ✅ | — | — | — | — |
+
+> ¹ Aplicável apenas quando o `BRAND_OWNER` possui D2C ativo (`store_id` presente no JWT).
 
 ---
 

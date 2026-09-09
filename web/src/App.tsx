@@ -14,6 +14,14 @@ const WelcomePage = lazy(() => import("./pages/WelcomePage.lazy"));
 const AuthPage = lazy(() => import("./pages/AuthPage.lazy"));
 const AdminHomePage = lazy(() => import("./pages/AdminHomePage.lazy"));
 const SellerHomePage = lazy(() => import("./pages/SellerHomePage.lazy"));
+const BrandOnboardingPage = lazy(() => import("./pages/BrandOnboardingPage.lazy"));
+const BrandStatusPage = lazy(() => import("./pages/BrandStatusPage.lazy"));
+const BrandHomePage = lazy(() => import("./pages/BrandHomePage.lazy"));
+const StoreShowcasePage = lazy(() =>
+  import("./features/showcase/StoreShowcasePage").then((module) => ({
+    default: module.StoreShowcasePage,
+  })),
+);
 
 export default function App() {
   return (
@@ -41,6 +49,21 @@ export default function App() {
         />
 
         <Route
+          path="/lojas/:slug"
+          element={<StoreShowcasePage />}
+        />
+
+        <Route
+          path="/brand-onboarding"
+          element={<BrandOnboardingPage />}
+        />
+
+        <Route
+          path="/brand-status"
+          element={<BrandStatusPage />}
+        />
+
+        <Route
           path="/admin"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
@@ -54,6 +77,15 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
               <SellerHomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/brand"
+          element={
+            <ProtectedRoute allowedRoles={["BRAND_OWNER"]}>
+              <BrandHomePage />
             </ProtectedRoute>
           }
         />

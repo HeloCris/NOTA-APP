@@ -117,6 +117,25 @@
     color: var(--navy);
 }
 
+.welcome-wrapper .nav-links .nav-link-brand {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--terracotta);
+    transition: color 0.2s;
+}
+
+.welcome-wrapper .nav-links .nav-link-brand:hover {
+    color: var(--terracotta-deep);
+}
+
+.welcome-wrapper .nav-brand-badge {
+    font-size: 10px;
+    line-height: 1;
+}
+
 .welcome-wrapper .nav-actions {
     display: flex;
     align-items: center;
@@ -534,6 +553,103 @@
     max-width: 260px;
 }
 
+/* BRAND OFFICIAL SECTION */
+.welcome-wrapper .brand-official-band {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 28px;
+    padding: 52px 56px;
+    box-shadow: var(--shadow-sm);
+}
+
+.welcome-wrapper .brand-official-content h2 {
+    font-size: 27px;
+    font-weight: 800;
+    color: var(--navy-deep);
+    letter-spacing: -.01em;
+    margin-bottom: 14px;
+}
+
+.welcome-wrapper .brand-official-content > p {
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.65;
+    margin-bottom: 22px;
+}
+
+.welcome-wrapper .brand-benefits {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.welcome-wrapper .brand-benefits li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--olive-deep);
+}
+
+.welcome-wrapper .brand-benefits svg {
+    width: 16px;
+    height: 16px;
+    color: var(--olive);
+    flex-shrink: 0;
+}
+
+.welcome-wrapper .brand-official-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--navy-deep);
+    border-radius: 20px;
+    padding: 36px 32px;
+    min-width: 160px;
+    text-align: center;
+}
+
+.welcome-wrapper .bo-badge-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome-wrapper .bo-badge-icon svg {
+    width: 30px;
+    height: 30px;
+    color: #fff;
+}
+
+.welcome-wrapper .bo-badge-label {
+    font-family: var(--headline);
+    font-weight: 800;
+    font-size: 16px;
+    color: #fff;
+    margin: 0;
+}
+
+.welcome-wrapper .bo-badge-sub {
+    font-size: 11.5px;
+    color: #9FADB8;
+    margin: 0;
+}
+
 @media (max-width: 980px) {
     .welcome-wrapper .feature-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -554,5 +670,17 @@
 
     .welcome-wrapper .steps-row::before {
         display: none;
+    }
+
+    .welcome-wrapper .brand-official-band {
+        grid-template-columns: 1fr;
+    }
+
+    .welcome-wrapper .brand-official-badge {
+        flex-direction: row;
+        min-width: auto;
+        padding: 20px 24px;
+        justify-content: flex-start;
+        gap: 16px;
     }
 }

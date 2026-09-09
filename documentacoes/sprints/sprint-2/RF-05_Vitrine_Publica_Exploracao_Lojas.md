@@ -1,6 +1,7 @@
 # RF-05 — Vitrine Pública & Exploração de Lojas
 
-> **Sprint:** 1 | **Prioridade:** 🔴 Alta | **Estimativa:** 4 SP | **Depende de:** RF-02, RF-03, RF-04
+> **Sprint:** 2 | **Prioridade:** 🔴 Alta | **Estimativa:** 4 SP | **Depende de:** RF-02, RF-03, RF-04
+> ⚠️ **Débito Técnico:** Feature não entregue na Sprint 1. Prioridade máxima de conclusão nesta sprint.
 
 ---
 

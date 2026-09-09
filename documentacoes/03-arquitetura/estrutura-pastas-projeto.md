@@ -61,7 +61,7 @@ nota-marketplace/
 │               ├── test_inventory.py             # [RF-04] Estoque, preços, multi-tenant
 │               └── test_showcase.py             # [RF-05] Visibilidade pública
 │
-└── frontend-web/                                 # React + Vite — Seller Hub & Vitrine
+└── web/                                          # React + Vite — Seller Hub & Vitrine
     ├── index.html
     ├── package.json
     ├── vite.config.ts
@@ -124,6 +124,25 @@ nota-marketplace/
         └── routes/
             ├── index.tsx                         # Definição de todas as rotas
             └── ProtectedRoute.tsx                # [RF-01] Guard por role
+│
+├── mobile/                                       # React Native + Expo Router — App Cliente
+│   ├── src/
+│   │   ├── app/                                  # Rotas da aplicação (Expo Router)
+│   │   │   ├── _layout.tsx                       # Layout raiz (Providers, Auth guard)
+│   │   │   ├── index.tsx                         # Ponto de entrada (redireciona p/ auth ou shop)
+│   │   │   ├── (auth)/                           # Grupo de rotas não autenticadas
+│   │   │   ├── (shop)/                           # Grupo de rotas principais (Tab Bar)
+│   │   │   └── product/                          # Rotas dinâmicas
+│   │   │
+│   │   ├── components/                           # Componentes de UI reutilizáveis
+│   │   ├── services/                             # Camada de comunicação com a API
+│   │   ├── context/                              # Gerenciamento de Estado Global
+│   │   ├── utils/                                # Funções auxiliares
+│   │   ├── constants/                            # Cores, Temas, URLs
+│   │   └── assets/                               # Imagens, fontes locais
+│   │
+│   ├── package.json
+│   └── app.json                                  # Configurações do Expo
 ```
 
 ---

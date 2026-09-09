@@ -10,6 +10,7 @@ export interface Store {
     is_active: boolean;
     vacation_mode: boolean;
     owner_id: number;
+    is_official?: boolean;
     created_at?: string;
     updated_at?: string;
 }

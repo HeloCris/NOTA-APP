@@ -1,13 +1,9 @@
 from django.conf import settings  # type: ignore
 from django.db import models  # type: ignore
+from django.utils.text import slugify
 
 
 class Store(models.Model):
-    """
-    Representa uma loja/tenant no marketplace NŌTA.
-    Um usuário SELLER pode ter múltiplas lojas (filiais),
-    mas no MVP os endpoints operam sobre stores.first().
-    """
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -21,6 +17,8 @@ class Store(models.Model):
         verbose_name="Nome Fantasia",
     )
 
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+
     legal_name = models.CharField(
         max_length=200,
         blank=True,
@@ -29,7 +27,7 @@ class Store(models.Model):
     )
 
     cnpj = models.CharField(
-        max_length=14,  # Armazenado somente dígitos (sanitizado no serializer)
+        max_length=14,
         unique=True,
         verbose_name="CNPJ",
     )
@@ -64,6 +62,11 @@ class Store(models.Model):
         verbose_name="Loja Ativa",
     )
 
+    is_official = models.BooleanField(
+        default=False,
+        verbose_name="Loja Oficial",
+    )
+
     vacation_mode = models.BooleanField(
         default=False,
         verbose_name="Modo Férias",
@@ -85,3 +88,14 @@ class Store(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} (CNPJ: {self.cnpj})"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name) or f"loja-{self.pk or 'nova'}"
+            candidate = base_slug
+            suffix = 2
+            while type(self).objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+                candidate = f"{base_slug}-{suffix}"
+                suffix += 1
+            self.slug = candidate
+        return super().save(*args, **kwargs)

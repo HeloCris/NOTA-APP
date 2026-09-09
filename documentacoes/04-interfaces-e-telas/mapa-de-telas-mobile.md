@@ -1,5 +1,7 @@
 # Mapa de Telas - App Mobile (Cliente)
 
+> **Nota de UI:** Todas as telas descritas neste documento devem ser implementadas consumindo estritamente os tokens de cor e tipografia definidos em [design-system.md](design-system.md).
+
 A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferior** com 4 abas principais, além de telas em formato stack (sobrepostas) para fluxos específicos.
 
 ## 1. Tab: Início / Vitrine (Home)
@@ -19,7 +21,7 @@ A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferi
 *   **Resultados da Busca:** Lista de produtos encontrados com os filtros aplicados.
 
 ## 3. Tab: Carrinho (Multi-loja)
-*   **Lista de Itens:** Produtos adicionados, agrupados visualmente por **Loja**.
+*   **Lista de Itens:** Produtos adicionados, agrupados visualmente por Loja.
 *   **Controles:** Alterar quantidade, remover item.
 *   **Resumo de Valores:** Subtotal dos produtos e estimativa de frete (calculado por loja).
 *   **Aviso de Split:** Mensagem clara informando que as entregas ocorrerão de forma separada caso haja múltiplas lojas.
@@ -28,16 +30,19 @@ A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferi
 ## 4. Tab: Minha Conta (Perfil)
 *   **Dados do Usuário:** Nome, e-mail.
 *   **Meus Pedidos:** Acesso rápido ao histórico de compras.
-    *   *Tela de Detalhe do Pedido:* Exibe os itens, valor pago, endereço de entrega e a **linha do tempo do status** (Pendente, Em Separação, Enviado, Entregue).
+    *   **Tela de Detalhe do Pedido:** Exibe os itens, valor pago, endereço de entrega e a linha do tempo do status (Pendente, Em Separação, Enviado, Entregue).
 *   **Endereços Salvos:** Gestão de endereços de entrega.
 *   **Meios de Pagamento:** Cartões salvos.
 *   **Configurações e Sair.**
 
 ## Telas em Stack (Fora da Tab Bar)
-*   **Tela de Produto (`[id].tsx`):**
-    *   Imagens em carrossel.
-    *   Nome, Marca e Preço.
-    *   **Visualização da Pirâmide Olfativa:** Representação gráfica elegante das notas de saída, corpo e fundo.
-    *   Loja Vendedora (com link para ver mais produtos desta loja).
-    *   Botão "Adicionar ao Carrinho".
-*   **Fluxo de Autenticação:** Login, Cadastro, Recuperação de Senha.
+
+### Tela de Produto ([id].tsx)
+*   Imagens em carrossel.
+*   Nome, Marca e Preço.
+*   **Visualização da Pirâmide Olfativa:** Representação gráfica elegante das notas de saída, corpo e fundo.
+*   Loja Vendedora (com link para ver mais produtos desta loja).
+*   Botão "Adicionar ao Carrinho".
+
+### Fluxo de Autenticação
+*   Login, Cadastro, Recuperação de Senha.

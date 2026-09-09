@@ -1,5 +1,7 @@
 # Mapa de Telas - Painel Web (Lojista)
 
+> **Nota de UI:** Todas as telas descritas neste documento devem ser implementadas consumindo estritamente os tokens de cor e tipografia definidos em [design-system.md](design-system.md).
+
 O Painel Web do Lojista é acessado via navegador desktop e foca na gestão operacional do marketplace para aquele tenant específico. A estrutura visual baseia-se em uma **Side Bar** (Menu Lateral) e uma área principal de conteúdo.
 
 ## 1. Dashboard (Visão Geral)

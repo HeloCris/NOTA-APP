@@ -161,6 +161,28 @@ export function AuthProvider({
     [],
   );
 
+  const updateSession = useCallback(
+    async (tokens: AuthTokens) => {
+      saveTokens(tokens);
+      setAccessToken(tokens.access);
+
+      const userResponse =
+        await apiClient.get<AuthenticatedUser>(
+          "/auth/me/",
+        );
+
+      setUser(userResponse.data);
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(userResponse.data),
+      );
+
+      return userResponse.data;
+    },
+    [],
+  );
+
   const register = useCallback(
     async (payload: RegisterPayload) => {
       const response =
@@ -182,6 +204,7 @@ export function AuthProvider({
       isAuthenticated: Boolean(user && accessToken),
       login,
       register,
+      updateSession,
       logout,
     }),
     [
@@ -190,6 +213,7 @@ export function AuthProvider({
       isLoading,
       login,
       register,
+      updateSession,
       logout,
     ],
   );

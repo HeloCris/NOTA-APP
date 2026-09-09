@@ -1,0 +1,18 @@
+
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('users', '0002_customuser_olfactory_families_and_more'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='customuser',
+            name='role',
+            field=models.CharField(choices=[('ADMIN', 'Administrador'), ('SELLER', 'Lojista'), ('CUSTOMER', 'Cliente'), ('BRAND_OWNER', 'Dono de Marca')], default='CUSTOMER', max_length=20),
+        ),
+    ]

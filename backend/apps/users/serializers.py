@@ -17,6 +17,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[],
     )
 
+
+    olfactory_families = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+    preferred_notes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+
     class Meta:
         model = CustomUser
         fields = [
@@ -25,6 +37,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
+            "olfactory_families",
+            "preferred_notes",
         ]
 
     def validate_email(self, value):
@@ -55,7 +69,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         }
 
 
-class UserSerializer(serializers.ModelSerializer):
+class MeSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        validators=[],
+    )
     store_id = serializers.SerializerMethodField()
 
     class Meta:
@@ -68,8 +85,24 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "role",
             "store_id",
+            "olfactory_families",
+            "preferred_notes",
         ]
-        read_only_fields = fields
+        read_only_fields = ["id", "role", "store_id"]
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+
+        queryset = CustomUser.objects.filter(email__iexact=email)
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "Este e-mail já está em uso."
+            )
+
+        return email
 
     def get_store_id(self, obj):
         if obj.role != CustomUser.Roles.SELLER:
@@ -84,39 +117,42 @@ class UserSerializer(serializers.ModelSerializer):
 
         return store.id if store else None
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    default_error_messages = {
-        "no_active_account": "Credenciais inválidas.",
-    }
+        if instance.role == CustomUser.Roles.CUSTOMER:
+            data.pop("store_id", None)
+        else:
+            data.pop("olfactory_families", None)
+            data.pop("preferred_notes", None)
 
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
+        return data
 
-        token["user_id"] = user.id
-        token["email"] = user.email
-        token["role"] = user.role
 
-        if user.role == CustomUser.Roles.SELLER:
-            stores_manager = getattr(user, "stores", None)
+from .token_serializer import CustomTokenObtainPairSerializer
 
-            store = (
-                stores_manager.first()
-                if stores_manager is not None
-                else None
-            )
 
-            token["store_id"] = store.id if store else None
+class OlfactoryProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            "olfactory_families",
+            "preferred_notes"
+        ]
 
-        return token
+    def validate_olfactory_families(self, value):
+        valid_families = [
+            "Amadeirado",
+            "Cítrico",
+            "Oriental",
+            "Floral",
+            "Fougère",
+            "Aquático",
+            "Gourmand"
+        ]
 
-    def validate(self, attrs):
-        try:
-            return super().validate(attrs)
-        except serializers.ValidationError:
-            raise serializers.ValidationError(
-                {
-                    "detail": "Credenciais inválidas.",
-                }
-            )
+        for family in value:
+            if family not in valid_families:
+                raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
+
+        return value

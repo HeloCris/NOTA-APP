@@ -4,6 +4,7 @@ export interface StoreProduct {
     id: number;
     name: string;
     brand: string;
+    image_url?: string;
   };
   volume_ml: number;
   price: string;

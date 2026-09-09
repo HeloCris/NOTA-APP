@@ -9,10 +9,6 @@ from .serializers import StoreOwnerSerializer, StorePublicSerializer
 
 
 class StoreListView(generics.ListCreateAPIView):
-    """
-    GET  /api/v1/stores/ — Listagem pública de lojas ativas. Suporta ?search=<nome>.
-    POST /api/v1/stores/ — Cria uma nova loja vinculada ao lojista autenticado.
-    """
 
     def get_permissions(self):
         if self.request.method == "POST":
@@ -39,10 +35,6 @@ class StoreListView(generics.ListCreateAPIView):
 
 
 class StoreDetailView(generics.RetrieveAPIView):
-    """
-    GET /api/v1/stores/<id>/
-    Detalhe público de uma loja específica.
-    """
 
     serializer_class = StorePublicSerializer
     permission_classes = [permissions.AllowAny]
@@ -50,14 +42,6 @@ class StoreDetailView(generics.RetrieveAPIView):
 
 
 class StoreMeView(generics.RetrieveUpdateAPIView):
-    """
-    GET  /api/v1/stores/me/ — retorna perfil completo da loja do lojista autenticado.
-    PATCH /api/v1/stores/me/ — atualização parcial dos dados da loja.
-
-    Permissão: IsStoreOwner (role == SELLER obrigatório).
-    Isolamento: a loja é resolvida pelo owner=request.user,
-    garantindo que o lojista só veja/edite seus próprios dados.
-    """
 
     serializer_class = StoreOwnerSerializer
     permission_classes = [IsStoreOwner]
@@ -74,18 +58,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 class StoreDashboardView(APIView):
-    """
-    GET /api/v1/stores/me/dashboard/ — retorna dados de dashboard para a loja do lojista autenticado.
-    Atualmente retorna 0/dados vazios pois o módulo de pedidos e analytics ainda não existe.
-    """
-    
+
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
         store = Store.objects.filter(owner=self.request.user).first()
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
-            
+
         data = {
             "rating": 0.0,
             "is_verified": False,

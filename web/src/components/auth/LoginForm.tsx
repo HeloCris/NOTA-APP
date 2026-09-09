@@ -31,13 +31,27 @@ function getRedirectPath(role: UserRole) {
 
 function getLoginErrorMessage(error: unknown) {
   const axiosError = error as AxiosError<{
-    detail?: string;
+    detail?: string | string[];
+    non_field_errors?: string | string[];
   }>;
 
-  return (
-    axiosError.response?.data?.detail ??
-    "Não foi possível acessar sua conta. Tente novamente."
-  );
+  const detail = axiosError.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail[0];
+  }
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  const nonField = axiosError.response?.data?.non_field_errors;
+  if (Array.isArray(nonField)) {
+    return nonField[0];
+  }
+  if (typeof nonField === "string") {
+    return nonField;
+  }
+
+  return "Não foi possível acessar sua conta. Tente novamente.";
 }
 
 export function LoginForm() {
@@ -77,7 +91,10 @@ export function LoginForm() {
     try {
       const user = await login(payload);
 
-      navigate(getRedirectPath(user.role), {
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirect = searchParams.get("redirect");
+
+      navigate(redirect || getRedirectPath(user.role), {
         replace: true,
       });
     } catch (error) {
