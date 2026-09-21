@@ -78,7 +78,13 @@ class StoreProductSerializer(serializers.ModelSerializer):
                 {"promotional_price": "O preço promocional deve ser menor que o preço de venda."}
             )
 
-        store_id = getattr(request.auth, "get", lambda _k: None)("store_id")
+        store_id = None
+        if request and hasattr(request, "auth") and request.auth:
+            store_id = getattr(request.auth, "get", lambda _k: None)("store_id")
+        
+        if not store_id and request and hasattr(request, "user") and hasattr(request.user, "store") and request.user.store:
+            store_id = request.user.store.id
+
         product = attrs.get("product", getattr(self.instance, "product", None))
         volume_ml = attrs.get("volume_ml", getattr(self.instance, "volume_ml", None))
 
