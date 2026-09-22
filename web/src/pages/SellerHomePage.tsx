@@ -6,10 +6,11 @@ import { SvgDefs } from "../components/seller/SvgDefs";
 import { DashboardTab } from "../components/seller/DashboardTab";
 import { CatalogTab } from "../components/seller/CatalogTab";
 import { SettingsTab } from "../components/seller/SettingsTab";
+import { OrdersTab } from "../components/seller/OrdersTab";
 import { storeService } from "../services/storeService";
 import type { Store } from "../types/store";
 
-type TabType = "dashboard" | "catalog" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "orders" | "metrics" | "messages" | "settings";
 
 export function SellerHomePage() {
   const { user, logout } = useAuth();
@@ -66,6 +67,7 @@ export function SellerHomePage() {
         <nav className="flex-1 px-4 py-5 flex flex-col justify-center gap-4.5 overflow-y-auto">
           <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
+          <NavLink id="orders" icon="#ic-box" label="Pedidos" />
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />
@@ -153,6 +155,7 @@ export function SellerHomePage() {
             <>
               {activeTab === "dashboard" && <DashboardTab store={store} />}
               {activeTab === "catalog" && <CatalogTab store={store} />}
+              {activeTab === "orders" && <OrdersTab />}
 
               {/* Placeholders for Metrics and Messages */}
               {(activeTab === "metrics" || activeTab === "messages") && (
