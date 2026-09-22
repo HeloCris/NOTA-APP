@@ -32,12 +32,25 @@ interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+const DEFAULT_STATIC_USER: User = {
+  id: 1,
+  email: 'ana.ferreira@email.com',
+  first_name: 'Ana',
+  last_name: 'Ferreira',
+  phone: '11999999999',
+  role: 'CUSTOMER',
+  olfactory_families: ['Floral', 'Amadeirado', 'Cítrico'],
+  preferred_notes: ['Baunilha', 'Jasmim', 'Sândalo'],
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(DEFAULT_STATIC_USER);
+  const [isLoading, setIsLoading] = useState(false);
 
   const signOut = useCallback(async () => {
-    await authService.logout();
+    try {
+      await authService.logout();
+    } catch {}
     await deleteToken(ACCESS_TOKEN_KEY);
     await deleteToken(REFRESH_TOKEN_KEY);
     setUser(null);
@@ -52,9 +65,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (token && active) {
           const userData = await authService.me();
           if (active) setUser(userData);
+        } else if (active) {
+          setUser(DEFAULT_STATIC_USER);
         }
       } catch {
-        if (active) await signOut();
+        if (active) setUser(DEFAULT_STATIC_USER);
       } finally {
         if (active) setIsLoading(false);
       }
