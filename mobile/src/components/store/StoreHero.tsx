@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Store } from '@/services/stores';
@@ -10,16 +10,24 @@ import { useTheme } from '@/hooks/use-theme';
 
 interface StoreHeroProps {
   store: Store;
+  scrollY?: Animated.Value;
 }
 
-export function StoreHero({ store }: StoreHeroProps) {
+export function StoreHero({ store, scrollY }: StoreHeroProps) {
   const theme = useTheme();
+  const coverTranslateY = scrollY?.interpolate({
+    inputRange: [0, 180],
+    outputRange: [0, -54],
+    extrapolate: 'clamp',
+  });
 
   return (
     <ThemedView style={styles.container}>
       <ThemedView type="backgroundElement" style={styles.coverContainer}>
         {store.cover_url && (
-          <Image source={{ uri: store.cover_url }} style={styles.coverImage} contentFit="cover" />
+          <Animated.View style={[styles.coverImageWrapper, coverTranslateY && { transform: [{ translateY: coverTranslateY }] }]}>
+            <Image source={{ uri: store.cover_url }} style={styles.coverImage} contentFit="cover" />
+          </Animated.View>
         )}
       </ThemedView>
 
@@ -60,10 +68,15 @@ const styles = StyleSheet.create({
   coverContainer: {
     width: '100%',
     height: 180,
+    overflow: 'hidden',
+  },
+  coverImageWrapper: {
+    width: '100%',
+    height: 234,
   },
   coverImage: {
     width: '100%',
-    height: '100%',
+    height: 234,
   },
   detailsContainer: {
     paddingHorizontal: Spacing.three,

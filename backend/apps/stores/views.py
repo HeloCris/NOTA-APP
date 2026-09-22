@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
@@ -78,22 +79,24 @@ class StoreDashboardView(APIView):
 class StoreProductListView(generics.ListAPIView):
     serializer_class = StoreProductPublicSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         store_id = self.kwargs.get('pk')
-        
-        # Usando os nomes reais dos campos do inventory.models.StoreProduct
+        store = get_object_or_404(Store, pk=store_id, is_active=True)
+
         queryset = StoreProduct.objects.filter(
-            store_id=store_id,
+            store=store,
+            product__is_approved=True,
             is_available=True,
             stock_quantity__gt=0
-        ).select_related('product', 'product__brand')
+        ).select_related('store', 'product', 'product__brand')
 
         search = self.request.query_params.get('search', None)
         family = self.request.query_params.get('olfactory_family', None)
 
-        if family and family != 'Todos':
-            queryset = queryset.filter(product__olfactory_family=family)
+        if family and family.lower() != 'todos':
+            queryset = queryset.filter(product__olfactory_family__iexact=family)
 
         if search:
             queryset = queryset.filter(

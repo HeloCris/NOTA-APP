@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, TextInput, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { Animated, Pressable, View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { storesService, Store, StoreProduct } from '@/services/stores';
@@ -16,6 +17,7 @@ export default function StoreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTheme();
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   const [store, setStore] = useState<Store | null>(null);
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -24,6 +26,11 @@ export default function StoreScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [selectedFamily, setSelectedFamily] = useState<string>('');
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedFamily('');
+  };
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -60,14 +67,14 @@ export default function StoreScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <FlatList
+      <Animated.FlatList
         data={products}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
         ListHeaderComponent={
           <>
-            {store && <StoreHero store={store} />}
+            {store && <StoreHero store={store} scrollY={scrollY} />}
             
             <ThemedView type="backgroundElement" style={styles.searchContainer}>
               <MaterialIcons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
@@ -93,12 +100,46 @@ export default function StoreScreen() {
             </View>
           </>
         }
+        ListEmptyComponent={<StoreEmptyState onClearFilters={clearFilters} />}
         renderItem={({ item }) => (
-          <ProductCard product={item} onPress={() => router.push(`/(shop)/product/${item.id}`)} />
+         <ProductCard
+           product={item}
+           onPress={() => router.push({ pathname: '/product/[id]' as never, params: { id: item.id.toString() } })}
+         />
         )}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true },
+        )}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.listContent}
       />
     </ThemedView>
+  );
+}
+
+export function StoreEmptyState({ onClearFilters }: { onClearFilters: () => void }) {
+  return (
+    <View style={styles.emptyState}>
+      <Image
+        source={require('../../../../assets/images/logo-icon.png')}
+        style={styles.emptyIllustration}
+        contentFit="contain"
+      />
+      <ThemedText type="subtitle" style={styles.emptyTitle}>
+        Nenhum perfume encontrado
+      </ThemedText>
+      <ThemedText themeColor="textSecondary" style={styles.emptyMessage}>
+        Nenhum perfume encontrado para este filtro.
+      </ThemedText>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onClearFilters}
+        style={({ pressed }) => [styles.clearButton, pressed && styles.clearButtonPressed]}
+      >
+        <ThemedText type="smallBold">Limpar filtros</ThemedText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -140,5 +181,34 @@ const styles = StyleSheet.create({
   columnWrapper: {
     paddingHorizontal: Spacing.two,
     justifyContent: 'space-between',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.six,
+  },
+  emptyIllustration: {
+    width: 128,
+    height: 128,
+    marginBottom: Spacing.three,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    lineHeight: 28,
+    textAlign: 'center',
+    marginBottom: Spacing.one,
+  },
+  emptyMessage: {
+    textAlign: 'center',
+    marginBottom: Spacing.three,
+  },
+  clearButton: {
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+    backgroundColor: '#E0E1E6',
+  },
+  clearButtonPressed: {
+    opacity: 0.7,
   },
 });

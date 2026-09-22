@@ -28,7 +28,32 @@ export interface StoreProductsParams {
   olfactory_family?: string;
 }
 
+export interface ProductBrand {
+  id: number;
+  name: string;
+}
+
+export interface ProductDetails {
+  id: number;
+  name: string;
+  brand: ProductBrand;
+  olfactory_family: string;
+  top_notes: string[];
+  heart_notes: string[];
+  base_notes: string[];
+  description: string;
+  image_url: string;
+  is_approved: boolean;
+}
+
 export const storesService = {
+  getStores: async (search?: string): Promise<Store[]> => {
+    const response = await api.get('/stores/', {
+      params: search ? { search } : undefined,
+    });
+    return response.data;
+  },
+
   getStore: async (id: number | string): Promise<Store> => {
     const response = await api.get(`/stores/${id}/`);
     return response.data;
@@ -36,6 +61,11 @@ export const storesService = {
 
   getStoreProducts: async (id: number | string, params?: StoreProductsParams): Promise<StoreProduct[]> => {
     const response = await api.get(`/stores/${id}/products/`, { params });
+    return response.data;
+  },
+
+  getProduct: async (id: number | string): Promise<ProductDetails> => {
+    const response = await api.get(`/products/${id}/`);
     return response.data;
   },
 };
