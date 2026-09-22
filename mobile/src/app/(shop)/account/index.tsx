@@ -1,461 +1,438 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
   View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  useWindowDimensions,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../context/AuthContext';
 
-export default function ProfileScreen() {
+export default function AccountScreen() {
   const router = useRouter();
-  const { user, signOut, updateProfile } = useAuth();
+  const { user, signOut } = useAuth();
+  const { width: windowWidth } = useWindowDimensions();
+  const containerWidth = Math.min(windowWidth, 460);
 
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    first_name: user?.first_name ?? '',
-    last_name: user?.last_name ?? '',
-    email: user?.email ?? '',
-    phone: user?.phone ?? '',
-  });
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const openEdit = () => {
-    setForm({
-      first_name: user?.first_name ?? '',
-      last_name: user?.last_name ?? '',
-      email: user?.email ?? '',
-      phone: user?.phone ?? '',
-    });
-    setEditing(true);
-  };
+  // Carrega dinamicamente os dados do usuário autenticado no AuthContext
+  const displayName =
+    [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+    'Ana Ferreira';
+  const displayEmail = user?.email || 'ana.ferreira@email.com';
+  const avatarLetter = (user?.first_name?.[0] || 'A').toUpperCase();
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await updateProfile(form);
-      setEditing(false);
-    } catch (error: any) {
-      const errorData = error?.response?.data;
-      const firstErrorKey = errorData ? Object.keys(errorData)[0] : null;
-      Alert.alert(
-        'Erro',
-        (firstErrorKey && errorData[firstErrorKey]?.[0]) ||
-          'Não foi possível salvar seus dados.'
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const performSignOut = async () => {
+  const confirmSignOut = async () => {
+    setShowLogoutModal(false);
     await signOut();
-    router.replace('/(auth)/login');
+    router.replace('/(auth)/login' as any);
   };
 
-  const handleSignOut = () => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Deseja realmente sair da sua conta?')) {
-        performSignOut();
-      }
-      return;
-    }
-
-    Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: performSignOut,
-      },
-    ]);
-  };
-
-  const hasOlfactoryProfile =
-    (user?.olfactory_families?.length ?? 0) > 0 ||
-    (user?.preferred_notes?.length ?? 0) > 0;
-
-  const initials = `${user?.first_name?.[0] ?? ''}${user?.last_name?.[0] ?? ''}`.trim();
+  const menuItems = [
+    {
+      id: 'orders',
+      label: 'Meus Pedidos',
+      icon: <Feather name="package" size={19} color="#4A6072" />,
+      onPress: () => router.push('/(shop)/orders' as any),
+    },
+    {
+      id: 'addresses',
+      label: 'Endereços Salvos',
+      icon: <Ionicons name="location-outline" size={20} color="#4A6072" />,
+      onPress: () => router.push('/(shop)/account/addresses' as any),
+    },
+    {
+      id: 'payments',
+      label: 'Meios de Pagamento',
+      icon: <Ionicons name="card-outline" size={20} color="#4A6072" />,
+      onPress: () => router.push('/(shop)/account/payment-methods' as any),
+    },
+    {
+      id: 'settings',
+      label: 'Configurações',
+      icon: (
+        <MaterialCommunityIcons
+          name="cog-outline"
+          size={20}
+          color="#4A6072"
+        />
+      ),
+      onPress: () => {},
+    },
+  ];
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials || 'N'}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* --- USER HEADER (Dinâmico com os dados do usuário) --- */}
+          <View style={styles.userHeader}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarLetter}>{avatarLetter}</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{displayName}</Text>
+              <Text style={styles.userEmail}>{displayEmail}</Text>
+            </View>
           </View>
-          <Text style={styles.name}>
-            {[user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Minha Conta'}
-          </Text>
-          <Text style={styles.email}>{user?.email}</Text>
-        </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Dados Pessoais</Text>
-            <TouchableOpacity onPress={openEdit}>
-              <Text style={styles.editLink}>Editar</Text>
+          {/* --- BANNER PERFIL OLFATIVO --- */}
+          <View style={styles.olfactoryBanner}>
+            <Text style={styles.olfactoryTitle}>
+              Complete seu Perfil Olfativo
+            </Text>
+            <Text style={styles.olfactoryDesc}>
+              Responda 5 perguntas rápidas e receba recomendações de fragrâncias
+              sob medida para você.
+            </Text>
+            <TouchableOpacity
+              style={styles.olfactoryBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                router.push('/(shop)/account/edit-olfactory-profile' as any)
+              }
+            >
+              <Text style={styles.olfactoryBtnText}>Completar Agora</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Nome</Text>
-            <Text style={styles.infoValue}>{user?.first_name || '—'}</Text>
+          {/* --- MENU CARD --- */}
+          <View style={styles.menuCard}>
+            {menuItems.map((item, index) => {
+              const isLast = index === menuItems.length - 1;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.menuRow, !isLast && styles.menuRowDivider]}
+                  activeOpacity={0.65}
+                  onPress={item.onPress}
+                >
+                  <View style={styles.menuIconBox}>{item.icon}</View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Sobrenome</Text>
-            <Text style={styles.infoValue}>{user?.last_name || '—'}</Text>
+
+          {/* --- BOTÃO SAIR --- */}
+          <View style={styles.logoutWrapper}>
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              activeOpacity={0.7}
+              onPress={() => setShowLogoutModal(true)}
+            >
+              <Ionicons
+                name="exit-outline"
+                size={16}
+                color="#A85A38"
+                style={styles.logoutIcon}
+              />
+              <Text style={styles.logoutText}>Sair</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>E-mail</Text>
-            <Text style={styles.infoValue}>{user?.email || '—'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Telefone</Text>
-            <Text style={styles.infoValue}>{user?.phone || '—'}</Text>
-          </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Meu Perfil Olfativo</Text>
+          <View style={{ height: 36 }} />
+        </ScrollView>
+      </View>
 
-          {!hasOlfactoryProfile ? (
-            <View style={styles.olfactoryCta}>
-              <Text style={styles.olfactoryCtaText}>
-                Complete seu perfil olfativo e receba recomendações personalizadas 🌸
-              </Text>
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => router.push('/(shop)/account/edit-olfactory-profile')}
-              >
-                <Text style={styles.primaryButtonText}>Completar agora</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View>
-              {user?.olfactory_families?.length ? (
-                <View style={styles.chipGroup}>
-                  <Text style={styles.chipLabel}>Famílias</Text>
-                  <View style={styles.chipRow}>
-                    {user.olfactory_families.map((family) => (
-                      <View key={family} style={styles.chip}>
-                        <Text style={styles.chipText}>{family}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-              {user?.preferred_notes?.length ? (
-                <View style={styles.chipGroup}>
-                  <Text style={styles.chipLabel}>Notas favoritas</Text>
-                  <View style={styles.chipRow}>
-                    {user.preferred_notes.map((note) => (
-                      <View key={note} style={styles.chip}>
-                        <Text style={styles.chipText}>{note}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                style={styles.editPreferenceButton}
-                onPress={() => router.push('/(shop)/account/edit-olfactory-profile')}
-              >
-                <Text style={styles.editPreferenceText}>Editar preferências</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <MaterialIcons name="logout" size={18} color="#BA1A1A" />
-          <Text style={styles.signOutText}>Sair</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
+      {/* --- MODAL CONFIRMAÇÃO DE SAÍDA --- */}
       <Modal
-        visible={editing}
+        visible={showLogoutModal}
         transparent
-        animationType="slide"
-        onRequestClose={() => setEditing(false)}
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar dados pessoais</Text>
+            <View style={styles.modalIconBox}>
+              <Ionicons name="log-out-outline" size={26} color="#A85A38" />
+            </View>
 
-            {(
-              [
-                ['first_name', 'Nome', 'Ana'],
-                ['last_name', 'Sobrenome', 'Ferreira'],
-                ['email', 'E-mail', 'ana@email.com'],
-                ['phone', 'Telefone', '11 99999-0000'],
-              ] as const
-            ).map(([key, label, placeholder]) => (
-              <View key={key} style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form[key]}
-                  onChangeText={(value) => setForm((prev) => ({ ...prev, [key]: value }))}
-                  placeholder={placeholder}
-                  placeholderTextColor="#A8A39A"
-                  keyboardType={key === 'email' ? 'email-address' : key === 'phone' ? 'phone-pad' : 'default'}
-                  autoCapitalize={key === 'email' ? 'none' : 'words'}
-                />
-              </View>
-            ))}
+            <Text style={styles.modalTitle}>Deseja realmente sair?</Text>
+            <Text style={styles.modalDesc}>
+              Você será desconectado da sua conta neste dispositivo.
+            </Text>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setEditing(false)}
+                style={styles.modalCancelBtn}
+                activeOpacity={0.7}
+                onPress={() => setShowLogoutModal(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSave}
-                disabled={saving}
+                style={styles.modalConfirmBtn}
+                activeOpacity={0.88}
+                onPress={confirmSignOut}
               >
-                {saving ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Salvar</Text>
-                )}
+                <Text style={styles.modalConfirmText}>Sim, sair</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
-    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F4F1EA',
+    alignItems: 'center',
+  },
+  mainWrapper: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'center',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F3E9',
+    width: '100%',
+    backgroundColor: '#F4F1EA',
   },
-  content: {
-    padding: 24,
-    paddingBottom: 48,
+  contentContainer: {
+    paddingBottom: 24,
   },
-  header: {
+
+  // --- Header ---
+  userHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 18 : 12,
+    paddingBottom: 18,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#1E3446',
-    alignItems: 'center',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#273847',
     justifyContent: 'center',
-    marginBottom: 12,
-  },
-  avatarText: {
-    color: '#FFF',
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E3446',
-  },
-  email: {
-    fontSize: 14,
-    color: '#63666A',
-    marginTop: 4,
-  },
-  section: {
-    backgroundColor: '#FCFBF7',
-    borderWidth: 1,
-    borderColor: '#ECE8DD',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E3446',
-    marginBottom: 12,
+  avatarLetter: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  editLink: {
-    color: '#1E3446',
-    fontSize: 14,
-    fontWeight: '600',
+  userInfo: {
+    marginLeft: 14,
+    flex: 1,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+  userName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1C252E',
+    marginBottom: 2,
   },
-  infoLabel: {
-    color: '#63666A',
-    fontSize: 14,
-  },
-  infoValue: {
-    color: '#1E3446',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  olfactoryCta: {
-    backgroundColor: '#EFEADF',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-  },
-  olfactoryCtaText: {
-    color: '#1E3446',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  primaryButton: {
-    backgroundColor: '#1E3446',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  primaryButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  chipGroup: {
-    marginBottom: 16,
-  },
-  chipLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#63666A',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: '#E4EAEF',
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-  },
-  chipText: {
-    color: '#33495C',
+  userEmail: {
     fontSize: 13,
-    fontWeight: '600',
+    color: '#78716C',
+    fontWeight: '400',
   },
-  editPreferenceButton: {
+
+  // --- Banner Perfil Olfativo ---
+  olfactoryBanner: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: '#FAF0EA',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#F4DFD5',
+    padding: 18,
+  },
+  olfactoryTitle: {
+    fontSize: 15.5,
+    fontWeight: '700',
+    color: '#A85A38',
+    marginBottom: 6,
+  },
+  olfactoryDesc: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: '#78716C',
+    marginBottom: 14,
+  },
+  olfactoryBtn: {
+    backgroundColor: '#A85A38',
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 20,
     alignSelf: 'flex-start',
-    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  editPreferenceText: {
-    color: '#1E3446',
-    fontSize: 14,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+  olfactoryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  signOutButton: {
+
+  // --- Menu Card ---
+  menuCard: {
+    marginHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3EFE6',
+  },
+  menuIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#EFF4F8',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
+    alignItems: 'center',
+    marginRight: 14,
   },
-  signOutText: {
-    color: '#BA1A1A',
-    fontWeight: '600',
-    fontSize: 16,
+  menuLabel: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#1C252E',
   },
+
+  // --- Botão Sair ---
+  logoutWrapper: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF6ED',
+    borderWidth: 1,
+    borderColor: '#E8DED1',
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignSelf: 'flex-start',
+  },
+  logoutIcon: {
+    marginRight: 6,
+  },
+  logoutText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#A85A38',
+  },
+
+  // --- Modal de Confirmação ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
-    padding: 24,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   modalCard: {
-    backgroundColor: '#FCFBF7',
-    borderRadius: 16,
-    padding: 20,
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  modalIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FAF0EA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E3446',
-    marginBottom: 16,
+    fontSize: 17.5,
+    fontWeight: '800',
+    color: '#1C252E',
+    textAlign: 'center',
+    marginBottom: 6,
   },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E3446',
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#ECE8DD',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#1E3446',
+  modalDesc: {
+    fontSize: 13.5,
+    color: '#78716C',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    width: '100%',
   },
-  cancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  cancelButtonText: {
-    color: '#63666A',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  saveButton: {
-    backgroundColor: '#1E3446',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 96,
+  modalCancelBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#F4F1EA',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  saveButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-    fontSize: 14,
+  modalCancelText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#A85A38',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
