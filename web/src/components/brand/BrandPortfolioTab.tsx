@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { brandService } from '../../services/brandService';
 import type { Product } from '../../types/catalog';
 import { ProductFormModal } from './ProductFormModal';

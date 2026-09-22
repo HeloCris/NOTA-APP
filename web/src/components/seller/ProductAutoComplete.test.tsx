@@ -15,6 +15,8 @@ vi.mock("../../services/catalogService", () => ({
 
 const product: Product = {
   id: 1,
+  ean: "3348901321121",
+  anvisa_code: "25351.123456/2024-10",
   name: "Sauvage",
   brand: { id: 1, name: "Dior" },
   olfactory_family: "Amadeirado",
