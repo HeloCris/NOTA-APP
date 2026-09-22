@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import OrderDetailScreen from '@/app/(shop)/orders/[id]';
@@ -15,6 +15,12 @@ jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(),
 }));
 
+jest.mock('@expo/vector-icons/Ionicons', () => {
+  const { Text } = require('react-native');
+
+  return ({ name }: { name: string }) => <Text>{name}</Text>;
+});
+
 const mockSetStringAsync = jest.mocked(Clipboard.setStringAsync);
 
 describe('Tela de detalhe do pedido - RF-14', () => {
@@ -26,11 +32,13 @@ describe('Tela de detalhe do pedido - RF-14', () => {
   it('renderiza o rastreio e a timeline no status enviado', async () => {
     const { getByText } = await render(<OrderDetailScreen />);
 
-    expect(getByText('Enviado')).toBeTruthy();
-    expect(getByText('BR123456789X')).toBeTruthy();
-    expect(getByText('Histórico do pedido')).toBeTruthy();
-    expect(getByText('Enviado pela transportadora')).toBeTruthy();
-    expect(getByText('Entregue')).toBeTruthy();
+    await waitFor(() => {
+      expect(getByText('Enviado')).toBeTruthy();
+      expect(getByText('BR123456789X')).toBeTruthy();
+      expect(getByText('Histórico do pedido')).toBeTruthy();
+      expect(getByText('Enviado pela transportadora')).toBeTruthy();
+      expect(getByText('Entregue')).toBeTruthy();
+    });
   });
 
   it('copia o código de rastreio', async () => {

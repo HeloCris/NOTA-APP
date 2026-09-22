@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const orders = [
   { id: '105', date: '22 set. 2026', item: 'Eclat No. 04 e mais 1 item', total: 'R$ 358,00', status: 'Enviado', icon: 'bus-outline' as const, statusColor: '#A85A38', statusBackground: '#F7E8E1' },
