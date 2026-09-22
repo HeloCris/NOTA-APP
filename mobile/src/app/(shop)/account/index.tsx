@@ -43,7 +43,7 @@ export default function AccountScreen() {
       id: 'orders',
       label: 'Meus Pedidos',
       icon: <Feather name="package" size={19} color="#4A6072" />,
-      onPress: () => {},
+      onPress: () => router.push('/(shop)/orders' as any),
     },
     {
       id: 'addresses',
