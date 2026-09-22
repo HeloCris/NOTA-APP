@@ -1,180 +1,504 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+  useWindowDimensions,
+} from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Svg, {
+  Rect,
+  Circle,
+  Defs,
+  LinearGradient,
+  Stop,
+} from 'react-native-svg';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+// --- Vector Perfume Bottle: Tom Ford Oud Wood Style ---
+function TomFordBottle() {
+  return (
+    <Svg width={80} height={130} viewBox="0 0 80 130">
+      <Defs>
+        <LinearGradient id="tfBlackGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor="#2E3338" />
+          <Stop offset="30%" stopColor="#1C2024" />
+          <Stop offset="70%" stopColor="#111315" />
+          <Stop offset="100%" stopColor="#1E2328" />
+        </LinearGradient>
+        <LinearGradient id="goldPlateGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor="#FDE047" />
+          <Stop offset="50%" stopColor="#CA8A04" />
+          <Stop offset="100%" stopColor="#854D0E" />
+        </LinearGradient>
+      </Defs>
+      {/* Square Cap */}
+      <Rect x="28" y="12" width="24" height="20" rx="2" fill="#252A2F" />
+      {/* Small Neck */}
+      <Rect x="34" y="32" width="12" height="4" fill="#181B1E" />
+      {/* Bottle Body */}
+      <Rect x="20" y="36" width="40" height="74" rx="4" fill="url(#tfBlackGrad)" />
+      {/* Gold Label Plate */}
+      <Rect x="24" y="84" width="32" height="12" rx="1.5" fill="url(#goldPlateGrad)" />
+    </Svg>
+  );
+}
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+// --- Vector Perfume Bottle: Natura Essência do Brasil Style ---
+function NaturaBottle() {
+  return (
+    <Svg width={80} height={130} viewBox="0 0 80 130">
+      <Defs>
+        <LinearGradient id="sageGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor="#C2D6BC" />
+          <Stop offset="35%" stopColor="#A7C2A0" />
+          <Stop offset="70%" stopColor="#8EA987" />
+          <Stop offset="100%" stopColor="#769170" />
+        </LinearGradient>
+        <LinearGradient id="woodCapGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor="#8A6349" />
+          <Stop offset="50%" stopColor="#634532" />
+          <Stop offset="100%" stopColor="#4A3324" />
+        </LinearGradient>
+      </Defs>
+      {/* Wooden Cap */}
+      <Rect x="33" y="14" width="14" height="14" rx="3" fill="url(#woodCapGrad)" />
+      {/* Neck Collar */}
+      <Rect x="35" y="28" width="10" height="6" rx="1" fill="#4A3324" />
+      {/* Rounded Bottle Body */}
+      <Rect x="23" y="34" width="34" height="76" rx="17" fill="url(#sageGrad)" />
+    </Svg>
+  );
+}
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+export default function SearchScreen() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTag, setSelectedTag] = useState('Decants');
+
+  const { width: windowWidth } = useWindowDimensions();
+  const containerWidth = Math.min(windowWidth, 460);
+
+  const popularSearches = [
+    'Decants',
+    'Baccarat Rouge 540',
+    'Amadeirados',
+    'Presentes',
+  ];
+
+  const featuredBrands = [
+    'Yves Saint Laurent',
+    'Maison F. Kurkdjian',
+    'Tom Ford',
+    'Natura',
+    'Chanel',
+  ];
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
-
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
-
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* --- SEARCH INPUT BAR --- */}
+          <View style={styles.searchBarWrapper}>
+            <View style={styles.searchBar}>
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color="#9CA3AF"
+                style={styles.searchIcon}
               />
-            </ThemedView>
-          </Collapsible>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar perfumes, marcas ou lojas..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          {/* --- BUSCAS POPULARES --- */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Buscas Populares</Text>
+            <View style={styles.popularTagsContainer}>
+              <View style={styles.popularTagsRow}>
+                {['Decants', 'Baccarat Rouge 540'].map((tag) => {
+                  const isSelected = selectedTag === tag;
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[
+                        styles.popularTag,
+                        isSelected && styles.popularTagActive,
+                      ]}
+                      onPress={() => setSelectedTag(tag)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.popularTagText,
+                          isSelected && styles.popularTagTextActive,
+                        ]}
+                      >
+                        {tag}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={[styles.popularTagsRow, { marginTop: 8 }]}>
+                {['Amadeirados', 'Presentes'].map((tag) => {
+                  const isSelected = selectedTag === tag;
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[
+                        styles.popularTag,
+                        isSelected && styles.popularTagActive,
+                      ]}
+                      onPress={() => setSelectedTag(tag)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.popularTagText,
+                          isSelected && styles.popularTagTextActive,
+                        ]}
+                      >
+                        {tag}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
 
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          {/* --- MARCAS EM DESTAQUE --- */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Marcas em Destaque</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.brandsScroll}
+            >
+              {featuredBrands.map((brand) => (
+                <TouchableOpacity
+                  key={brand}
+                  style={styles.brandCard}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.brandText}>{brand}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
 
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+          {/* --- EM ALTA AGORA --- */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Em Alta Agora</Text>
+            <View style={styles.productsGrid}>
+              {/* Product 1: Tom Ford Oud Wood */}
+              <View style={styles.productCard}>
+                <View style={styles.productInnerBox}>
+                  <TomFordBottle />
+                </View>
+
+                <View style={styles.productInfo}>
+                  <Text style={styles.productBrand}>TOM FORD</Text>
+                  <Text style={styles.productName} numberOfLines={1}>
+                    Oud Wood
+                  </Text>
+
+                  <View style={styles.badgeRow}>
+                    <View style={styles.tagBadge}>
+                      <Text style={styles.tagBadgeText}>Amadeirado</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.priceRow}>
+                    <Text style={styles.volumeText}>100ml</Text>
+                    <Text style={styles.priceText}>R$ 1.540</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.detailsBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Product 2: Natura Essência do Brasil */}
+              <View style={styles.productCard}>
+                <View style={styles.productInnerBox}>
+                  <NaturaBottle />
+                </View>
+
+                <View style={styles.productInfo}>
+                  <Text style={styles.productBrand}>NATURA</Text>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    Essência do{'\n'}Brasil
+                  </Text>
+
+                  <View style={styles.badgeRow}>
+                    <View style={styles.tagBadge}>
+                      <Text style={styles.tagBadgeText}>Cítrico</Text>
+                    </View>
+                    <View style={[styles.tagBadge, { marginLeft: 4 }]}>
+                      <Text style={styles.tagBadgeText}>Floral</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.priceRow}>
+                    <Text style={styles.volumeText}>100ml</Text>
+                    <Text style={styles.priceText}>R$ 289</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.detailsBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={{ height: 32 }} />
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  safeArea: {
     flex: 1,
+    backgroundColor: '#F4F1EA',
+    alignItems: 'center',
   },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  mainWrapper: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'center',
   },
   container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
+    flex: 1,
     width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+    backgroundColor: '#F4F1EA',
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  contentContainer: {
+    paddingBottom: 24,
+  },
+
+  // --- Search Bar ---
+  searchBarWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 16 : 12,
+    paddingBottom: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    paddingHorizontal: 14,
+    height: 48,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1C252E',
+    height: '100%',
+  },
+
+  // --- Section Common ---
+  section: {
+    marginTop: 18,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1C252E',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+
+  // --- Buscas Populares ---
+  popularTagsContainer: {
+    paddingHorizontal: 20,
+  },
+  popularTagsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  popularTag: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  popularTagActive: {
+    backgroundColor: '#273847',
+    borderColor: '#273847',
+  },
+  popularTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  popularTagTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // --- Marcas em Destaque ---
+  brandsScroll: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  brandCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  brandText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#1C252E',
+  },
+
+  // --- Em Alta Agora (Product Cards) ---
+  productsGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  productCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  productInnerBox: {
+    height: 148,
+    borderRadius: 12,
+    backgroundColor: '#FAF9F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F0EDE4',
+  },
+  productInfo: {
+    paddingTop: 10,
+    paddingHorizontal: 2,
+  },
+  productBrand: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#78716C',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1C252E',
+    minHeight: 20,
+    marginBottom: 6,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    minHeight: 20,
+  },
+  tagBadge: {
+    backgroundColor: '#F5F3E9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tagBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  volumeText: {
+    fontSize: 11.5,
+    color: '#78716C',
+    fontWeight: '500',
+  },
+  priceText: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#2C4659',
+  },
+  detailsBtn: {
+    borderWidth: 1.5,
+    borderColor: '#2C4659',
+    borderRadius: 20,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C4659',
   },
 });
