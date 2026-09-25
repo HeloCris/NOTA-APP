@@ -44,7 +44,7 @@ const DEFAULT_STATIC_USER: User = {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(DEFAULT_STATIC_USER);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const signOut = useCallback(async () => {
@@ -66,10 +66,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userData = await authService.me();
           if (active) setUser(userData);
         } else if (active) {
-          setUser(DEFAULT_STATIC_USER);
+          setUser(null);
         }
       } catch {
-        if (active) setUser(DEFAULT_STATIC_USER);
+        if (active) setUser(null);
       } finally {
         if (active) setIsLoading(false);
       }
