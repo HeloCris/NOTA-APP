@@ -100,6 +100,13 @@ export default function AppTabs() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="store/[id]"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
