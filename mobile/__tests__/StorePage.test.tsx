@@ -79,6 +79,7 @@ jest.mock('react-native', () => {
     Animated: { Value: TestValue, FlatList: TestFlatList, event: () => jest.fn() },
     Pressable: primitive('Pressable'),
     Platform: { OS: 'ios', select: (options: any) => options.ios ?? options.default },
+    StatusBar: primitive('StatusBar'),
     StyleSheet: { create: (styles: any) => styles, flatten: (style: any) => style },
     Text: primitive('Text'),
     TextInput: primitive('TextInput'),

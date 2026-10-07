@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Animated, Pressable, View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { Animated, Pressable, StatusBar, View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -67,6 +67,7 @@ export default function StoreScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
