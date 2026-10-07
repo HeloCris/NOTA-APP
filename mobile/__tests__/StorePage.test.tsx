@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
+const mockBack = jest.fn();
 const mockGetStore = jest.fn();
 const mockGetStoreProducts = jest.fn();
 
@@ -37,8 +38,13 @@ const products = [
 
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, back: mockBack }),
 }));
+
+jest.mock('react-native-safe-area-context', () => {
+  const { View } = require('react-native');
+  return { SafeAreaView: ({ children, ...props }: any) => <View {...props}>{children}</View> };
+});
 
 jest.mock('@expo/vector-icons', () => ({
   MaterialIcons: () => null,

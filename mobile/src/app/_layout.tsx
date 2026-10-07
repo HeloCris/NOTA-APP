@@ -25,7 +25,8 @@ function RootNavigator() {
     }
 
     const inAuthGroup = segments[0] === '(auth)';
-    const inOnboarding = pathname.startsWith('/onboarding');
+    const inOnboarding =
+      pathname.startsWith('/onboarding') || segments.includes('onboarding');
     const inShopGroup = segments[0] === '(shop)';
 
     if (!isAuthenticated && inShopGroup) {

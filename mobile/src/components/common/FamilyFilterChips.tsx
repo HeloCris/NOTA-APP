@@ -1,8 +1,5 @@
 import React from 'react';
-import { ScrollView, Pressable, StyleSheet } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { ScrollView, Pressable, StyleSheet, Text } from 'react-native';
 
 interface FamilyFilterChipsProps {
   selectedFamily: string;
@@ -19,23 +16,20 @@ const FAMILIES = [
 
 export function FamilyFilterChips({ selectedFamily, onSelectFamily }: FamilyFilterChipsProps) {
   return (
-    <ScrollView 
-      horizontal 
-      showsHorizontalScrollIndicator={false} 
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.container}
     >
       {FAMILIES.map((item) => {
         const isSelected = selectedFamily === item.value;
         return (
-          <Pressable key={item.value} onPress={() => onSelectFamily(item.value)}>
-            <ThemedView
-              type={isSelected ? 'backgroundSelected' : 'backgroundElement'}
-              style={styles.chip}
-            >
-              <ThemedText type={isSelected ? 'smallBold' : 'small'}>
-                {item.label}
-              </ThemedText>
-            </ThemedView>
+          <Pressable
+            key={item.value}
+            onPress={() => onSelectFamily(item.value)}
+            style={[styles.chip, isSelected && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{item.label}</Text>
           </Pressable>
         );
       })}
@@ -45,15 +39,30 @@ export function FamilyFilterChips({ selectedFamily, onSelectFamily }: FamilyFilt
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    gap: Spacing.two,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 10,
   },
   chip: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+  },
+  chipActive: {
+    backgroundColor: '#2C4659',
+    borderColor: '#2C4659',
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
   },
 });

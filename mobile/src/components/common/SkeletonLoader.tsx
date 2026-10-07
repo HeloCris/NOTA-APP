@@ -1,89 +1,99 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Spacing } from '@/constants/theme';
-import { ThemedView } from '@/components/themed-view';
 
 export function SkeletonLoader() {
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView type="backgroundElement" style={styles.heroCoverSkeleton} />
+    <View testID="store-skeleton" style={styles.container}>
+      <View style={styles.heroCoverSkeleton} />
       <View style={styles.heroContentSkeleton}>
-        <ThemedView type="backgroundElement" style={styles.logoSkeleton} />
-        <ThemedView type="backgroundElement" style={styles.lineSkeletonLarge} />
-        <ThemedView type="backgroundElement" style={styles.lineSkeletonSmall} />
+        <View style={styles.logoSkeleton} />
+        <View style={styles.lineSkeletonLarge} />
+        <View style={styles.lineSkeletonSmall} />
       </View>
 
       <View style={styles.gridContainer}>
         {[1, 2, 3, 4].map((item) => (
-          <ThemedView key={item} type="backgroundElement" style={styles.cardSkeleton}>
+          <View key={item} style={styles.cardSkeleton}>
             <View style={styles.cardImageSkeleton} />
             <View style={styles.cardTextSkeleton} />
             <View style={styles.cardTextSkeletonShort} />
-          </ThemedView>
+          </View>
         ))}
       </View>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F4F1EA',
   },
   heroCoverSkeleton: {
     width: '100%',
     height: 180,
-    opacity: 0.6,
+    backgroundColor: '#EFECE4',
   },
   heroContentSkeleton: {
-    padding: Spacing.three,
+    paddingHorizontal: 20,
   },
   logoSkeleton: {
     width: 72,
     height: 72,
     borderRadius: 36,
     marginTop: -40,
-    marginBottom: Spacing.two,
+    marginBottom: 8,
+    backgroundColor: '#E4DFD3',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
   lineSkeletonLarge: {
     width: '60%',
     height: 20,
     borderRadius: 4,
-    marginBottom: Spacing.one,
+    marginBottom: 4,
+    backgroundColor: '#EFECE4',
   },
   lineSkeletonSmall: {
     width: '90%',
     height: 14,
     borderRadius: 4,
+    backgroundColor: '#EFECE4',
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: Spacing.two,
+    padding: 8,
     justifyContent: 'space-between',
   },
   cardSkeleton: {
     width: '48%',
-    borderRadius: Spacing.three,
-    padding: Spacing.two,
-    marginBottom: Spacing.three,
+    borderRadius: 16,
+    padding: 8,
+    marginBottom: 16,
     height: 220,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EFECE4',
   },
   cardImageSkeleton: {
     width: '100%',
     height: 130,
-    borderRadius: Spacing.two,
-    marginBottom: Spacing.two,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#FAF9F5',
   },
   cardTextSkeleton: {
     width: '80%',
     height: 14,
     borderRadius: 4,
-    marginBottom: Spacing.one,
+    marginBottom: 4,
+    backgroundColor: '#EFECE4',
   },
   cardTextSkeletonShort: {
     width: '40%',
     height: 14,
     borderRadius: 4,
+    backgroundColor: '#EFECE4',
   },
 });

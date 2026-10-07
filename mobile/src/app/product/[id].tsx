@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { storesService, ProductDetails } from '@/services/stores';
-
-import { Spacing } from '@/constants/theme';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useTheme } from '@/hooks/use-theme';
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const theme = useTheme();
+  const router = useRouter();
   const [product, setProduct] = useState<ProductDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -27,20 +24,34 @@ export default function ProductScreen() {
       .finally(() => setIsLoading(false));
   }, [id]);
 
+  const backButton = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Voltar"
+      onPress={() => router.back()}
+      style={styles.backButton}
+    >
+      <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
+    </Pressable>
+  );
+
   if (isLoading) {
     return (
-      <ThemedView style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.text} />
-      </ThemedView>
+      <SafeAreaView style={[styles.safeArea, styles.centered]}>
+        <ActivityIndicator size="large" color="#2C4659" />
+      </SafeAreaView>
     );
   }
 
   if (error || !product) {
     return (
-      <ThemedView style={styles.centered}>
-        <ThemedText type="subtitle">Produto indisponível</ThemedText>
-        <ThemedText themeColor="textSecondary">Não foi possível carregar este perfume.</ThemedText>
-      </ThemedView>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>{backButton}</View>
+        <View style={styles.centered}>
+          <Text style={styles.title}>Produto indisponível</Text>
+          <Text style={styles.muted}>Não foi possível carregar este perfume.</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -51,58 +62,103 @@ export default function ProductScreen() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.image} /> : null}
-      <ThemedText type="subtitle">{product.name}</ThemedText>
-      <ThemedText type="default" themeColor="textSecondary">{product.brand.name}</ThemedText>
-      <ThemedView type="backgroundSelected" style={styles.familyBadge}>
-        <ThemedText type="smallBold">{product.olfactory_family}</ThemedText>
-      </ThemedView>
-      {product.description ? <ThemedText style={styles.description}>{product.description}</ThemedText> : null}
-      <View style={styles.notesContainer}>
-        {noteSections.map((section) => (
-          <View key={section.title} style={styles.noteSection}>
-            <ThemedText type="smallBold">{section.title}</ThemedText>
-            <ThemedText themeColor="textSecondary">{section.notes.join(' • ') || 'Não informado'}</ThemedText>
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.topBar}>{backButton}</View>
+      <ScrollView contentContainerStyle={styles.container}>
+        {product.image_url ? <Image source={{ uri: product.image_url }} style={styles.image} /> : null}
+        <Text style={styles.title}>{product.name}</Text>
+        <Text style={styles.muted}>{product.brand.name}</Text>
+        <View style={styles.familyBadge}>
+          <Text style={styles.familyBadgeText}>{product.olfactory_family}</Text>
+        </View>
+        {product.description ? <Text style={styles.description}>{product.description}</Text> : null}
+        <View style={styles.notesContainer}>
+          {noteSections.map((section) => (
+            <View key={section.title} style={styles.noteSection}>
+              <Text style={styles.noteTitle}>{section.title}</Text>
+              <Text style={styles.muted}>{section.notes.join(' • ') || 'Não informado'}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F4F1EA',
+  },
+  topBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+  },
   container: {
-    padding: Spacing.four,
-    gap: Spacing.two,
+    padding: 20,
+    gap: 8,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.four,
-    gap: Spacing.two,
+    padding: 24,
+    gap: 8,
   },
   image: {
     width: '100%',
     height: 280,
-    borderRadius: Spacing.three,
-    marginBottom: Spacing.two,
+    borderRadius: 16,
+    marginBottom: 8,
+    backgroundColor: '#FAF9F5',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
+  muted: {
+    fontSize: 14,
+    color: '#78716C',
   },
   familyBadge: {
     alignSelf: 'flex-start',
-    borderRadius: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#E4EAEF',
+  },
+  familyBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C4659',
   },
   description: {
-    marginTop: Spacing.two,
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#374151',
   },
   notesContainer: {
-    marginTop: Spacing.three,
-    gap: Spacing.three,
+    marginTop: 16,
+    gap: 16,
   },
   noteSection: {
-    gap: Spacing.one,
+    gap: 4,
+  },
+  noteTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2C4659',
   },
 });

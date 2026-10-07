@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { storesService, Store } from '../../services/stores';
 import Svg, {
   Rect,
   Circle,
@@ -77,8 +79,20 @@ function NaturaBottle() {
 }
 
 export default function SearchScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('Decants');
+  const [stores, setStores] = useState<Store[]>([]);
+
+  useEffect(() => {
+    storesService.getStores()
+      .then(setStores)
+      .catch((error) => console.error('Erro ao carregar lojas:', error));
+  }, []);
+
+  const visibleStores = stores.filter((store) =>
+    store.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  );
 
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
@@ -207,6 +221,34 @@ export default function SearchScreen() {
               ))}
             </ScrollView>
           </View>
+
+          {/* --- LOJAS --- */}
+          {visibleStores.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Lojas</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.brandsScroll}
+              >
+                {visibleStores.map((store) => (
+                  <TouchableOpacity
+                    key={store.id}
+                    style={styles.brandCard}
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/store/[id]' as never,
+                        params: { id: store.id.toString() },
+                      })
+                    }
+                  >
+                    <Text style={styles.brandText}>{store.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* --- EM ALTA AGORA --- */}
           <View style={styles.section}>

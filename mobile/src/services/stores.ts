@@ -51,7 +51,7 @@ export const storesService = {
     const response = await api.get('/stores/', {
       params: search ? { search } : undefined,
     });
-    return response.data;
+    return Array.isArray(response.data) ? response.data : response.data?.results ?? [];
   },
 
   getStore: async (id: number | string): Promise<Store> => {
