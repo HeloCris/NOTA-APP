@@ -68,6 +68,7 @@ export default function StoreScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <View style={styles.content}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
@@ -125,6 +126,7 @@ export default function StoreScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={styles.listContent}
       />
+      </View>
     </SafeAreaView>
   );
 }
@@ -154,6 +156,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F4F1EA',
+  },
+  content: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 460,
+    alignSelf: 'center',
   },
   topBar: {
     paddingHorizontal: 20,
