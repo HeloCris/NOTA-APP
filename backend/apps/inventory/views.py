@@ -13,11 +13,22 @@ class StoreProductListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsStoreOwner]
 
     def get_store_id(self):
-        return getattr(self.request.auth, "get", lambda _k: None)("store_id")
+        store_id = None
+        if self.request and hasattr(self.request, "auth") and self.request.auth:
+            store_id = getattr(self.request.auth, "get", lambda _k: None)("store_id")
+        
+        if not store_id and self.request and hasattr(self.request, "user") and hasattr(self.request.user, "store") and self.request.user.store:
+            store_id = self.request.user.store.id
+            
+        return store_id
 
     def get_queryset(self):
+        store_id = self.get_store_id()
+        if not store_id:
+            return StoreProduct.objects.none()
+            
         queryset = (
-            StoreProduct.objects.filter(store_id=self.get_store_id())
+            StoreProduct.objects.filter(store_id=store_id)
             .select_related("product__brand")
         )
         params = self.request.query_params
@@ -44,7 +55,8 @@ class StoreProductListCreateView(generics.ListCreateAPIView):
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        serializer.save(store_id=self.get_store_id())
+        store_id = self.get_store_id()
+        serializer.save(store_id=store_id)
 
 
 class StoreProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -53,13 +65,25 @@ class StoreProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsStoreOwner]
 
     def get_store_id(self):
-        return getattr(self.request.auth, "get", lambda _k: None)("store_id")
+        store_id = None
+        if self.request and hasattr(self.request, "auth") and self.request.auth:
+            store_id = getattr(self.request.auth, "get", lambda _k: None)("store_id")
+        
+        if not store_id and self.request and hasattr(self.request, "user") and hasattr(self.request.user, "store") and self.request.user.store:
+            store_id = self.request.user.store.id
+            
+        return store_id
 
     def get_queryset(self):
+        store_id = self.get_store_id()
+        if not store_id:
+            return StoreProduct.objects.none()
+            
         return (
-            StoreProduct.objects.filter(store_id=self.get_store_id())
+            StoreProduct.objects.filter(store_id=store_id)
             .select_related("product__brand")
         )
 
     def perform_update(self, serializer):
-        serializer.save(store_id=self.get_store_id())
+        store_id = self.get_store_id()
+        serializer.save(store_id=store_id)
