@@ -37,10 +37,12 @@ export function StoreHero({ store, scrollY }: StoreHeroProps) {
 
         <View style={styles.nameRow}>
           <Text style={styles.name}>{store.name}</Text>
-          {store.is_verified && (
+          {(store.is_official || store.is_verified) && (
             <View style={styles.verifiedBadge}>
               <MaterialIcons name="verified" size={14} color="#2C4659" />
-              <Text style={styles.verifiedText}>Verificada ✓</Text>
+              <Text style={styles.verifiedText}>
+                {store.is_official ? 'Loja Oficial ✓' : 'Verificada ✓'}
+              </Text>
             </View>
           )}
         </View>

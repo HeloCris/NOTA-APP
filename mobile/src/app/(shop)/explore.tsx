@@ -243,7 +243,12 @@ export default function SearchScreen() {
                       })
                     }
                   >
-                    <Text style={styles.brandText}>{store.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.brandText}>{store.name}</Text>
+                      {store.is_official && (
+                        <Ionicons name="checkmark-circle" size={14} color="#2C4659" />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>

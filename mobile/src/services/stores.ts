@@ -21,6 +21,7 @@ export interface Store {
   is_active: boolean;
   vacation_mode: boolean;
   is_verified?: boolean; // Mapeado ou opcional para o badge visual
+  is_official?: boolean;
 }
 
 export interface StoreProductsParams {

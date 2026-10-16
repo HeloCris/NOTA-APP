@@ -7,7 +7,7 @@ from apps.inventory.models import StoreProduct
 class StorePublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Store
-        fields = ["id", "slug", "name", "logo_url", "cover_url", "bio", "is_active", "vacation_mode"]
+        fields = ["id", "slug", "name", "logo_url", "cover_url", "bio", "is_active", "vacation_mode", "is_official"]
 
 
 class StoreOwnerSerializer(serializers.ModelSerializer):
