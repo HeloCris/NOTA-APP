@@ -8,9 +8,9 @@ from .managers import CustomUserManager
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     class Roles(models.TextChoices):
         ADMIN = "ADMIN", "Administrador"
-        SELLER = "SELLER", "Lojista"
+        SELLER = "SELLER", "Loja (Não Oficial)"
         CUSTOMER = "CUSTOMER", "Cliente"
-        BRAND_OWNER = "BRAND_OWNER", "Dono de Marca"
+        BRAND_OWNER = "BRAND_OWNER", "Loja Oficial"
 
     email = models.EmailField(
         unique=True,
@@ -39,9 +39,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         default=Roles.CUSTOMER,
     )
 
-    is_active = models.BooleanField(
-        default=True,
-    )
+    is_active = models.BooleanField(default=True)  # type: ignore
 
     is_staff = models.BooleanField(
         default=False,
