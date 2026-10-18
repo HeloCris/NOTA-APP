@@ -12,6 +12,8 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
     name: '',
     ean: '',
     anvisa_code: '',
+    concentration: 'EDP',
+    gender: 'Compartilhável',
     olfactory_family: 'Amadeirado', // default
     description: '',
     image_url: ''
@@ -26,8 +28,26 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
   const [currentNote, setCurrentNote] = useState({ top: '', heart: '', base: '' });
 
   const handleAddNote = (type: 'top' | 'heart' | 'base') => {
-    if (currentNote[type].trim()) {
-      setNotes(prev => ({ ...prev, [type]: [...prev[type], currentNote[type].trim()] }));
+    const rawInput = currentNote[type].trim();
+    if (!rawInput) return;
+
+    // Divide por vírgula (,), ponto e vírgula (;), quebra de linha (\n) ou ' e '/' and '
+    // Também trata caso o usuário termine com ponto final ou múltiplos separadores
+    const parsedNotes = rawInput
+      .split(/[,;\n]+|\s+(?:e|and)\s+/i)
+      .map(n => n.replace(/[.;]+$/g, '').trim())
+      .filter(n => n.length > 0);
+
+    if (parsedNotes.length > 0) {
+      setNotes(prev => {
+        // Evita duplicatas case-insensitive na mesma lista
+        const existingLower = new Set(prev[type].map(item => item.toLowerCase()));
+        const toAdd = parsedNotes.filter(item => !existingLower.has(item.toLowerCase()));
+        return {
+          ...prev,
+          [type]: [...prev[type], ...toAdd]
+        };
+      });
       setCurrentNote(prev => ({ ...prev, [type]: '' }));
     }
   };
@@ -118,6 +138,34 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
             </div>
 
             <div>
+              <label className="block text-sm font-bold text-[#354B5E] mb-1.5">Concentração</label>
+              <select
+                value={formData.concentration}
+                onChange={e => setFormData({ ...formData, concentration: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border border-[#E6E1D2] bg-[#F5F3E9]/50 focus:border-[#354B5E] focus:bg-white outline-none transition-all text-[14px]"
+              >
+                <option value="Parfum">Parfum (Extrait de Parfum)</option>
+                <option value="EDP">Eau de Parfum (EDP)</option>
+                <option value="EDT">Eau de Toilette (EDT)</option>
+                <option value="EDC">Eau de Cologne (EDC)</option>
+                <option value="Eau Fraîche">Eau Fraîche</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-[#354B5E] mb-1.5">Classificação / Gênero</label>
+              <select
+                value={formData.gender}
+                onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                className="w-full h-11 px-4 rounded-xl border border-[#E6E1D2] bg-[#F5F3E9]/50 focus:border-[#354B5E] focus:bg-white outline-none transition-all text-[14px]"
+              >
+                <option value="Feminino">Feminino</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Compartilhável">Compartilhável (Unissex)</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-bold text-[#354B5E] mb-1.5">Família Olfativa</label>
               <select
                 value={formData.olfactory_family}
@@ -172,9 +220,9 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
                   onChange={e => setCurrentNote({ ...currentNote, top: e.target.value })}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddNote('top'); } }}
                   className="flex-1 h-10 px-3 rounded-lg border border-[#E6E1D2] outline-none text-[13px]"
-                  placeholder="Ex: Bergamota (pressione Enter)"
+                  placeholder="Ex: Lichia, Pera, Bergamota e Pimenta Rosa"
                 />
-                <button type="button" onClick={() => handleAddNote('top')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold">Adicionar</button>
+                <button type="button" onClick={() => handleAddNote('top')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold hover:bg-[#D5DCE2] transition-colors">Adicionar</button>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {notes.top.map((note, i) => (
@@ -196,9 +244,9 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
                   onChange={e => setCurrentNote({ ...currentNote, heart: e.target.value })}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddNote('heart'); } }}
                   className="flex-1 h-10 px-3 rounded-lg border border-[#E6E1D2] outline-none text-[13px]"
-                  placeholder="Ex: Lavanda (pressione Enter)"
+                  placeholder="Ex: Rosa Turca, Oud e Incenso"
                 />
-                <button type="button" onClick={() => handleAddNote('heart')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold">Adicionar</button>
+                <button type="button" onClick={() => handleAddNote('heart')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold hover:bg-[#D5DCE2] transition-colors">Adicionar</button>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {notes.heart.map((note, i) => (
@@ -220,9 +268,9 @@ export function ProductFormModal({ onClose, onSuccess }: ProductFormModalProps) 
                   onChange={e => setCurrentNote({ ...currentNote, base: e.target.value })}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddNote('base'); } }}
                   className="flex-1 h-10 px-3 rounded-lg border border-[#E6E1D2] outline-none text-[13px]"
-                  placeholder="Ex: Ambroxan (pressione Enter)"
+                  placeholder="Ex: Baunilha, Âmbar, Almíscar e Vetiver"
                 />
-                <button type="button" onClick={() => handleAddNote('base')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold">Adicionar</button>
+                <button type="button" onClick={() => handleAddNote('base')} className="px-4 bg-[#E9EDF0] text-[#354B5E] rounded-lg text-sm font-bold hover:bg-[#D5DCE2] transition-colors">Adicionar</button>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {notes.base.map((note, i) => (

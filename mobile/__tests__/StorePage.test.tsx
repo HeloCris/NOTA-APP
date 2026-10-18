@@ -36,9 +36,16 @@ const products = [
   },
 ];
 
+const mockNavigate = jest.fn();
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
-  useRouter: () => ({ push: mockPush, back: mockBack }),
+  useRouter: () => ({
+    push: mockPush,
+    back: mockBack,
+    navigate: mockNavigate,
+    canGoBack: () => true,
+  }),
 }));
 
 jest.mock('react-native-safe-area-context', () => {
@@ -153,6 +160,10 @@ jest.mock('@/components/product/ProductCard', () => {
     ),
   };
 });
+
+jest.mock('@/components/store/StoreReviewsSection', () => ({
+  StoreReviewsModal: () => null,
+}));
 
 jest.mock('@/components/common/SkeletonLoader', () => {
   const { Text, View } = require('react-native');

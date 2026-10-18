@@ -3,8 +3,11 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
+import { useCart } from '../context/CartContext';
 
 export default function AppTabs() {
+  const { totalItemsCount } = useCart();
+
   return (
     <Tabs
       screenOptions={{
@@ -26,8 +29,8 @@ export default function AppTabs() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '500',
-          marginTop: 2,
+          fontWeight: '600',
+          marginTop: -2,
         },
       }}
     >
@@ -63,7 +66,7 @@ export default function AppTabs() {
         name="cart"
         options={{
           title: 'Carrinho',
-          tabBarBadge: 2,
+          tabBarBadge: totalItemsCount > 0 ? totalItemsCount : undefined,
           tabBarBadgeStyle: {
             backgroundColor: '#A85A38',
             color: '#FFFFFF',

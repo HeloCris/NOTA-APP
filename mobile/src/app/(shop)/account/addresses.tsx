@@ -16,51 +16,35 @@ import {
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
-
-interface Address {
-  id: string;
-  tag: string;
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood: string;
-  city: string;
-  stateUf: string;
-  cep: string;
-  isDefault: boolean;
-}
+import {
+  UserAddress,
+  getSavedAddresses,
+  setDefaultAddress as apiSetDefaultAddress,
+  deleteAddress as apiDeleteAddress,
+  addOrUpdateAddress as apiAddOrUpdateAddress,
+} from '@/utils/addressStorage';
 
 export default function SavedAddressesScreen() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  const [addresses, setAddresses] = useState<Address[]>([
-    {
-      id: '1',
-      tag: 'Casa',
-      street: 'Av. Paulista',
-      number: '1000',
-      complement: 'Apt 42',
-      neighborhood: 'Bela Vista',
-      city: 'São Paulo',
-      stateUf: 'SP',
-      cep: '01310-100',
-      isDefault: true,
-    },
-    {
-      id: '2',
-      tag: 'Trabalho',
-      street: 'Rua Oscar Freire',
-      number: '720',
-      complement: 'Conjunto 101',
-      neighborhood: 'Cerqueira César',
-      city: 'São Paulo',
-      stateUf: 'SP',
-      cep: '01426-001',
-      isDefault: false,
-    },
-  ]);
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Carrega endereços persistidos
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const list = await getSavedAddresses();
+        setAddresses(list);
+      } catch (err) {
+        console.error('Erro ao buscar endereços:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   // Modal para adicionar novo endereço
   const [modalVisible, setModalVisible] = useState(false);
@@ -78,25 +62,23 @@ export default function SavedAddressesScreen() {
   const [newIsDefault, setNewIsDefault] = useState(false);
 
   // Definir como padrão
-  const handleSetDefault = (id: string) => {
-    setAddresses((prev) =>
-      prev.map((addr) => ({
-        ...addr,
-        isDefault: addr.id === id,
-      }))
-    );
+  const handleSetDefault = async (id: string) => {
+    try {
+      const updated = await apiSetDefaultAddress(id);
+      setAddresses(updated);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Excluir endereço
-  const handleDeleteAddress = (id: string) => {
-    setAddresses((prev) => {
-      const remaining = prev.filter((a) => a.id !== id);
-      // Se o excluído era padrão, torna o primeiro restante como padrão
-      if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
-        remaining[0].isDefault = true;
-      }
-      return remaining;
-    });
+  const handleDeleteAddress = async (id: string) => {
+    try {
+      const updated = await apiDeleteAddress(id);
+      setAddresses(updated);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   // Busca de CEP no formulário do modal
@@ -128,42 +110,40 @@ export default function SavedAddressesScreen() {
   };
 
   // Salvar novo endereço
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
     if (!newStreet.trim() || !newNumber.trim() || !newCep.trim()) {
       return;
     }
 
-    const newAddress: Address = {
-      id: Date.now().toString(),
-      tag: newTag || 'Outro',
-      street: newStreet.trim(),
-      number: newNumber.trim(),
-      complement: newComplement.trim() || undefined,
-      neighborhood: newNeighborhood.trim(),
-      city: newCity.trim(),
-      stateUf: newStateUf.trim().toUpperCase(),
-      cep: newCep.trim(),
-      isDefault: newIsDefault || addresses.length === 0,
-    };
+    try {
+      const updated = await apiAddOrUpdateAddress({
+        tag: newTag || 'Outro',
+        street: newStreet.trim(),
+        number: newNumber.trim(),
+        complement: newComplement.trim() || undefined,
+        neighborhood: newNeighborhood.trim(),
+        city: newCity.trim(),
+        stateUf: newStateUf.trim().toUpperCase(),
+        cep: newCep.trim(),
+        isDefault: newIsDefault || addresses.length === 0,
+      });
 
-    setAddresses((prev) => {
-      if (newAddress.isDefault) {
-        return [newAddress, ...prev.map((a) => ({ ...a, isDefault: false }))];
-      }
-      return [newAddress, ...prev];
-    });
+      setAddresses(updated);
 
-    // Resetar form e fechar modal
-    setNewTag('Casa');
-    setNewCep('');
-    setNewStreet('');
-    setNewNumber('');
-    setNewComplement('');
-    setNewNeighborhood('');
-    setNewCity('');
-    setNewStateUf('');
-    setNewIsDefault(false);
-    setModalVisible(false);
+      // Resetar form e fechar modal
+      setNewTag('Casa');
+      setNewCep('');
+      setNewStreet('');
+      setNewNumber('');
+      setNewComplement('');
+      setNewNeighborhood('');
+      setNewCity('');
+      setNewStateUf('');
+      setNewIsDefault(false);
+      setModalVisible(false);
+    } catch (err) {
+      console.error('Erro ao salvar endereço:', err);
+    }
   };
 
   return (

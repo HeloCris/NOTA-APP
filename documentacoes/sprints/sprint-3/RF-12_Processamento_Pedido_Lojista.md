@@ -20,10 +20,15 @@ O lojista visualiza detalhes do cliente/endereço, itens comprados e pode altera
 | ID | Descrição |
 |---|---|
 | **RF-12.1** | Rota `/store/orders` (Web Lojista) — listagem de pedidos da loja autenticada com filtros por status (`ALL`, `PAID`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED`). |
-| **RF-12.2** | Card/detalhe do pedido — exibe `order_id`, data/hora, nome do cliente, itens da compra, valor total e endereço de entrega. |
-| **RF-12.3** | **[Backend — Novo Endpoint]** `GET /api/v1/store/orders/` — lista pedidos filtrados por `store_id` do lojista autenticado. Permissão: `IsSeller`. |
+| **RF-12.2** | Card/detalhe do pedido — exibe `order_id`, data/hora, nome do cliente, itens da compra, valor total, endereço de entrega e modalidade de frete escolhida (`shipping_service`). |
+| **RF-12.3** | **[Backend — Novo Endpoint]** `GET /api/v1/store/orders/` — lista pedidos filtrados por `store_id` do lojista autenticado, incluindo cálculo de prazo limite de despacho (`dispatch_deadline`) e flag `is_delayed`. Permissão: `IsSeller`. |
 | **RF-12.4** | **[Backend — Novo Endpoint]** `PATCH /api/v1/store/orders/{id}/status/` — transiciona o status do pedido. Transição permitida nesta RF: `PAID` → `PROCESSING`. Permissão: `IsSeller` (pertencente à loja do pedido). |
 | **RF-12.5** | Botão **"Iniciar Separação / Processar"** visível para pedidos com status `PAID`. Ao clicar, atualiza o pedido para `PROCESSING`. |
+| **RF-12.6** | **[SLA de Postagem e Monitoramento ao Vivo]** Exibição do prazo limite de despacho para cada pedido com base nos dias de manuseio configurados pela loja (`shipping_handling_days`). Indicador visual de urgência: **No prazo**, **Vence hoje** ou **Em atraso ⚠️**. |
+| **RF-12.7** | **[Card de Alerta Operacional]** Contador ao vivo no topo do painel destacando quantos pedidos estão com despacho pendente e quantos estão com SLA em atraso para priorização imediata. |
+
+> [!IMPORTANT]
+> O prazo limite de despacho é calculado somando-se os dias úteis configurados em `shipping_handling_days` à data de confirmação do pagamento (`paid_at` ou `created_at`). Pedidos não despachados após essa data são sinalizados automaticamente como **Em atraso**.
 
 > [!NOTE]
 > As permissões via `IsSeller` devem garantir que o lojista só visualize e altere pedidos destinados à sua loja (`store_id` vinculado).

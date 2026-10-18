@@ -12,11 +12,25 @@ import { useAuth } from "../../contexts/useAuth";
 const storeSchema = z.object({
     legal_name: z.string().optional(),
     phone: z.string().optional(),
+    postal_code: z.string().optional(),
+    street: z.string().optional(),
+    number: z.string().optional(),
+    complement: z.string().optional(),
+    neighborhood: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
     bio: z.string().max(220, "A bio deve ter no máximo 220 caracteres.").optional(),
     vacation_mode: z.boolean(),
+    shipping_local_pac: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
+    shipping_local_sedex: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
+    shipping_pac_price: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
+    shipping_sedex_price: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
+    shipping_handling_days: z.coerce.number().min(0, "O prazo não pode ser negativo.").optional(),
+    free_shipping_threshold: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
 });
 
-type StoreFormValues = z.infer<typeof storeSchema>;
+type StoreFormInput = z.input<typeof storeSchema>;
+type StoreFormValues = z.output<typeof storeSchema>;
 
 interface BrandSettingsTabProps {
     brand: Brand | null;
@@ -32,6 +46,7 @@ export function BrandSettingsTab({ brand, store, onStoreUpdated }: BrandSettings
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isReactivating, setIsReactivating] = useState(false);
+    const [isLoadingCep, setIsLoadingCep] = useState(false);
     
     const { updateSession } = useAuth();
 
@@ -58,23 +73,84 @@ export function BrandSettingsTab({ brand, store, onStoreUpdated }: BrandSettings
         return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
     };
 
-    const { register, handleSubmit, setValue, watch, control, formState: { errors }, reset } = useForm<StoreFormValues>({
+    const maskCep = (value: string) => {
+        const digits = value.replace(/\D/g, "").slice(0, 8);
+        if (digits.length > 5) {
+            return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+        }
+        return digits;
+    };
+
+    const { register, handleSubmit, setValue, watch, control, formState: { errors }, reset } = useForm<StoreFormInput, any, StoreFormValues>({
         resolver: zodResolver(storeSchema),
         defaultValues: {
             legal_name: "",
             phone: "",
+            postal_code: "",
+            street: "",
+            number: "",
+            complement: "",
+            neighborhood: "",
+            city: "",
+            state: "",
             bio: "",
             vacation_mode: false,
+            shipping_local_pac: null,
+            shipping_local_sedex: null,
+            shipping_pac_price: null,
+            shipping_sedex_price: null,
+            shipping_handling_days: 1,
+            free_shipping_threshold: null,
         }
     });
+
+    const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const formatted = maskCep(e.target.value);
+        setValue("postal_code", formatted);
+
+        const raw = formatted.replace(/\D/g, "");
+        if (raw.length === 8) {
+            setIsLoadingCep(true);
+            try {
+                const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+                const data = await res.json();
+                if (!data.erro) {
+                    if (data.logradouro) setValue("street", data.logradouro);
+                    if (data.bairro) setValue("neighborhood", data.bairro);
+                    if (data.localidade) setValue("city", data.localidade);
+                    if (data.uf) setValue("state", data.uf);
+                    toast.success("Endereço preenchido pelo CEP!");
+                } else {
+                    toast.error("CEP não encontrado.");
+                }
+            } catch {
+                // Silencioso
+            } finally {
+                setIsLoadingCep(false);
+            }
+        }
+    };
 
     useEffect(() => {
         if (store) {
             reset({
                 legal_name: store.legal_name || "",
                 phone: store.phone ? maskPhone(store.phone) : "",
+                postal_code: store.postal_code ? maskCep(store.postal_code) : "",
+                street: store.street || "",
+                number: store.number || "",
+                complement: store.complement || "",
+                neighborhood: store.neighborhood || "",
+                city: store.city || "",
+                state: store.state || "",
                 bio: store.bio || "",
                 vacation_mode: store.vacation_mode || false,
+                shipping_local_pac: store.shipping_local_pac ?? null,
+                shipping_local_sedex: store.shipping_local_sedex ?? null,
+                shipping_pac_price: store.shipping_pac_price ?? null,
+                shipping_sedex_price: store.shipping_sedex_price ?? null,
+                shipping_handling_days: store.shipping_handling_days ?? 1,
+                free_shipping_threshold: store.free_shipping_threshold ?? null,
             });
             if (store.logo_url) setLogoStr(store.logo_url);
             if (store.cover_url) setCoverStr(store.cover_url);
@@ -130,6 +206,7 @@ export function BrandSettingsTab({ brand, store, onStoreUpdated }: BrandSettings
             const payload: StoreUpdatePayload = {
                 ...data,
                 phone: data.phone ? data.phone.replace(/\D/g, '') : undefined,
+                postal_code: data.postal_code ? data.postal_code.replace(/\D/g, '') : undefined,
                 logo_url: logoStr || undefined,
                 cover_url: coverStr || undefined,
             };
@@ -272,6 +349,276 @@ export function BrandSettingsTab({ brand, store, onStoreUpdated }: BrandSettings
                             </div>
                         </div>
                     </div>
+
+                    {/* SEÇÃO DE LOCALIZAÇÃO E ORIGEM DE ENVIO (FRETE) */}
+                    <div className="border-t border-[#EFEBDD] pt-5 pb-4 mb-2">
+                        <div className="mb-3.5">
+                            <h4 className="text-[14px] font-bold text-[#23282D] mb-0.5 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-[#A85A38]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                                Endereço e Origem de Envio (Logística & Frete)
+                            </h4>
+                            <p className="text-[12.5px] text-[#5A6067]">
+                                O CEP de origem é utilizado para calcular o frete dos pedidos dos seus clientes. Digite o CEP para autopreencher o endereço da loja oficial.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold flex items-center justify-between">
+                                    <span>CEP de Origem</span>
+                                    {isLoadingCep && <span className="text-[10px] text-[#A85A38] font-medium animate-pulse">Buscando CEP...</span>}
+                                </label>
+                                <input
+                                    type="text"
+                                    {...register("postal_code")}
+                                    onChange={handleCepChange}
+                                    placeholder="00000-000"
+                                    maxLength={9}
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5 sm:col-span-2">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Logradouro / Rua</label>
+                                <input
+                                    type="text"
+                                    {...register("street")}
+                                    placeholder="Ex: Av. das Américas"
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Número</label>
+                                <input
+                                    type="text"
+                                    {...register("number")}
+                                    placeholder="123"
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5 sm:col-span-2">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Complemento</label>
+                                <input
+                                    type="text"
+                                    {...register("complement")}
+                                    placeholder="Sala, Andar, Galpão..."
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Bairro</label>
+                                <input
+                                    type="text"
+                                    {...register("neighborhood")}
+                                    placeholder="Bairro"
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Cidade</label>
+                                <input
+                                    type="text"
+                                    {...register("city")}
+                                    placeholder="Cidade"
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">Estado (UF)</label>
+                                <input
+                                    type="text"
+                                    {...register("state")}
+                                    placeholder="SP"
+                                    maxLength={2}
+                                    className="font-inter text-[13px] px-[13px] py-[11px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] uppercase focus:border-[#354B5E] transition-colors"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* CONFIGURAÇÃO DE FRETE (RF-10) */}
+                    {(() => {
+                        const isAddressSaved = Boolean(
+                            store?.postal_code &&
+                            store?.street &&
+                            store?.number &&
+                            store?.neighborhood &&
+                            store?.city &&
+                            store?.state
+                        );
+
+                        return (
+                            <div className="border-t border-[#EFEBDD] pt-6 mb-6">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[17px]">🚚</span>
+                                        <h4 className="text-[14.5px] font-bold text-[#23282D]">Configurações de Frete Regional — Loja Oficial D2C</h4>
+                                    </div>
+                                    {isAddressSaved ? (
+                                        <span className="text-[11px] font-semibold text-[#3A5C30] bg-[#F0F5EE] border border-[#B8CFAF] px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#3A5C30]"></span>
+                                            Origem: {store?.city}/{store?.state}
+                                        </span>
+                                    ) : (
+                                        <span className="text-[11px] font-semibold text-[#A24726] bg-[#FEF0EB] border border-[#F5C9B3] px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#A24726]"></span>
+                                            Bloqueado: Requer Endereço
+                                        </span>
+                                    )}
+                                </div>
+
+                                {!isAddressSaved ? (
+                                    <div className="bg-[#FEF0EB] border border-[#F5C9B3] rounded-[14px] p-4 flex items-start gap-3 mb-2">
+                                        <div className="w-8 h-8 rounded-full bg-[#A24726]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <svg className="w-4 h-4 text-[#A24726]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m11-4V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m10 0h2a2 2 0 002-2zM9 17h6" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h5 className="text-[13px] font-bold text-[#7E2D11]">Endereço de Origem Obrigatório</h5>
+                                            <p className="text-[12px] text-[#A24726] mt-0.5 leading-relaxed">
+                                                Para poder calcular e precificar fretes por região para seus clientes da marca, primeiro preencha todos os campos do <strong>Endereço de Despacho</strong> acima e clique em <strong>"Salvar Perfil da Loja"</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-[12.5px] text-[#5A6067] mb-4">
+                                        Defina as taxas de envio conforme a localidade (mesmo estado vs. interestadual) e prazos de postagem para pedidos da marca.
+                                    </p>
+                                )}
+
+                                <div className={`space-y-4 transition-all duration-200 ${!isAddressSaved ? "opacity-40 pointer-events-none select-none grayscale-[0.5]" : ""}`}>
+                                    {/* Bloco 1: Mesmo Estado */}
+                                    <div className="bg-[#FAF8F5] p-4 rounded-[14px] border border-[#EFEBDD]">
+                                        <div className="flex items-center gap-1.5 mb-2.5">
+                                            <span className="text-[12px] font-bold uppercase tracking-wider text-[#354B5E]">
+                                                📍 Envio Estadual (Dentro de {store?.state || "UF"})
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    PAC Estadual (R$)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("shipping_local_pac")}
+                                                    placeholder="Ex: 14.90"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Mais rápido e econômico localmente</span>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    SEDEX Estadual (R$)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("shipping_local_sedex")}
+                                                    placeholder="Ex: 24.90"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Entrega expressa no mesmo estado</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Bloco 2: Nacional (Demais Estados) */}
+                                    <div className="bg-[#FAF8F5] p-4 rounded-[14px] border border-[#EFEBDD]">
+                                        <div className="flex items-center gap-1.5 mb-2.5">
+                                            <span className="text-[12px] font-bold uppercase tracking-wider text-[#354B5E]">
+                                                🇧🇷 Envio Nacional (Outros Estados)
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    PAC Nacional (R$)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("shipping_pac_price")}
+                                                    placeholder="Ex: 22.90"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Envio interestadual padrão</span>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    SEDEX Nacional (R$)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("shipping_sedex_price")}
+                                                    placeholder="Ex: 42.50"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Envio prioritário interestadual</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Bloco 3: Prazos de Postagem e Frete Grátis */}
+                                    <div className="bg-[#FAF8F5] p-4 rounded-[14px] border border-[#EFEBDD]">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    Prazo de Manuseio / Postagem (Dias úteis)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("shipping_handling_days")}
+                                                    placeholder="Ex: 1"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Tempo para embalar e postar nos Correios</span>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10.5px] tracking-[0.08em] uppercase text-[#5A6067] font-bold">
+                                                    Frete Grátis acima de (R$ opcional)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    disabled={!isAddressSaved}
+                                                    {...register("free_shipping_threshold")}
+                                                    placeholder="Ex: 300.00"
+                                                    className="font-inter text-[13px] px-[13px] py-[10px] border-[1.5px] border-[#E6E1D2] rounded-lg bg-white outline-none text-[#23282D] focus:border-[#354B5E] transition-colors"
+                                                />
+                                                <span className="text-[10.5px] text-[#8C939D]">Deixe em branco se não oferecer frete grátis</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     <div className="border-t border-[#EFEBDD] pt-5 pb-2 mb-2">
                         <div className="flex items-center justify-between gap-4">

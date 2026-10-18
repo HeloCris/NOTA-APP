@@ -14,7 +14,7 @@ O Painel Web do Lojista é acessado via navegador desktop e foca na gestão oper
 *   **Ações da Tabela:** Editar (modal/página para alterar preço e estoque), Pausar Anúncio, Excluir.
 *   **Adicionar Novo Produto:**
     *   *Passo 1:* Busca no Catálogo Global NŌTA. Se encontrar, importa e define preço/estoque.
-    *   *Passo 2 (Fallback):* Solicitar cadastro de novo produto (formulário completo com upload de foto e definição da pirâmide olfativa) - Sujeito a aprovação do Admin.
+    *   *Passo 2 (Fallback / Brand Hub):* Cadastro de produto pelo lojista ou dono de marca (formulário completo com upload de foto, concentração [Parfum/EDP/EDT/EDC/Eau Fraîche], classificação de gênero [Feminino/Masculino/Compartilhável] e definição da pirâmide olfativa).
 
 ## 3. Gestão de Pedidos
 *   **Fila de Pedidos (Kanban ou Tabela Avançada):** Listagem de pedidos recebidos.

@@ -4,11 +4,27 @@ export interface Store {
     legal_name?: string;
     cnpj: string;
     phone?: string;
+    postal_code?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
     bio?: string;
     logo_url?: string;
     cover_url?: string;
     is_active: boolean;
     vacation_mode: boolean;
+    shipping_local_pac?: number | null;
+    shipping_local_sedex?: number | null;
+    shipping_pac_price?: number | null;
+    shipping_sedex_price?: number | null;
+    shipping_handling_days?: number;
+    free_shipping_threshold?: number | null;
+    has_complete_address?: boolean;
+    has_shipping_configured?: boolean;
+    is_ready_to_sell?: boolean;
     owner_id: number;
     is_official?: boolean;
     created_at?: string;
@@ -20,11 +36,24 @@ export interface StoreUpdatePayload {
     legal_name?: string;
     cnpj?: string;
     phone?: string;
+    postal_code?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
     bio?: string;
     logo_url?: string;
     cover_url?: string;
     is_active?: boolean;
     vacation_mode?: boolean;
+    shipping_local_pac?: number | null;
+    shipping_local_sedex?: number | null;
+    shipping_pac_price?: number | null;
+    shipping_sedex_price?: number | null;
+    shipping_handling_days?: number;
+    free_shipping_threshold?: number | null;
 }
 
 export interface DashboardData {

@@ -83,7 +83,7 @@ export function RegisterForm() {
     setServerError(null);
 
     try {
-      await registerUser(payload);
+      await registerUser({ ...payload, role: "SELLER" });
 
       const searchParams = new URLSearchParams(window.location.search);
       const redirect = searchParams.get("redirect");
