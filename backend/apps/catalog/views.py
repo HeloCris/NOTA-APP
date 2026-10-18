@@ -38,6 +38,14 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         queryset = Product.objects.filter(is_approved=True).select_related("brand")
+        user = self.request.user if hasattr(self.request, "user") else None
+
+        # Se o usuário autenticado for BRAND_OWNER, restringe a busca aos perfumes da sua marca
+        if user and user.is_authenticated and getattr(user, "role", None) == "BRAND_OWNER":
+            brand = user.brands.first()
+            if brand:
+                queryset = queryset.filter(brand=brand)
+
         params = self.request.query_params
 
         if search := params.get("search"):
@@ -46,6 +54,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(brand_id=brand)
         if family := params.get("olfactory_family"):
             queryset = queryset.filter(olfactory_family__iexact=family)
+        if concentration := params.get("concentration"):
+            queryset = queryset.filter(concentration__iexact=concentration)
+        if gender := params.get("gender"):
+            queryset = queryset.filter(gender__iexact=gender)
         for field in ("top_notes", "heart_notes", "base_notes"):
             if note := params.get(field):
                 queryset = queryset.filter(**{f"{field}__icontains": note})

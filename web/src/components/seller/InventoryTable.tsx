@@ -125,9 +125,16 @@ export function InventoryTable({
                   </td>
 
                   <td className="p-[14px_22px] align-middle">
-                    <span className="inline-flex items-center rounded-full bg-[#E9EDF0] text-[#354B5E] text-[11.5px] font-bold px-3 py-1">
-                      {item.volume_ml}ml
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center rounded-full bg-[#E9EDF0] text-[#354B5E] text-[11.5px] font-bold px-3 py-1">
+                        {item.volume_ml}ml
+                      </span>
+                      {item.volume_ml <= 15 && (
+                        <span className="inline-flex items-center rounded-full bg-[#FFF4E5] text-[#8A5B22] text-[10.5px] font-bold px-2 py-0.5 border border-[#F0DDC5]">
+                          Decant
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="p-[14px_22px] align-middle">

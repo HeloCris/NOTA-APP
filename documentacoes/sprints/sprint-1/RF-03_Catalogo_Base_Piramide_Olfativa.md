@@ -14,10 +14,10 @@ Base centralizada de marcas e perfumes com pirâmide olfativa completa (Notas de
 
 | ID | Descrição |
 | :--- | :--- |
-| **RF-03.1** | Models `Brand` e `Product` no Django: campos `name`, `brand (FK)`, `olfactory_family`, `top_notes`, `heart_notes`, `base_notes` (JSONField), `image_url` — SQLite |
+| **RF-03.1** | Models `Brand` e `Product` no Django: campos `name`, `brand (FK)`, `concentration` (Parfum, EDP, EDT, EDC, etc.), `gender` (Masculino, Feminino, Compartilhável), `olfactory_family`, `top_notes`, `heart_notes`, `base_notes` (JSONField), `image_url` — SQLite |
 | **RF-03.2** | Management command `seed_catalog` para carga inicial idempotente (marcas + perfumes do `dados-iniciais-seeds.md`) |
 | **RF-03.3** | `GET /api/v1/brands/` — listagem pública de marcas |
-| **RF-03.4** | `GET /api/v1/products/` — listagem com filtros `?search=`, `?brand=`, `?olfactory_family=`, `?top_notes=`, `?heart_notes=`, `?base_notes=` |
+| **RF-03.4** | `GET /api/v1/products/` — listagem com filtros `?search=`, `?brand=`, `?concentration=`, `?gender=`, `?olfactory_family=`, `?top_notes=`, `?heart_notes=`, `?base_notes=` |
 | **RF-03.5** | `GET /api/v1/products/{id}/` — ficha técnica completa com pirâmide olfativa |
 | **RF-03.6** | `POST /api/v1/products/` — submissão de nova ficha (autenticado; revisão pelo Admin) |
 | **RF-03.7** | Componente web de autocomplete com debounce e modal de visualização da pirâmide olfativa |

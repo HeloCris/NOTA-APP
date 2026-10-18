@@ -8,6 +8,8 @@ from .views import (
     RegisterView,
     GoogleAuthView,
     OlfactoryProfileView,
+    UserAddressListCreateView,
+    UserAddressDetailView,
 )
 
 
@@ -48,5 +50,15 @@ urlpatterns = [
         "me/olfactory-profile/",
         OlfactoryProfileView.as_view(),
         name="olfactory_profile",
+    ),
+    path(
+        "addresses/",
+        UserAddressListCreateView.as_view(),
+        name="user_addresses_list_create",
+    ),
+    path(
+        "addresses/<int:pk>/",
+        UserAddressDetailView.as_view(),
+        name="user_addresses_detail",
     ),
 ]

@@ -285,6 +285,7 @@ export default function SearchScreen() {
                   <TouchableOpacity
                     style={styles.detailsBtn}
                     activeOpacity={0.7}
+                    onPress={() => router.push({ pathname: '/product/[id]' as never, params: { id: '4' } })}
                   >
                     <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
                   </TouchableOpacity>
@@ -320,6 +321,7 @@ export default function SearchScreen() {
                   <TouchableOpacity
                     style={styles.detailsBtn}
                     activeOpacity={0.7}
+                    onPress={() => router.push({ pathname: '/product/[id]' as never, params: { id: '5' } })}
                   >
                     <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
                   </TouchableOpacity>
@@ -384,6 +386,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1C252E',
     height: '100%',
+    paddingVertical: 0,
+    borderWidth: 0,
+    outlineWidth: 0,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none' as any,
+      },
+    }),
   },
 
   // --- Section Common ---

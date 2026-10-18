@@ -125,3 +125,25 @@ class OlfactoryProfileView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class UserAddressListCreateView(generics.ListCreateAPIView):
+    from .models import UserAddress
+    from .serializers import UserAddressSerializer
+    serializer_class = UserAddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import UserAddress
+        return UserAddress.objects.filter(user=self.request.user)
+
+
+class UserAddressDetailView(generics.RetrieveUpdateDestroyAPIView):
+    from .models import UserAddress
+    from .serializers import UserAddressSerializer
+    serializer_class = UserAddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import UserAddress
+        return UserAddress.objects.filter(user=self.request.user)

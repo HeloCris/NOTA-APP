@@ -82,13 +82,33 @@ class StoreProductSerializer(serializers.ModelSerializer):
         if request and hasattr(request, "auth") and request.auth:
             store_id = getattr(request.auth, "get", lambda _k: None)("store_id")
         
-        if not store_id and request and hasattr(request, "user") and hasattr(request.user, "store") and request.user.store:
-            store_id = request.user.store.id
+        if not store_id and request and hasattr(request, "user") and request.user.is_authenticated:
+            user = request.user
+            if hasattr(user, "stores") and user.stores.exists():
+                store_id = user.stores.first().id
+            elif hasattr(user, "brands") and user.brands.exists():
+                brand = user.brands.first()
+                if brand and brand.d2c_store_id:
+                    store_id = brand.d2c_store_id
 
         product = attrs.get("product", getattr(self.instance, "product", None))
         volume_ml = attrs.get("volume_ml", getattr(self.instance, "volume_ml", None))
 
         if store_id and product and volume_ml is not None:
+            # Regra de negócio: Loja Oficial só pode vender perfumes da sua própria marca!
+            # Lojas não-oficiais (multimarcas) podem vender de qualquer marca.
+            from apps.stores.models import Store
+            store = Store.objects.filter(id=store_id).first()
+            if store and store.is_official:
+                # Se for loja oficial vinculada a uma marca, garante que o produto pertence a essa marca
+                brand = getattr(store, "official_brand", None)
+                if not brand and hasattr(request.user, "brands"):
+                    brand = request.user.brands.first()
+                if brand and product.brand_id != brand.id:
+                    raise serializers.ValidationError(
+                        {"detail": f"Lojas Oficiais só podem vender perfumes da sua própria marca ({brand.name})."}
+                    )
+
             qs = StoreProduct.objects.filter(
                 store_id=store_id,
                 product=product,

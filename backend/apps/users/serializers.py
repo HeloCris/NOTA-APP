@@ -163,3 +163,30 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
 
         return value
+
+
+class UserAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import UserAddress
+        model = UserAddress
+        fields = [
+            "id",
+            "tag",
+            "recipient_name",
+            "street",
+            "number",
+            "complement",
+            "neighborhood",
+            "city",
+            "state",
+            "postal_code",
+            "phone",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)

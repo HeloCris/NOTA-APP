@@ -26,7 +26,10 @@ Representante oficial de uma marca de perfumes (fabricante, distribuidora exclus
 *   **Permissões de Acesso:** Acesso ao **Brand Hub** — painel web exclusivo de gestão de portfólio oficial.
 *   **Gestão da Marca:** Submissão de nova marca para aprovação (CNPJ + registro INPI obrigatórios).
 *   **Gestão do Portfólio (Catálogo Global):** Permissão para adicionar novos perfumes ao catálogo global com `ean` (GTIN/EAN-13), `anvisa_code` e a pirâmide olfativa completa.
-*   **Modelo D2C (Loja Oficial com Selo):** O `BRAND_OWNER` pode ativar as vendas diretas ao consumidor, gerando automaticamente uma `Store` com o selo verificado **"Loja Oficial ✓"**.
+*   **Modelo de Vendas (Loja Oficial com Selo):** O `BRAND_OWNER` pode ativar as vendas diretas ao consumidor, gerando automaticamente uma `Store` com o selo verificado **"Loja Oficial ✓"**.
+*   **Regra de Ouro do Catálogo de Vendas:**
+    *   **Lojas Oficiais:** Só têm permissão para precificar, estocar e vender perfumes **que pertençam à sua própria marca**. A busca no catálogo e a vinculação de estoque (`StoreProduct`) são estritamente filtradas e validadas pela API para impedir que uma marca (ex.: Lancôme) venda ou visualize produtos de marcas concorrentes (ex.: Carolina Herrera).
+    *   **Lojas Não Oficiais / Multimarcas (`SELLER`):** Têm acesso global a todo o catálogo oficial da plataforma, podendo revender e criar decants de qualquer perfume aprovado de todas as marcas.
 *   **Isolamento:** Acesso restrito aos produtos da sua própria marca e à sua Loja Oficial.
 
 ## 3. Loja Não Oficial / Multimarcas (`SELLER`)

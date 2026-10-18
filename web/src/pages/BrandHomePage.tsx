@@ -4,14 +4,16 @@ import { useAuth } from "../contexts/useAuth";
 import logoIcon from "../assets/logo-icon.png";
 import { SvgDefs } from "../components/seller/SvgDefs";
 import { DashboardTab } from "../components/seller/DashboardTab";
+import { CatalogTab } from "../components/seller/CatalogTab";
 import { BrandPortfolioTab } from "../components/brand/BrandPortfolioTab";
 import { BrandSettingsTab } from "../components/brand/BrandSettingsTab";
 import { storeService } from "../services/storeService";
 import { brandService } from "../services/brandService";
+import { OrdersTab } from "../components/seller/OrdersTab";
 import type { Store } from "../types/store";
 import type { Brand } from "../types/catalog";
 
-type TabType = "dashboard" | "catalog" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "inventory" | "orders" | "metrics" | "messages" | "settings";
 
 export function BrandHomePage() {
   const { user, logout } = useAuth();
@@ -86,6 +88,8 @@ export function BrandHomePage() {
         <nav className="flex-1 px-4 py-5 flex flex-col justify-center gap-4.5 overflow-y-auto">
           <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
+          <NavLink id="inventory" icon="#ic-box" label="Estoque & Vendas" />
+          <NavLink id="orders" icon="#ic-box" label="Pedidos" />
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />
@@ -160,6 +164,28 @@ export function BrandHomePage() {
             <>
               {activeTab === "dashboard" && <DashboardTab store={store} />}
               {activeTab === "catalog" && <BrandPortfolioTab />}
+              {activeTab === "inventory" && (
+                store ? (
+                  <CatalogTab store={store} />
+                ) : (
+                  <div className="bg-white border border-[#E6E1D2] rounded-[20px] py-[60px] px-[30px] text-center max-w-xl mx-auto shadow-sm">
+                    <div className="w-[64px] h-[64px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-[32px] h-[32px]"><use href="#ic-box" /></svg>
+                    </div>
+                    <h3 className="text-[20px] font-extrabold text-[#23282D] mb-2 font-jakarta">Ative sua Loja Oficial</h3>
+                    <p className="text-[13.5px] text-[#5A6067] leading-[1.6] mb-6">
+                      Para precificar perfumes, adicionar volumetrias (como decants de 5ml, 10ml, 15ml ou frascos 50ml/100ml) e vender direto para os clientes NŌTA com o selo oficial, ative sua loja.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("settings")}
+                      className="font-jakarta font-bold text-[14px] rounded-full px-6 py-3 bg-[#354B5E] text-white hover:bg-[#263847] transition-colors"
+                    >
+                      Ir para Configurações e Ativar Loja
+                    </button>
+                  </div>
+                )
+              )}
+              {activeTab === "orders" && <OrdersTab />}
 
               {/* Placeholders for Metrics and Messages */}
               {(activeTab === "metrics" || activeTab === "messages") && (

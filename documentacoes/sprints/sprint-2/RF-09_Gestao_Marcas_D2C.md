@@ -61,7 +61,7 @@ Estrutura completa para o onboarding, validação e gestão de marcas oficiais n
 | **RF-09.18** | Página `/brand/hub` — painel protegido (role `BRAND_OWNER`). Exibe nome da marca, badge "Marca Oficial ✓", e tabela de perfumes do portfólio. |
 | **RF-09.19** | Modal/formulário de cadastro de perfume: campos `name`, `ean` (com validação de 13 dígitos em tempo real), `anvisa_code`, `olfactory_family` (select), `top_notes`, `heart_notes`, `base_notes` (inputs de chips dinâmicos), `image_url`. Todos obrigatórios — sem opção de pular. |
 | **RF-09.20** | Card de ativação D2C na página do Brand Hub: banner destacado com CTA **"Ativar Loja Oficial e começar a vender"**. Ao clicar, abre modal de confirmação detalhando o que será criado. Após confirmação, chama `POST /brands/me/activate-d2c/` e redireciona para o painel de lojista. |
-| **RF-09.21** | Após ativação D2C, o Brand Hub exibe uma seção "Minha Loja Oficial" com link para o painel de lojista (`/store/dashboard`). O badge muda para "Marca Oficial + Loja D2C ✓". |
+| **RF-09.21** | Após ativação D2C, o Brand Hub exibe no menu a aba **"Estoque & Vendas (D2C)"**, permitindo precificar, cadastrar múltiplas volumetrias (incluindo frascos e decants de 5ml, 10ml ou 15ml) e gerenciar estoque com selo de Loja Oficial. O badge da marca exibe "Marca Oficial + Loja D2C ✓". |
 
 > [!IMPORTANT]
 > O `ean` deve ser validado tanto no frontend (regex `^\d{13}$`) quanto no backend (serializer `validate_ean`). Um EAN-13 inválido não pode ser persistido em hipótese alguma — é o identificador universal do produto.
