@@ -65,3 +65,45 @@ class IsBrandOwner(BasePermission):
             request.user.is_authenticated
             and request.user.role == "BRAND_OWNER"
         )
+
+
+def get_user_store_id(request):
+    auth = getattr(request, "auth", None)
+    if auth is not None and hasattr(auth, "get"):
+        store_id = auth.get("store_id")
+        if store_id:
+            return store_id
+
+    user = getattr(request, "user", None)
+    if user is not None and user.is_authenticated:
+        from apps.stores.models import Store
+
+        store = Store.objects.filter(owner=user).first()
+        if store:
+            return store.id
+
+    return None
+
+
+class IsSeller(BasePermission):
+    message = "Você não tem permissão para acessar pedidos de outra loja."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == "SELLER"
+        )
+
+    def has_object_permission(self, request, view, obj):
+        user_store_id = get_user_store_id(request)
+
+        if user_store_id is None:
+            return False
+
+        if hasattr(obj, "store_id"):
+            return obj.store_id == user_store_id
+
+        if hasattr(obj, "store"):
+            return obj.store.id == user_store_id
+
+        return False
