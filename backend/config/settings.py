@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.inventory",
     "apps.showcase",
+    "apps.orders",
 ]
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # Tem que ser o primeiro ou estar bem no topo!

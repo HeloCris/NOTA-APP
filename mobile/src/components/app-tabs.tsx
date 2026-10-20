@@ -97,6 +97,7 @@ export default function AppTabs() {
         }}
       />
 
+      {/* Rotas Ocultas da Barra Inferior */}
       <Tabs.Screen
         name="orders"
         options={{
@@ -106,6 +107,20 @@ export default function AppTabs() {
 
       <Tabs.Screen
         name="store/[id]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="checkout/payment"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="checkout/success"
         options={{
           href: null,
         }}
