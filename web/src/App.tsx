@@ -17,6 +17,9 @@ const SellerHomePage = lazy(() => import("./pages/SellerHomePage.lazy"));
 const BrandOnboardingPage = lazy(() => import("./pages/BrandOnboardingPage.lazy"));
 const BrandStatusPage = lazy(() => import("./pages/BrandStatusPage.lazy"));
 const BrandHomePage = lazy(() => import("./pages/BrandHomePage.lazy"));
+const StoreOrdersPage = lazy(() =>
+  import("./pages/store/StoreOrdersPage.lazy"),
+);
 const StoreShowcasePage = lazy(() =>
   import("./features/showcase/StoreShowcasePage").then((module) => ({
     default: module.StoreShowcasePage,
@@ -77,6 +80,15 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
               <SellerHomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/store/orders"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER"]}>
+              <StoreOrdersPage />
             </ProtectedRoute>
           }
         />

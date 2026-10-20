@@ -18,6 +18,12 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    shipping_service = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name="Modalidade de Frete",
+    )
     shipping_address = models.JSONField()
     tracking_code = models.CharField(max_length=100, blank=True, null=True)
     carrier = models.CharField(max_length=100, blank=True, null=True)

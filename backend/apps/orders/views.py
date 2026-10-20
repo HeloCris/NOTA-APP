@@ -1,11 +1,15 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import get_object_or_404
 from django.db import transaction
 from .models import Order, OrderItem
 from apps.inventory.models import StoreProduct
-from .serializers import OrderSerializer
+from apps.stores.models import Store
+from apps.core.permissions import IsSeller, get_user_store_id
+from .serializers import OrderSerializer, StoreOrderSerializer
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -70,6 +74,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     store_id=data['store_id'],
                     total_amount=data['total_amount'],
                     shipping_cost=data.get('shipping_cost', 0.00),
+                    shipping_service=data.get('shipping_service'),
                     shipping_address=data['shipping_address'],
                     status='PENDING'
                 )
@@ -150,3 +155,67 @@ def process_payment(request):
             {"error": "Pedido não encontrado."},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+class StoreOrderListView(APIView):
+    permission_classes = [IsSeller]
+
+    def get(self, request):
+        store_id = get_user_store_id(request)
+        if store_id is None:
+            return Response(
+                {"error": "Nenhuma loja vinculada a este lojista."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        status_filter = str(request.query_params.get("status", "ALL")).upper()
+        valid_statuses = {"ALL"} | {choice for choice, _ in Order.STATUS_CHOICES}
+        if status_filter not in valid_statuses:
+            return Response(
+                {"error": f"Filtro de status inválido. Use um de: {', '.join(sorted(valid_statuses))}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        orders = (
+            Order.objects
+            .filter(store_id=store_id)
+            .select_related("user")
+            .prefetch_related("items__store_product__product")
+            .order_by("-created_at")
+        )
+        if status_filter != "ALL":
+            orders = orders.filter(status=status_filter)
+
+        store = Store.objects.filter(pk=store_id).first()
+        serializer = StoreOrderSerializer(
+            orders, many=True, context={"store": store}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UpdateOrderStatusView(APIView):
+    permission_classes = [IsSeller]
+
+    def patch(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        self.check_object_permissions(request, order)
+
+        new_status = request.data.get("status")
+        if new_status != "PROCESSING":
+            return Response(
+                {"error": "Transição de status não permitida. Use {'status': 'PROCESSING'} (PAID → PROCESSING)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if order.status != "PAID":
+            return Response(
+                {"error": f"Transição não permitida: {order.status} → PROCESSING. Apenas pedidos pagos (PAID) podem iniciar a separação."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        order.status = "PROCESSING"
+        order.save(update_fields=["status", "updated_at"])
+
+        store = Store.objects.filter(pk=order.store_id).first()
+        serializer = StoreOrderSerializer(order, context={"store": store})
+        return Response(serializer.data, status=status.HTTP_200_OK)
