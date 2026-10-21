@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/useAuth";
 import logoIcon from "../assets/logo-icon.png";
@@ -15,7 +14,6 @@ type TabType = "dashboard" | "catalog" | "orders" | "metrics" | "messages" | "se
 
 export function SellerHomePage() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [store, setStore] = useState<Store | null>(null);
 
@@ -70,15 +68,6 @@ export function SellerHomePage() {
           <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
           <NavLink id="orders" icon="#ic-box" label="Pedidos" />
-          <button
-            onClick={() => navigate("/store/orders")}
-            className="flex items-center justify-center gap-[12px] px-3 py-3 rounded-lg text-[15px] font-semibold transition-colors w-full text-[#5A6067] hover:bg-[#EFEBDD] hover:text-[#23282D]"
-          >
-            <svg className="w-[20px] h-[20px] flex-shrink-0 text-[#93927F]">
-              <use href="#ic-inbox" />
-            </svg>
-            <span className="flex-1 text-left">Gestão de Pedidos</span>
-          </button>
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />

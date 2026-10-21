@@ -1,94 +1,86 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
+import { ShippingModal } from "../../features/store/ShippingModal";
+import {
+  storeOrderService,
+  type StoreOrder,
+  type StoreOrderStatus,
+} from "../../services/storeOrderService";
 
-type OrderStatus = "PROCESSING" | "SHIPPED";
-type UrgencyStatus = "ON_TIME" | "DUE_TODAY" | "DELAYED";
+type FilterKey = "ALL" | "PROCESSING" | "DELAYED" | "SHIPPED";
 
-interface Order {
-  id: string;
-  customer: string;
-  date: string;
-  items: string;
-  total: string;
-  status: OrderStatus;
-  carrier?: string;
-  trackingCode?: string;
-  dispatchDeadline?: string;
-  urgencyStatus?: UrgencyStatus;
-  shippingService?: string;
-}
-
-// Inicializado vazio conforme regra de negócio: NENHUM dado fake ou estático.
-const initialOrders: Order[] = [];
-
-const statusStyles: Record<OrderStatus, string> = {
+const statusStyles: Record<StoreOrderStatus, string> = {
+  PENDING: "bg-[#F5F3E9] text-[#5A6067]",
+  PAID: "bg-[#E9EDF0] text-[#354B5E]",
   PROCESSING: "bg-[#F5E7DE] text-[#7E4228]",
   SHIPPED: "bg-[#EDF0E7] text-[#454F3A]",
+  DELIVERED: "bg-[#F0F5EE] text-[#3A5C30]",
+  CANCELLED: "bg-[#FDF4F0] text-[#BA1A1A]",
 };
 
-const urgencyStyles: Record<UrgencyStatus, { badge: string; text: string }> = {
-  ON_TIME: {
-    badge: "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]",
-    text: "No prazo",
-  },
-  DUE_TODAY: {
-    badge: "bg-[#FFF9E6] border-[#F0D58A] text-[#8C6D1F]",
-    text: "Vence hoje ⏳",
-  },
-  DELAYED: {
-    badge: "bg-[#FDF4F0] border-[#F0C4B0] text-[#BA1A1A] font-bold",
-    text: "Atrasado ⚠️",
-  },
+const statusLabels: Record<StoreOrderStatus, string> = {
+  PENDING: "Pendente", PAID: "Pago", PROCESSING: "Em separação",
+  SHIPPED: "Enviado", DELIVERED: "Entregue", CANCELLED: "Cancelado",
 };
 
 export function OrdersTab() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [selectedFilter, setSelectedFilter] = useState<"ALL" | "PROCESSING" | "DELAYED" | "SHIPPED">("ALL");
-  const [orderToShip, setOrderToShip] = useState<Order | null>(null);
-  const [carrier, setCarrier] = useState("Correios");
-  const [trackingCode, setTrackingCode] = useState("");
-  const [error, setError] = useState("");
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState<FilterKey>("ALL");
+  const [orderToShip, setOrderToShip] = useState<StoreOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  const delayedCount = orders.filter((order) => order.status === "PROCESSING" && order.urgencyStatus === "DELAYED").length;
+  const loadOrders = async () => {
+    setLoading(true);
+    setLoadError("");
+    try { setOrders(await storeOrderService.getOrders()); }
+    catch { setLoadError("Não foi possível carregar os pedidos. Tente novamente."); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void loadOrders(); }, []);
+
+  const delayedCount = orders.filter((order) => order.is_delayed).length;
   const processingCount = orders.filter((order) => order.status === "PROCESSING").length;
   const shippedCount = orders.filter((order) => order.status === "SHIPPED").length;
 
   const visibleOrders = orders.filter((order) => {
     if (selectedFilter === "ALL") return true;
     if (selectedFilter === "PROCESSING") return order.status === "PROCESSING";
-    if (selectedFilter === "DELAYED") return order.status === "PROCESSING" && order.urgencyStatus === "DELAYED";
+    if (selectedFilter === "DELAYED") return order.is_delayed;
     if (selectedFilter === "SHIPPED") return order.status === "SHIPPED";
     return true;
   });
 
-  function openShippingModal(order: Order) {
+  function openShippingModal(order: StoreOrder) {
     setOrderToShip(order);
-    setCarrier("Correios");
-    setTrackingCode("");
-    setError("");
   }
 
   function closeShippingModal() {
     setOrderToShip(null);
-    setError("");
   }
 
-  function confirmShipping(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedCode = trackingCode.trim().toUpperCase();
+  async function startProcessing(order: StoreOrder) {
+    setBusyId(order.id);
+    try {
+      const updated = await storeOrderService.updateOrderStatus(order.id, "PROCESSING");
+      setOrders((current) => current.map((item) => item.id === updated.id ? updated : item));
+      toast.success(`Pedido #${order.id} movido para Em Separação.`);
+    } catch { toast.error("Não foi possível atualizar o status do pedido."); }
+    finally { setBusyId(null); }
+  }
 
-    if (!/^[A-Z0-9]{6,}$/.test(normalizedCode)) {
-      setError("Informe um código de rastreio com ao menos 6 caracteres alfanuméricos.");
-      return;
-    }
-
+  async function confirmShipping(carrier: string, trackingCode: string) {
     if (!orderToShip) return;
-
-    setOrders((currentOrders) => currentOrders.map((order) => (
-      order.id === orderToShip.id
-        ? { ...order, status: "SHIPPED", carrier, trackingCode: normalizedCode }
-        : order
-    )));
-    closeShippingModal();
+    setBusyId(orderToShip.id);
+    try {
+      const updated = await storeOrderService.shipOrder(orderToShip.id, { carrier, tracking_code: trackingCode });
+      setOrders((current) => current.map((item) => item.id === updated.id ? updated : item));
+      closeShippingModal();
+      toast.success(`Pedido #${updated.id} despachado com sucesso.`);
+    } catch { toast.error("Não foi possível despachar o pedido."); }
+    finally { setBusyId(null); }
   }
 
   return (
@@ -160,7 +152,11 @@ export function OrdersTab() {
         </div>
       </div>
 
-      <div className="bg-white border border-[#EFEBDD] rounded-[20px] overflow-hidden shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
+      {loading ? (
+        <div className="rounded-[20px] border border-[#EFEBDD] bg-white py-16 text-center text-[13px] text-[#5A6067]">Carregando pedidos...</div>
+      ) : loadError ? (
+        <div className="rounded-[20px] border border-[#F0C4B0] bg-white px-6 py-12 text-center"><p className="mb-4 text-[13px] font-semibold text-[#BA1A1A]">{loadError}</p><button type="button" onClick={() => void loadOrders()} className="rounded-full bg-[#354B5E] px-5 py-2.5 text-[12px] font-bold text-white">Tentar novamente</button></div>
+      ) : <div className="bg-white border border-[#EFEBDD] rounded-[20px] overflow-hidden shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
         <div className="px-6 py-5 border-b border-[#EFEBDD] flex items-center justify-between gap-4">
           <div>
             <h2 className="font-jakarta text-[17px] font-extrabold text-[#23282D]">Fila de pedidos</h2>
@@ -192,26 +188,25 @@ export function OrdersTab() {
               </thead>
               <tbody>
                 {visibleOrders.map((order) => {
-                  const urgency = order.urgencyStatus && urgencyStyles[order.urgencyStatus];
                   return (
                     <tr key={order.id} className="border-t border-[#EFEBDD] hover:bg-[#FBFAF6] transition-colors">
                       <td className="px-6 py-4">
                         <p className="font-bold text-[13px] text-[#23282D]">{order.id}</p>
-                        <p className="text-[11px] text-[#93927F] mt-1">{order.date}</p>
+                        <p className="text-[11px] text-[#93927F] mt-1">{new Date(order.created_at).toLocaleDateString("pt-BR")}</p>
                       </td>
                       <td className="px-6 py-4 text-[13px] font-semibold text-[#23282D]">
-                        {order.customer}
-                        {order.shippingService && (
-                          <p className="text-[11px] text-[#5A6067] font-normal mt-0.5">{order.shippingService}</p>
+                        {order.customer_name}
+                        {order.shipping_service && (
+                          <p className="text-[11px] text-[#5A6067] font-normal mt-0.5">{order.shipping_service}</p>
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        {order.dispatchDeadline ? (
+                        {order.dispatch_deadline ? (
                           <div className="space-y-1">
-                            <p className="text-[12px] font-bold text-[#23282D]">{order.dispatchDeadline}</p>
-                            {urgency && (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] border ${urgency.badge}`}>
-                                {urgency.text}
+                            <p className="text-[12px] font-bold text-[#23282D]">{order.dispatch_deadline}</p>
+                            {order.urgency_status && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] border border-[#B8CFAF] bg-[#F0F5EE] text-[#3A5C30]">
+                                {order.urgency_status === "DELAYED" ? "Atrasado" : order.urgency_status === "DUE_TODAY" ? "Vence hoje" : "No prazo"}
                               </span>
                             )}
                           </div>
@@ -219,16 +214,18 @@ export function OrdersTab() {
                           <span className="text-[11px] text-[#93927F]">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5A6067]">{order.items}</td>
-                      <td className="px-6 py-4 text-[13px] font-bold text-[#23282D]">{order.total}</td>
+                      <td className="px-6 py-4 text-[12px] text-[#5A6067]">{order.items.length} item(ns)</td>
+                      <td className="px-6 py-4 text-[13px] font-bold text-[#23282D]">{Number(order.total_amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${statusStyles[order.status]}`}>
-                          {order.status === "PROCESSING" ? "Em separação" : "Enviado"}
+                          {statusLabels[order.status]}
                         </span>
-                        {order.trackingCode && <p className="text-[11px] font-semibold text-[#5C6B4E] mt-2">{order.carrier}: {order.trackingCode}</p>}
+                        {order.tracking_code && <p className="text-[11px] font-semibold text-[#5C6B4E] mt-2">{order.carrier}: {order.tracking_code}</p>}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {order.status === "PROCESSING" ? (
+                        {order.status === "PAID" ? (
+                          <button type="button" disabled={busyId === order.id} onClick={() => void startProcessing(order)} className="inline-flex items-center gap-2 bg-[#354B5E] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#263847] disabled:opacity-60">Iniciar separação</button>
+                        ) : order.status === "PROCESSING" ? (
                           <button type="button" onClick={() => openShippingModal(order)} className="inline-flex items-center gap-2 bg-[#A85A38] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#8F492D] transition-colors">
                             <svg className="w-4 h-4"><use href="#ic-box" /></svg>
                             Despachar pedido
@@ -244,40 +241,9 @@ export function OrdersTab() {
             </table>
           )}
         </div>
-      </div>
+      </div>}
 
-      {orderToShip && (
-        <div className="fixed inset-0 z-50 bg-[#23282D]/45 p-5 flex items-center justify-center" role="presentation" onMouseDown={closeShippingModal}>
-          <form className="w-full max-w-[460px] bg-white rounded-[20px] shadow-2xl" onSubmit={confirmShipping} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="p-6 border-b border-[#EFEBDD] flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.08em] font-bold text-[#A85A38] mb-2">Expedição</p>
-                <h2 className="font-jakarta text-[21px] font-extrabold text-[#263847]">Despachar pedido {orderToShip.id}</h2>
-                <p className="text-[12px] text-[#5A6067] mt-2">Informe os dados fornecidos pela transportadora.</p>
-              </div>
-              <button type="button" onClick={closeShippingModal} title="Fechar modal" className="w-9 h-9 rounded-full text-[#5A6067] hover:bg-[#F5F3E9] text-[24px] leading-none">&times;</button>
-            </div>
-            <div className="p-6 space-y-5">
-              <label className="block text-[12px] font-bold text-[#354B5E]">Transportadora
-                <select value={carrier} onChange={(event) => setCarrier(event.target.value)} className="mt-2 w-full border border-[#E6E1D2] rounded-[10px] px-3 py-3 bg-white text-[13px] text-[#23282D] outline-none focus:border-[#354B5E]">
-                  <option>Correios</option>
-                  <option>Jadlog</option>
-                  <option>Loggi</option>
-                  <option>Outro</option>
-                </select>
-              </label>
-              <label className="block text-[12px] font-bold text-[#354B5E]">Código de rastreio
-                <input autoFocus value={trackingCode} onChange={(event) => { setTrackingCode(event.target.value); setError(""); }} placeholder="Ex.: BR123456789X" className={`mt-2 w-full border rounded-[10px] px-3 py-3 text-[13px] text-[#23282D] outline-none ${error ? "border-[#BA1A1A] bg-[#FFF8F7]" : "border-[#E6E1D2] focus:border-[#354B5E]"}`} />
-              </label>
-              {error && <p role="alert" className="text-[12px] font-semibold text-[#BA1A1A]">{error}</p>}
-            </div>
-            <div className="p-6 pt-0 flex justify-end gap-3">
-              <button type="button" onClick={closeShippingModal} className="px-5 py-2.5 rounded-full border border-[#E6E1D2] text-[12px] font-bold text-[#5A6067] hover:bg-[#F5F3E9]">Cancelar</button>
-              <button type="submit" className="px-5 py-2.5 rounded-full bg-[#354B5E] text-white text-[12px] font-bold hover:bg-[#263847]">Confirmar envio</button>
-            </div>
-          </form>
-        </div>
-      )}
+      {orderToShip && <ShippingModal order={orderToShip} isSubmitting={busyId === orderToShip.id} onCancel={closeShippingModal} onSubmit={(carrier, code) => void confirmShipping(carrier, code)} />}
     </section>
   );
 }

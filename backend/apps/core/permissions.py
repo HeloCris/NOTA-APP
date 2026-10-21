@@ -77,10 +77,20 @@ def get_user_store_id(request):
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:
         from apps.stores.models import Store
+        from apps.catalog.models import Brand
 
         store = Store.objects.filter(owner=user).first()
         if store:
             return store.id
+
+        official_store_id = (
+            Brand.objects
+            .filter(owner=user, d2c_store__isnull=False)
+            .values_list("d2c_store_id", flat=True)
+            .first()
+        )
+        if official_store_id:
+            return official_store_id
 
     return None
 
@@ -91,7 +101,7 @@ class IsSeller(BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.is_authenticated
-            and request.user.role == "SELLER"
+            and request.user.role in ("SELLER", "BRAND_OWNER")
         )
 
     def has_object_permission(self, request, view, obj):

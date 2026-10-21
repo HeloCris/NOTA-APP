@@ -37,6 +37,17 @@ def seller_b(db):
 
 
 @pytest.fixture
+def brand_owner(db):
+    return CustomUser.objects.create_user(
+        email="brand_owner@nota.com",
+        first_name="Maison",
+        last_name="Noire",
+        password="senha_segura_123",
+        role=CustomUser.Roles.BRAND_OWNER,
+    )
+
+
+@pytest.fixture
 def customer(db):
     return CustomUser.objects.create_user(
         email="cliente@nota.com",
@@ -67,6 +78,27 @@ def store_b(seller_b):
         is_active=True,
         shipping_handling_days=1,
     )
+
+
+@pytest.fixture
+def official_store(brand_owner):
+    brand = Brand.objects.create(
+        name="Maison Noire",
+        owner=brand_owner,
+        cnpj="11222333000144",
+        status="APPROVED",
+        is_official=True,
+    )
+    store = Store.objects.create(
+        owner=brand_owner,
+        name="Maison Noire",
+        cnpj="11222333000144",
+        is_active=True,
+        is_official=True,
+    )
+    brand.d2c_store = store
+    brand.save(update_fields=["d2c_store"])
+    return store
 
 
 def _make_order(customer, store, status_value="PAID", **kwargs):
@@ -179,6 +211,17 @@ class TestStoreOrdersList:
         response = api_client.get("/api/v1/store/orders/")
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_brand_owner_can_list_official_store_orders(
+        self, api_client, brand_owner, official_store, customer
+    ):
+        order = _make_order(customer, official_store, status_value="PROCESSING")
+        api_client.force_authenticate(user=brand_owner)
+
+        response = api_client.get("/api/v1/store/orders/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert [item["id"] for item in response.data] == [order.id]
 
     def test_dispatch_deadline_and_is_delayed_flags(
         self, api_client, seller_a, customer, store_a
@@ -321,6 +364,22 @@ class TestShipStoreOrder:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_brand_owner_can_ship_official_store_order(
+        self, api_client, brand_owner, official_store, customer
+    ):
+        order = _make_order(customer, official_store, status_value="PROCESSING")
+        api_client.force_authenticate(user=brand_owner)
+
+        response = api_client.patch(
+            f"/api/v1/store/orders/{order.id}/ship/",
+            {"carrier": "Correios", "tracking_code": "BR123456"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        order.refresh_from_db()
+        assert order.status == "SHIPPED"
 
     def test_non_paid_order_cannot_start_processing(
         self, api_client, seller_a, order_a_processing
