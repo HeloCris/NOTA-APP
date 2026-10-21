@@ -67,4 +67,15 @@ export const storeOrderService = {
     );
     return response.data;
   },
+
+  shipOrder: async (
+    orderId: number,
+    data: { carrier: string; tracking_code: string },
+  ): Promise<StoreOrder> => {
+    const response = await apiClient.patch<StoreOrder>(
+      `/store/orders/${orderId}/ship/`,
+      data,
+    );
+    return response.data;
+  },
 };

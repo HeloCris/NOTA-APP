@@ -11,6 +11,7 @@ vi.mock("../../services/storeOrderService", () => ({
   storeOrderService: {
     getOrders: vi.fn(),
     updateOrderStatus: vi.fn(),
+    shipOrder: vi.fn(),
   },
 }));
 

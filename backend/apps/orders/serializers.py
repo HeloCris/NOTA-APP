@@ -35,6 +35,25 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['user', 'status', 'created_at', 'updated_at']
 
+
+class ShippingUpdateSerializer(serializers.Serializer):
+    carrier = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    tracking_code = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+
+    def validate_tracking_code(self, value):
+        normalized = value.strip()
+        if len(normalized) < 6 or not normalized.isalnum():
+            raise serializers.ValidationError(
+                'O código de rastreio deve conter pelo menos 6 caracteres alfanuméricos.'
+            )
+        return normalized
+
+    def validate_carrier(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError('A transportadora é obrigatória.')
+        return normalized
+
 class StoreOrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     customer_name = serializers.SerializerMethodField()
