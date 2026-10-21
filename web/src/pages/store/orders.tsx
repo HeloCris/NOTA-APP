@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Toaster, toast } from "react-hot-toast";
 import { OrderCard } from "../../features/store/OrderCard";
+import { ShippingModal } from "../../features/store/ShippingModal";
 import {
   storeOrderService,
   type StoreOrder,
@@ -34,6 +35,8 @@ export function StoreOrdersPage() {
   const [processingId, setProcessingId] = useState<number | null>(
     null,
   );
+  const [shippingOrder, setShippingOrder] = useState<StoreOrder | null>(null);
+  const [shippingId, setShippingId] = useState<number | null>(null);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -114,6 +117,26 @@ export function StoreOrdersPage() {
       );
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleShip = async (carrier: string, trackingCode: string) => {
+    if (!shippingOrder) return;
+    setShippingId(shippingOrder.id);
+    try {
+      const updated = await storeOrderService.shipOrder(shippingOrder.id, {
+        carrier,
+        tracking_code: trackingCode,
+      });
+      setOrders((current) =>
+        current.map((item) => item.id === updated.id ? updated : item),
+      );
+      setShippingOrder(null);
+      toast.success(`Pedido #${updated.id} despachado com sucesso.`);
+    } catch {
+      toast.error("Não foi possível despachar o pedido.");
+    } finally {
+      setShippingId(null);
     }
   };
 
@@ -264,12 +287,22 @@ export function StoreOrdersPage() {
                 key={order.id}
                 order={order}
                 onProcess={handleProcess}
+                onShip={setShippingOrder}
                 isProcessing={processingId === order.id}
+                isShipping={shippingId === order.id}
               />
             ))}
           </div>
         )}
       </main>
+      {shippingOrder && (
+        <ShippingModal
+          order={shippingOrder}
+          isSubmitting={shippingId === shippingOrder.id}
+          onCancel={() => setShippingOrder(null)}
+          onSubmit={handleShip}
+        />
+      )}
     </div>
   );
 }

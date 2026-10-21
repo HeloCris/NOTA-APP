@@ -9,7 +9,7 @@ from .models import Order, OrderItem
 from apps.inventory.models import StoreProduct
 from apps.stores.models import Store
 from apps.core.permissions import IsSeller, get_user_store_id
-from .serializers import OrderSerializer, StoreOrderSerializer
+from .serializers import OrderSerializer, ShippingUpdateSerializer, StoreOrderSerializer
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -219,3 +219,29 @@ class UpdateOrderStatusView(APIView):
         store = Store.objects.filter(pk=order.store_id).first()
         serializer = StoreOrderSerializer(order, context={"store": store})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ShipOrderView(APIView):
+    permission_classes = [IsSeller]
+
+    def patch(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+        self.check_object_permissions(request, order)
+
+        if order.status != "PROCESSING":
+            return Response(
+                {"error": f"Transição não permitida: {order.status} → SHIPPED. Apenas pedidos em separação podem ser despachados."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ShippingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        order.status = "SHIPPED"
+        order.carrier = serializer.validated_data["carrier"]
+        order.tracking_code = serializer.validated_data["tracking_code"]
+        order.save(update_fields=["status", "carrier", "tracking_code", "updated_at"])
+
+        store = Store.objects.filter(pk=order.store_id).first()
+        response_serializer = StoreOrderSerializer(order, context={"store": store})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

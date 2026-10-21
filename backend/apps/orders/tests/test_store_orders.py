@@ -259,6 +259,69 @@ class TestUpdateStoreOrderStatus:
         order_a_paid.refresh_from_db()
         assert order_a_paid.status == "PAID"
 
+
+@pytest.mark.django_db
+class TestShipStoreOrder:
+    def test_processing_order_is_shipped_with_tracking_data(
+        self, api_client, seller_a, order_a_processing
+    ):
+        api_client.force_authenticate(user=seller_a)
+
+        response = api_client.patch(
+            f"/api/v1/store/orders/{order_a_processing.id}/ship/",
+            {"carrier": "Correios", "tracking_code": "BR123456"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "SHIPPED"
+        assert response.data["carrier"] == "Correios"
+        assert response.data["tracking_code"] == "BR123456"
+
+        order_a_processing.refresh_from_db()
+        assert order_a_processing.status == "SHIPPED"
+
+    def test_empty_or_invalid_tracking_code_returns_400(
+        self, api_client, seller_a, order_a_processing
+    ):
+        api_client.force_authenticate(user=seller_a)
+
+        response = api_client.patch(
+            f"/api/v1/store/orders/{order_a_processing.id}/ship/",
+            {"carrier": "Correios", "tracking_code": ""},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        order_a_processing.refresh_from_db()
+        assert order_a_processing.status == "PROCESSING"
+
+    def test_only_processing_orders_can_be_shipped(
+        self, api_client, seller_a, order_a_paid
+    ):
+        api_client.force_authenticate(user=seller_a)
+
+        response = api_client.patch(
+            f"/api/v1/store/orders/{order_a_paid.id}/ship/",
+            {"carrier": "Jadlog", "tracking_code": "JD123456"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_order_from_another_store_cannot_be_shipped(
+        self, api_client, seller_a, order_b_paid
+    ):
+        api_client.force_authenticate(user=seller_a)
+
+        response = api_client.patch(
+            f"/api/v1/store/orders/{order_b_paid.id}/ship/",
+            {"carrier": "Jadlog", "tracking_code": "JD123456"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
     def test_non_paid_order_cannot_start_processing(
         self, api_client, seller_a, order_a_processing
     ):
