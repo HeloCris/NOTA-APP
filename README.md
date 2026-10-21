@@ -23,7 +23,7 @@
 ![Status](https://img.shields.io/badge/Status-Em%20Desenvolvimento-c9a96e?style=for-the-badge&logo=circle&logoColor=white)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Mobile%20%26%20Web-1a1a1a?style=for-the-badge)
 ![Modelo](https://img.shields.io/badge/Modelo-B2B%20%2F%20B2C-c9a96e?style=for-the-badge)
-![Versão](https://img.shields.io/badge/Versão-0.1.0--alpha-1a1a1a?style=for-the-badge)
+![Versão](https://img.shields.io/badge/Versão-0.4.0--alpha-1a1a1a?style=for-the-badge)
 
 <br/>
 
