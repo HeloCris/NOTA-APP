@@ -53,10 +53,24 @@ class Product(models.Model):
         AQUATIC = "Aquático", "Aquático"
         GOURMAND = "Gourmand", "Gourmand"
 
+    class Concentration(models.TextChoices):
+        PARFUM = "Parfum", "Parfum (Extrait de Parfum)"
+        EDP = "EDP", "Eau de Parfum (EDP)"
+        EDT = "EDT", "Eau de Toilette (EDT)"
+        EDC = "EDC", "Eau de Cologne (EDC)"
+        EAU_FRAICHE = "Eau Fraîche", "Eau Fraîche"
+
+    class Gender(models.TextChoices):
+        MASCULINE = "Masculino", "Masculino"
+        FEMININE = "Feminino", "Feminino"
+        UNISEX = "Compartilhável", "Compartilhável (Unissex)"
+
     brand = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name="products")
     name = models.CharField(max_length=200)
     ean = models.CharField(max_length=13, unique=True, null=True, blank=True)
     anvisa_code = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    concentration = models.CharField(max_length=30, choices=Concentration.choices, default=Concentration.EDP)
+    gender = models.CharField(max_length=30, choices=Gender.choices, default=Gender.UNISEX)
     olfactory_family = models.CharField(max_length=30, choices=OlfactoryFamily.choices)
     top_notes = models.JSONField(default=list)
     heart_notes = models.JSONField(default=list)
@@ -64,6 +78,7 @@ class Product(models.Model):
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(blank=True, default="")
     is_approved = models.BooleanField(default=False)
+    sold_count = models.PositiveIntegerField(default=0, verbose_name="Quantidade vendida")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

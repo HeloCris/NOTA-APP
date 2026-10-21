@@ -20,13 +20,14 @@ export interface RegisterPayload {
   first_name: string;
   last_name: string;
   phone: string;
+  role?: UserRole;
 }
 
 export interface RegisterResponse {
   id: number;
   email: string;
   first_name: string;
-  role: "CUSTOMER";
+  role: UserRole;
 }
 
 export interface AuthenticatedUser {

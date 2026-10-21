@@ -26,7 +26,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     preferred_notes = serializers.ListField(
         child=serializers.CharField(),
         required=False,
-        default=list
+        default=list,
+    )
+    role = serializers.ChoiceField(
+        choices=[CustomUser.Roles.CUSTOMER, CustomUser.Roles.SELLER],
+        required=False,
+        default=CustomUser.Roles.CUSTOMER,
     )
 
     class Meta:
@@ -37,6 +42,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
+            "role",
             "olfactory_families",
             "preferred_notes",
         ]
@@ -53,10 +59,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        role = validated_data.pop("role", CustomUser.Roles.CUSTOMER)
 
         return CustomUser.objects.create_user(
             password=password,
-            role=CustomUser.Roles.CUSTOMER,
+            role=role,
             **validated_data,
         )
 
@@ -156,3 +163,30 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
 
         return value
+
+
+class UserAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import UserAddress
+        model = UserAddress
+        fields = [
+            "id",
+            "tag",
+            "recipient_name",
+            "street",
+            "number",
+            "complement",
+            "neighborhood",
+            "city",
+            "state",
+            "postal_code",
+            "phone",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)
