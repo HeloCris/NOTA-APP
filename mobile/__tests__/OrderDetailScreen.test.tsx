@@ -18,7 +18,11 @@ jest.mock('expo-clipboard', () => ({
 jest.mock('@expo/vector-icons/Ionicons', () => {
   const { Text } = require('react-native');
 
-  return ({ name }: { name: string }) => <Text>{name}</Text>;
+  function MockIonicons({ name }: { name: string }) {
+    return <Text>{name}</Text>;
+  }
+
+  return MockIonicons;
 });
 
 const mockSetStringAsync = jest.mocked(Clipboard.setStringAsync);

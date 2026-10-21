@@ -134,14 +134,15 @@ export default function ProductDetailScreen() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     if (!id) return;
-    setIsLoading(true);
 
     Promise.all([
       storesService.getProduct(id),
       storesService.getProducts(),
     ])
       .then(([prodData, listData]) => {
+        if (!isMounted) return;
         setProduct(prodData);
         setAllProducts(listData);
         setError(false);
@@ -160,10 +161,19 @@ export default function ProductDetailScreen() {
         }
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error('Erro ao carregar produto:', err);
         setError(true);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   // Ao trocar o volume selecionado

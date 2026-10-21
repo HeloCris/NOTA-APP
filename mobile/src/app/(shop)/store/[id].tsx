@@ -90,8 +90,8 @@ export default function StoreScreen() {
 
   const loadData = useCallback(async (showSkeleton = true) => {
     if (!id) return;
+    if (showSkeleton) setIsLoading(true);
     try {
-      if (showSkeleton) setIsLoading(true);
       const [storeData, productsData] = await Promise.all([
         storesService.getStore(id),
         storesService.getStoreProducts(id, {
@@ -115,8 +115,35 @@ export default function StoreScreen() {
   }, [loadData]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let isMounted = true;
+    if (!id) return;
+
+    (async () => {
+      try {
+        const [storeData, productsData] = await Promise.all([
+          storesService.getStore(id),
+          storesService.getStoreProducts(id, {
+            search: debouncedSearch || undefined,
+            olfactory_family: selectedFamily || undefined,
+          }),
+        ]);
+        if (!isMounted) return;
+        setStore(storeData);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Erro ao carregar dados da loja:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, debouncedSearch, selectedFamily]);
 
   if (isLoading && !store) {
     return (

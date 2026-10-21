@@ -82,6 +82,57 @@ export default function ProtoRF10Checkout() {
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResponse | null>(null);
 
+  // --- Modalidade de Frete Dinâmica conectada à loja (RF-10.4) ---
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [selectedShipping, setSelectedShipping] = useState<'express' | 'standard'>('express');
+
+  const subtotal = items.reduce((acc, i) => acc + i.price * i.quantity, 0);
+  const currentShippingCost =
+    shippingOptions.find((opt) => opt.id === selectedShipping)?.price || 0;
+  const total = subtotal + currentShippingCost;
+
+  const formatBRL = (val: number) => {
+    return val.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
+    setIsLoadingShipping(true);
+    try {
+      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
+        postal_code: cleanCep,
+        cart_subtotal: subtotal,
+        state: uf,
+      });
+      void shippingQuote; // placeholder to prevent unused warning if needed or set quote
+      setShippingQuote(quote);
+
+      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
+      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
+
+      setShippingOptions([
+        {
+          id: 'express',
+          title: 'SEDEX (Expresso)',
+          estimate: `${sedexMethod?.total_delivery_days_min || 1}–${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
+          price: sedexMethod?.price ?? 12.92,
+        },
+        {
+          id: 'standard',
+          title: 'PAC (Econômico)',
+          estimate: `${pacMethod?.total_delivery_days_min || 3}–${pacMethod?.total_delivery_days_max || 5} dias úteis`,
+          price: pacMethod?.price ?? 13.0,
+        },
+      ]);
+    } catch (quoteErr) {
+      console.error('Erro ao buscar cotação de frete:', quoteErr);
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
+
   // Carrega a lista de endereços e define o padrão (se houver)
   const loadAddresses = async () => {
     try {
@@ -117,7 +168,43 @@ export default function ProtoRF10Checkout() {
   };
 
   React.useEffect(() => {
-    loadAddresses();
+    let isMounted = true;
+    (async () => {
+      try {
+        const list = await getSavedAddresses();
+        if (!isMounted) return;
+        setSavedAddresses(list);
+        if (list.length > 0) {
+          const def = list.find((a) => a.isDefault) || list[0];
+          setSelectedAddress(def);
+          setIsEditingNewAddress(false);
+
+          setCep(def.cep || '');
+          setStreet(def.street || '');
+          setNumber(def.number || '');
+          setComplement(def.complement || '');
+          setNeighborhood(def.neighborhood || '');
+          setCity(def.city || '');
+          setStateUf(def.stateUf || '');
+
+          if (def.cep) {
+            const raw = def.cep.replace(/\D/g, '');
+            if (raw.length === 8) {
+              fetchShippingForCep(raw, def.stateUf || 'GO');
+            }
+          }
+        } else {
+          setSelectedAddress(null);
+          setIsEditingNewAddress(true);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar endereços salvos:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Selecionar um endereço existente da lista
@@ -156,56 +243,6 @@ export default function ProtoRF10Checkout() {
     setCity('');
     setStateUf('');
     setShippingOptions([]);
-  };
-
-  // --- Modalidade de Frete Dinâmica conectada à loja (RF-10.4) ---
-  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
-  const [selectedShipping, setSelectedShipping] = useState<'express' | 'standard'>('express');
-
-  const subtotal = items.reduce((acc, i) => acc + i.price * i.quantity, 0);
-  const currentShippingCost =
-    shippingOptions.find((opt) => opt.id === selectedShipping)?.price || 0;
-  const total = subtotal + currentShippingCost;
-
-  const formatBRL = (val: number) => {
-    return val.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
-
-  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
-    setIsLoadingShipping(true);
-    try {
-      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
-        postal_code: cleanCep,
-        cart_subtotal: subtotal,
-        state: uf,
-      });
-      setShippingQuote(quote);
-
-      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
-      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
-
-      setShippingOptions([
-        {
-          id: 'express',
-          title: 'SEDEX (Expresso)',
-          estimate: `${sedexMethod?.total_delivery_days_min || 1}–${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
-          price: sedexMethod?.price ?? 12.92,
-        },
-        {
-          id: 'standard',
-          title: 'PAC (Econômico)',
-          estimate: `${pacMethod?.total_delivery_days_min || 3}–${pacMethod?.total_delivery_days_max || 5} dias úteis`,
-          price: pacMethod?.price ?? 13.0,
-        },
-      ]);
-    } catch (quoteErr) {
-      console.error('Erro ao buscar cotação de frete:', quoteErr);
-    } finally {
-      setIsLoadingShipping(false);
-    }
   };
 
   const handleCepSearch = async (text: string) => {
