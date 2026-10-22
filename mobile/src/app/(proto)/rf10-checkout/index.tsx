@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -41,18 +42,28 @@ export default function ProtoRF10Checkout() {
 
   // Usa itens reais do carrinho ou fallback se acessado diretamente
   const items = cartItems.length > 0
-    ? cartItems.map((c) => ({
-        id: c.id,
-        brand: c.storeName || c.brandName,
-        name: c.productName,
-        volume: c.volume,
-        quantity: c.quantity,
-        price: c.price,
-        storeId: c.storeId,
-      }))
+    ? cartItems.map((c) => {
+        // Mapeia productId para o ID do StoreProduct caso o item antigo esteja no carrinho sem storeProductId
+        let fallbackSpId = 13;
+        if (c.productId === 7) fallbackSpId = 14;
+        else if (c.productId === 8) fallbackSpId = 15;
+        else if (c.productId === 3) fallbackSpId = 16;
+
+        return {
+          id: c.id,
+          storeProductId: c.storeProductId || fallbackSpId,
+          brand: c.storeName || c.brandName,
+          name: c.productName,
+          volume: c.volume,
+          quantity: c.quantity,
+          price: c.price,
+          storeId: c.storeId || 1,
+        };
+      })
     : [
         {
           id: '1',
+          storeProductId: 13,
           brand: 'YVES SAINT LAURENT',
           name: 'Libre EDP',
           volume: '50ml',
@@ -277,20 +288,25 @@ export default function ProtoRF10Checkout() {
 
   const isFormValid =
     (selectedAddress !== null && !isEditingNewAddress) ||
-    (cep.length >= 8 &&
+    ((cep.replace(/\D/g, '').length >= 8 || selectedAddress !== null) &&
       street.trim().length > 0 &&
-      number.trim().length > 0 &&
-      neighborhood.trim().length > 0 &&
-      city.trim().length > 0 &&
-      stateUf.trim().length > 0);
+      number.trim().length > 0);
 
   const handleGoToPayment = async () => {
-    if (!isFormValid) return;
+    if (!isFormValid) {
+      Alert.alert(
+        'Endereço Incompleto',
+        'Por favor, preencha o CEP, Rua e Número para calcular a entrega e prosseguir.'
+      );
+      return;
+    }
+
+    let addressToUse: any = selectedAddress;
 
     // Se estiver preenchendo um novo endereço, salva em Meus Endereços
     if (isEditingNewAddress) {
       try {
-        await addOrUpdateAddress({
+        const newAddr = {
           tag: newTag || 'Principal',
           street: street.trim(),
           number: number.trim(),
@@ -300,13 +316,39 @@ export default function ProtoRF10Checkout() {
           stateUf: stateUf.trim().toUpperCase(),
           cep: cep.trim(),
           isDefault: savedAddresses.length === 0,
-        });
+        };
+        await addOrUpdateAddress(newAddr);
+        addressToUse = newAddr;
       } catch (err) {
         console.error('Erro ao salvar endereço em Meus Endereços:', err);
       }
     }
 
-    router.push('/rf11-pagamento' as any);
+    const payloadItems = items.map((i) => ({
+      store_product_id: Number(i.storeProductId),
+      quantity: i.quantity,
+      unit_price: Number(i.price).toFixed(2),
+    }));
+
+    router.push({
+      pathname: '/(shop)/checkout/payment' as any,
+      params: {
+        store_id: String(primaryStoreId),
+        total_amount: total.toFixed(2),
+        shipping_cost: String(currentShippingCost.toFixed(2)),
+        shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
+        address: JSON.stringify(addressToUse || {
+          street: street.trim(),
+          number: number.trim(),
+          complement: complement.trim(),
+          neighborhood: neighborhood.trim(),
+          city: city.trim(),
+          stateUf: stateUf.trim().toUpperCase(),
+          cep: cep.trim(),
+        }),
+        cartItems: JSON.stringify(payloadItems),
+      },
+    });
   };
 
   return (
@@ -630,7 +672,6 @@ export default function ProtoRF10Checkout() {
             ]}
             activeOpacity={0.88}
             onPress={handleGoToPayment}
-            disabled={!isFormValid}
           >
             <Text style={styles.payButtonText}>Ir para o pagamento</Text>
           </TouchableOpacity>
