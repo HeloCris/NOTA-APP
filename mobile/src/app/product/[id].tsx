@@ -802,6 +802,7 @@ export default function ProductDetailScreen() {
                 volumeMl: volNumber,
                 price: currentPrice,
                 imageUrl: product.image_url,
+                storeProductId: selectedOffer?.id,
                 storeId: selectedOffer?.store_id,
                 storeName: selectedOffer?.store_name || product.store_name,
                 storeIsOfficial: selectedOffer?.is_official ?? product.store_is_official,

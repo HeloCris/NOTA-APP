@@ -67,7 +67,7 @@ export default function CartScreen() {
 
   const handleCheckout = () => {
     if (items.length === 0) return;
-    router.push('/rf10-checkout' as any);
+    router.push('/(shop)/checkout/bag' as any);
   };
 
   return (
@@ -99,18 +99,18 @@ export default function CartScreen() {
           {items.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
-                <Feather name="shopping-bag" size={44} color="#A8A29E" />
+                <Feather name="shopping-bag" size={72} color="#8C827A" />
               </View>
-              <Text style={styles.emptyTitle}>Sua sacola está vazia</Text>
+              <Text style={styles.emptyTitle}>Seu carrinho está vazio</Text>
               <Text style={styles.emptySubtitle}>
-                Explore nosso catálogo de alta perfumaria e decants exclusivos para adicionar fragrâncias à sua sacola.
+                Explore perfumes e decants de lojas oficiais e adicione os seus favoritos.
               </Text>
               <TouchableOpacity
                 style={styles.exploreBtn}
                 activeOpacity={0.85}
                 onPress={() => router.push('/(shop)' as never)}
               >
-                <Text style={styles.exploreBtnText}>Explorar Perfumes</Text>
+                <Text style={styles.exploreBtnText}>Explorar perfumes</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -338,43 +338,58 @@ const styles = StyleSheet.create({
 
   // --- Estado Vazio ---
   emptyContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 64,
+    paddingHorizontal: 28,
+    paddingTop: 80,
+    paddingBottom: 100,
   },
   emptyIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#EBE7DE',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#E6E1D5',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 28,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: '800',
     color: '#1C252E',
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#78716C',
+    fontSize: 16,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 24,
+    marginBottom: 34,
+    maxWidth: 320,
+    fontWeight: '400',
   },
   exploreBtn: {
-    backgroundColor: '#2C4659',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 22,
+    backgroundColor: '#1E2C3A',
+    paddingHorizontal: 40,
+    paddingVertical: 18,
+    borderRadius: 30,
+    minWidth: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
   exploreBtnText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
+    letterSpacing: 0.2,
   },
 
   // --- Agrupamento por Loja (Shopee Style) ---
