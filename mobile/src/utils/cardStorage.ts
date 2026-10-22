@@ -9,7 +9,8 @@ export interface SavedPaymentCard {
   isDefault: boolean;
 }
 
-const CARDS_STORAGE_KEY = '@app_user_saved_cards';
+// Removido o caractere '@' para ser 100% compatível com as regras do expo-secure-store
+const CARDS_STORAGE_KEY = 'app_user_saved_cards';
 
 export async function getSavedCards(): Promise<SavedPaymentCard[]> {
   try {

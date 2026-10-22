@@ -1,9 +1,8 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import (
-    TokenObtainPairSerializer,
-)
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import CustomUser
+from .models import CustomUser, UserAddress
+from .token_serializer import CustomTokenObtainPairSerializer
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -12,16 +11,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         min_length=8,
         trim_whitespace=False,
     )
-
     email = serializers.EmailField(
         validators=[],
     )
-
-
     olfactory_families = serializers.ListField(
         child=serializers.CharField(),
         required=False,
-        default=list
+        default=list,
     )
     preferred_notes = serializers.ListField(
         child=serializers.CharField(),
@@ -72,7 +68,11 @@ class RegisterSerializer(serializers.ModelSerializer):
             "id": instance.id,
             "email": instance.email,
             "first_name": instance.first_name,
+            "last_name": instance.last_name,
+            "phone": instance.phone,
             "role": instance.role,
+            "olfactory_families": getattr(instance, "olfactory_families", []),
+            "preferred_notes": getattr(instance, "preferred_notes", []),
         }
 
 
@@ -136,15 +136,12 @@ class MeSerializer(serializers.ModelSerializer):
         return data
 
 
-from .token_serializer import CustomTokenObtainPairSerializer
-
-
 class OlfactoryProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
             "olfactory_families",
-            "preferred_notes"
+            "preferred_notes",
         ]
 
     def validate_olfactory_families(self, value):
@@ -155,19 +152,20 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
             "Floral",
             "Fougère",
             "Aquático",
-            "Gourmand"
+            "Gourmand",
         ]
 
         for family in value:
             if family not in valid_families:
-                raise serializers.ValidationError(f"Família olfativa '{family}' inválida.")
+                raise serializers.ValidationError(
+                    f"Família olfativa '{family}' inválida."
+                )
 
         return value
 
 
 class UserAddressSerializer(serializers.ModelSerializer):
     class Meta:
-        from .models import UserAddress
         model = UserAddress
         fields = [
             "id",
@@ -188,5 +186,6 @@ class UserAddressSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def create(self, validated_data):
-        validated_data["user"] = self.context["request"].user
+        if "user" not in validated_data and "request" in self.context:
+            validated_data["user"] = self.context["request"].user
         return super().create(validated_data)

@@ -33,7 +33,8 @@ interface CartContextData {
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
-const CART_STORAGE_KEY = '@app_cart_items';
+// Ajustado para remover o caractere '@' e evitar erros com SecureStore no Expo
+const CART_STORAGE_KEY = 'app_cart_items';
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -78,7 +79,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updated[existingIndex] = {
             ...updated[existingIndex],
             quantity: updated[existingIndex].quantity + addQty,
-            price: item.price, // atualiza com o preço mais recente
+            price: item.price,
           };
           return updated;
         }

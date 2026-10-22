@@ -13,7 +13,8 @@ export interface UserAddress {
   isDefault: boolean;
 }
 
-const ADDRESSES_STORAGE_KEY = '@app_user_addresses';
+// Removido o caractere '@' para atender às regras de chave do expo-secure-store
+const ADDRESSES_STORAGE_KEY = 'app_user_addresses';
 
 export async function getSavedAddresses(): Promise<UserAddress[]> {
   try {
@@ -42,7 +43,9 @@ export async function getDefaultAddress(): Promise<UserAddress | null> {
   return def || list[0];
 }
 
-export async function addOrUpdateAddress(newAddr: Omit<UserAddress, 'id'> & { id?: string }): Promise<UserAddress[]> {
+export async function addOrUpdateAddress(
+  newAddr: Omit<UserAddress, 'id'> & { id?: string }
+): Promise<UserAddress[]> {
   const current = await getSavedAddresses();
   const id = newAddr.id || Date.now().toString();
 
