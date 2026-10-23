@@ -1,8 +1,7 @@
-from django.contrib import admin
-from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
-
+from django.contrib import admin
+from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -11,8 +10,7 @@ urlpatterns = [
     path("api/v1/", include("apps.catalog.urls")),
     path("api/v1/", include("apps.inventory.urls")),
     path("api/v1/showcase/", include("apps.showcase.urls")),
-    path('api/v1/', include('apps.orders.urls')),
-    path("api/users/", include("apps.users.urls"))
+    path("api/v1/", include("apps.orders.urls")),
 ]
 
 if settings.DEBUG:

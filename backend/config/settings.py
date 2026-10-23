@@ -45,7 +45,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # Apenas em ambiente de desenvolvimento
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Apenas em ambiente de desenvolvimento
 
 
 ROOT_URLCONF = "config.urls"
