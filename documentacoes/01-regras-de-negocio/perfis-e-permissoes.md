@@ -39,7 +39,9 @@ Usuário representante de uma loja multimarcas, perfumaria independente ou fraci
 *   **Cadastro:** Registrado com a role `SELLER` já na criação da conta ou ao concluir a configuração da loja.
 *   **Gestão da Loja:** Edição de dados da loja (nome, logo, capa, bio olfativa, endereço).
 *   **Gestão de Estoque e Preços:** Vínculo de produtos do catálogo global ao seu estoque próprio (`StoreProduct`), definindo preços, decants e quantidades.
-*   **Gestão de Pedidos:** Visualização e despacho apenas dos pedidos direcionados à sua loja (Pendente -> Em Separação -> Enviado -> Entregue).
+*   **Gestão de Pedidos:** Visualização (incluindo itens, endereço e histórico) e despacho apenas dos pedidos direcionados à sua loja (Pendente -> Pago -> Em Separação -> Enviado -> Entregue).
+*   **Pós-Compra (RF-15):** Cancelar pedidos em `PAID`/`PROCESSING` (com motivo), aprovar/recusar solicitações de cancelamento e devolução, marcar pedido como entregue, resolver contestações de entrega (reenviar ou reembolsar) e registrar recebimento de devoluções (informando se o produto volta ao estoque). Regras válidas também para a Loja Oficial (`BRAND_OWNER` com D2C ativo).
+*   **Avaliações (RF-16):** Visualizar as avaliações da própria loja (com filtros) e responder publicamente (1 resposta editável por avaliação). Não pode editar nem excluir avaliações de clientes. Válido também para a Loja Oficial.
 *   **Isolamento Multi-tenant:** **Regra Crítica:** Um lojista **jamais** pode ver pedidos, clientes ou estoque de outros lojistas.
 
 ## 4. Cliente (`CUSTOMER`)
@@ -50,4 +52,6 @@ Usuário final (comprador B2C) que utiliza o App Mobile para buscar e comprar pe
 *   **Navegação e Busca:** Acesso livre a toda a vitrine, podendo buscar produtos por nome, marca, pirâmide olfativa e explorar tanto **Lojas Oficiais** quanto **Lojas Não Oficiais**.
 *   **Carrinho e Checkout:** Capacidade de adicionar produtos de **múltiplas lojas** no mesmo carrinho (carrinho multi-loja com split por loja na RF-10).
 *   **Meus Pedidos:** Visualização do histórico de pedidos próprios e acompanhamento do rastreamento.
+*   **Pós-Compra (RF-15):** Cancelar (direto em `PENDING`/`PAID` ou solicitar em `PROCESSING`), alterar endereço até `PROCESSING` (mesma cidade/UF), confirmar recebimento, contestar entrega marcada pelo lojista (até 7 dias) e solicitar devolução parcial (até 7 dias após a entrega).
+*   **Avaliações (RF-16):** Avaliar itens de pedidos entregues (até 30 dias, com até 3 fotos), editar 1 vez e excluir as próprias avaliações. Visualizar avaliações de qualquer loja/perfume.
 *   **Isolamento:** Acesso restrito apenas aos seus próprios dados (endereços, cartões, histórico de pedidos).
