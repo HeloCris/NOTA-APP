@@ -23,6 +23,9 @@ A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferi
 ## 3. Tab: Carrinho (Multi-loja)
 *   **Lista de Itens:** Produtos adicionados, agrupados visualmente por Loja.
 *   **Controles:** Alterar quantidade, remover item.
+*   **Consistência de Estoque (RF-17):**
+    *   Itens esgotados (`stock == 0`) exibem tag "Indisponível", subtotal zerado e bloqueiam o botão de checkout com aviso para removê-los.
+    *   Itens com estoque inferior à quantidade solicitada sofrem ajuste automático para a quantidade máxima disponível com notificação toast ao cliente.
 *   **Resumo de Valores:** Subtotal dos produtos e estimativa de frete (calculado por loja).
 *   **Aviso de Split:** Mensagem clara informando que as entregas ocorrerão de forma separada caso haja múltiplas lojas.
 *   **Botão Checkout:** Leva para a tela de finalização de compra (Stack de Checkout: Endereço -> Pagamento -> Sucesso).
@@ -30,7 +33,9 @@ A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferi
 ## 4. Tab: Minha Conta (Perfil)
 *   **Dados do Usuário:** Nome, e-mail.
 *   **Meus Pedidos:** Acesso rápido ao histórico de compras.
-    *   **Tela de Detalhe do Pedido:** Exibe os itens, valor pago, endereço de entrega e a linha do tempo do status (Pendente, Em Separação, Enviado, Entregue).
+    *   **Tela de Detalhe do Pedido:** Exibe os itens, valor pago, endereço de entrega, transportadora + código de rastreio (copiar / "Rastrear no site da transportadora") e a linha do tempo do status (Pendente, Pago, Em Separação, Enviado, Entregue, além de Cancelamento/Contestação/Devolução quando houver).
+    *   **Ações por status (RF-15):** Cancelar / Solicitar cancelamento · Alterar endereço (mesma cidade) · Recebi meu pedido · Não recebi (contestar) · Solicitar devolução (seleção de itens + motivo + até 3 fotos via câmera/galeria) · Avaliar.
+*   **Lojas que Sigo (RF-19):** Lista das lojas favoritadas/seguidas pelo cliente com atalho direto para suas vitrines e cupons.
 *   **Endereços Salvos:** Gestão de endereços de entrega.
 *   **Meios de Pagamento:** Cartões salvos.
 *   **Configurações e Sair.**
@@ -42,7 +47,23 @@ A navegação principal do aplicativo será centralizada em uma **Tab Bar Inferi
 *   Nome, Marca e Preço.
 *   **Visualização da Pirâmide Olfativa:** Representação gráfica elegante das notas de saída, corpo e fundo.
 *   Loja Vendedora (com link para ver mais produtos desta loja).
+*   **Nota do perfume na loja (RF-16):** "4,8 ★ · 32 avaliações" — ao tocar, abre as avaliações daquele perfume naquela loja (todas as volumetrias).
 *   Botão "Adicionar ao Carrinho".
+
+### Telas de Avaliações (RF-16)
+*   **Avaliar Item:** a partir do pedido entregue — estrelas (obrigatório), comentário (opcional), até 3 fotos (câmera/galeria). Também usada para a edição única.
+*   **Avaliações da Loja:** aberta ao tocar na nota no topo da página da loja.
+*   **Avaliações do Perfume na Loja:** aberta ao tocar na nota na Tela de Produto.
+*   **Conteúdo comum:** resumo (média + distribuição por estrela), filtros (perfume — só na visão da loja; nota; só com fotos), ordenação (mais recentes, mais antigas, maior nota, menor nota), autor "Nome S.", tag "Editada", resposta da loja e visualizador de fotos em tela cheia.
+
+### Mensageria e Chat (`/chat/[id]`) — RF-18
+*   Chat direto com a loja, com identificação no topo (logo, nome e status de resposta).
+*   Se aberto a partir do pedido, card fixo no topo com número e status do pedido.
+*   Balões de mensagens, envio de fotos (`expo-image-picker`) e polling a cada 5s.
+
+### Central de Notificações (`/notifications`) — RF-18
+*   Acessível pelo ícone de sino no header da Home e da Minha Conta.
+*   Lista de notificações com timestamp, badge de não lidas e redirecionamento rápido ao tocar.
 
 ### Fluxo de Autenticação
 *   Login, Cadastro, Recuperação de Senha.
