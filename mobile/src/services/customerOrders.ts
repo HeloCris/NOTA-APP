@@ -42,9 +42,17 @@ export type CustomerOrderDetail = CustomerOrder & {
   timeline: OrderTimelineStep[];
 };
 
+type CustomerOrdersResponse =
+  | CustomerOrder[]
+  | {
+      results?: CustomerOrder[];
+    };
+
 export async function listCustomerOrders(): Promise<CustomerOrder[]> {
-  const response = await api.get<CustomerOrder[]>('/orders/');
-  return response.data;
+  const response = await api.get<CustomerOrdersResponse>('/orders/');
+  const data = response.data;
+
+  return Array.isArray(data) ? data : data.results ?? [];
 }
 
 export async function getCustomerOrder(id: string | number): Promise<CustomerOrderDetail> {

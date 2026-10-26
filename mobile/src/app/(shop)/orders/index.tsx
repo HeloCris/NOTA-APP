@@ -30,7 +30,10 @@ export default function OrdersScreen() {
   useEffect(() => {
     listCustomerOrders()
       .then(setOrders)
-      .catch(() => setError(true))
+      .catch(() => {
+        setError(true);
+        setOrders([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -54,7 +57,7 @@ export default function OrdersScreen() {
         {loading ? <ActivityIndicator accessibilityLabel="Carregando pedidos" color="#A85A38" /> : null}
         {error ? <Text style={styles.feedback}>Não foi possível carregar seus pedidos.</Text> : null}
         {!loading && !error && orders.length === 0 ? <Text style={styles.feedback}>Você ainda não fez nenhum pedido.</Text> : null}
-        {orders.map((order) => {
+        {Array.isArray(orders) && orders.map((order) => {
           const appearance = getStatusAppearance(order.status);
           const itemNames = order.items.map((item) => item.product_name).filter(Boolean);
           const itemSummary = itemNames.length > 1 ? `${itemNames[0]} e mais ${itemNames.length - 1} item(ns)` : itemNames[0] ?? 'Pedido sem itens';
