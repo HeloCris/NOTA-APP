@@ -70,7 +70,7 @@ class CustomerOrderDetailSerializer(serializers.ModelSerializer):
                 'label': label,
                 'description': description,
                 'date': created_at if index == 0 else (
-                    updated_at if index <= current_index else None
+                    updated_at if index == current_index else None
                 ),
                 'completed': index <= current_index,
                 'current': index == current_index,

@@ -431,6 +431,24 @@ class TestCustomerOrderTracking:
         assert response.data["timeline"][3]["status"] == "SHIPPED"
         assert response.data["timeline"][3]["current"] is True
         assert response.data["timeline"][4]["completed"] is False
+        assert response.data["timeline"][1]["date"] is None
+        assert response.data["timeline"][3]["date"]
+
+    def test_customer_cannot_modify_order_through_customer_endpoint(
+        self, api_client, customer, store_a
+    ):
+        order = _make_order(customer, store_a, status_value="SHIPPED")
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.patch(
+            f"/api/v1/orders/{order.id}/",
+            {"status": "DELIVERED"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+        order.refresh_from_db()
+        assert order.status == "SHIPPED"
 
     def test_customer_cannot_retrieve_another_customers_order(
         self, api_client, customer, store_a

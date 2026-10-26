@@ -72,6 +72,19 @@ class Store(models.Model):
         verbose_name="Modo Férias",
     )
 
+    shipping_handling_days = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Prazo de Preparação / Despacho (dias úteis)",
+    )
+
+    free_shipping_threshold = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Valor Mínimo para Frete Grátis (R$)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
