@@ -18,12 +18,7 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    shipping_service = models.CharField(
-        max_length=50,
-        blank=True,
-        null=True,
-        verbose_name="Modalidade de Frete",
-    )
+    shipping_service = models.CharField(max_length=50, blank=True, null=True, verbose_name='Modalidade de Frete')
     shipping_address = models.JSONField()
     tracking_code = models.CharField(max_length=100, blank=True, null=True)
     carrier = models.CharField(max_length=100, blank=True, null=True)
@@ -31,7 +26,7 @@ class Order(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Order #{self.id} - {self.user.email} - {self.status}"
+        return f'Order #{self.id} - {self.user.email} - {self.status}'
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
@@ -40,4 +35,4 @@ class OrderItem(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
-        return f"{self.quantity}x {self.store_product.product.name}"
+        return f'{self.quantity}x {self.store_product.product.name}'

@@ -1,28 +1,37 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OrderTimeline, type OrderTimelineStep } from '@/components/orders/OrderTimeline';
+import { OrderTimeline } from '@/components/orders/OrderTimeline';
+import { getCustomerOrder, type CustomerOrderDetail, type CustomerOrderStatus } from '@/services/customerOrders';
 
-const timeline: OrderTimelineStep[] = [
-  { label: 'Pedido criado', description: 'Seu pedido foi recebido.', date: '22 set. 2026, 09:12', completed: true },
-  { label: 'Pagamento aprovado', description: 'Pagamento confirmado com sucesso.', date: '22 set. 2026, 09:14', completed: true },
-  { label: 'Em separação na loja', description: 'A loja preparou seus itens.', date: '22 set. 2026, 10:05', completed: true },
-  { label: 'Enviado pela transportadora', description: 'Sua encomenda está a caminho.', date: '22 set. 2026, 16:42', completed: true, current: true },
-  { label: 'Entregue', description: 'Aguardando a confirmação de entrega.', completed: false },
-];
+const statusLabels: Record<CustomerOrderStatus, string> = {
+  PENDING: 'Pendente', PAID: 'Pago', PROCESSING: 'Em separação',
+  SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELLED: 'Cancelado',
+};
 
 export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [order, setOrder] = useState<CustomerOrderDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
-  const trackingCode = 'BR123456789X';
+
+  useEffect(() => {
+    if (!id) return;
+    getCustomerOrder(id)
+      .then(setOrder)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   async function copyTrackingCode() {
-    await Clipboard.setStringAsync(trackingCode);
+    if (!order?.tracking_code) return;
+    await Clipboard.setStringAsync(order.tracking_code);
     setCopied(true);
   }
 
@@ -38,30 +47,32 @@ export default function OrderDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.statusCard}>
+        {loading ? <ActivityIndicator accessibilityLabel="Carregando pedido" color="#A85A38" /> : null}
+        {error ? <Text style={styles.feedback}>Não foi possível carregar este pedido.</Text> : null}
+        {order ? <View style={styles.statusCard}>
           <View style={styles.statusIcon}><Ionicons name="bus" size={21} color="#A85A38" /></View>
           <View style={styles.statusCopy}>
             <Text style={styles.statusLabel}>STATUS ATUAL</Text>
-            <Text style={styles.statusTitle}>Enviado</Text>
-            <Text style={styles.statusDescription}>Sua encomenda está em trânsito.</Text>
+            <Text style={styles.statusTitle}>{statusLabels[order.status]}</Text>
+            <Text style={styles.statusDescription}>{order.timeline.find((step) => step.current)?.description}</Text>
           </View>
-        </View>
+        </View> : null}
 
-        <View style={styles.trackingCard}>
-          <View style={styles.trackingHeader}><Text style={styles.sectionEyebrow}>RASTREIO</Text><Text style={styles.carrier}>Correios</Text></View>
+        {order?.tracking_code ? <View style={styles.trackingCard}>
+          <View style={styles.trackingHeader}><Text style={styles.sectionEyebrow}>RASTREIO</Text><Text style={styles.carrier}>{order.carrier ?? 'Transportadora'}</Text></View>
           <View style={styles.trackingRow}>
-            <View><Text style={styles.trackingCode}>{trackingCode}</Text><Text style={styles.trackingHint}>Código da transportadora</Text></View>
+            <View><Text style={styles.trackingCode}>{order.tracking_code}</Text><Text style={styles.trackingHint}>Código da transportadora</Text></View>
             <TouchableOpacity accessibilityLabel="Copiar código de rastreio" style={[styles.copyButton, copied && styles.copyButtonDone]} activeOpacity={0.75} onPress={copyTrackingCode}>
               <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={19} color={copied ? '#4C663F' : '#354B5E'} />
             </TouchableOpacity>
           </View>
           {copied ? <Text style={styles.copiedText}>Código copiado para a área de transferência.</Text> : null}
-        </View>
+        </View> : null}
 
-        <View style={styles.historySection}>
+        {order ? <View style={styles.historySection}>
           <View style={styles.historyHeading}><Ionicons name="time-outline" size={19} color="#354B5E" /><Text style={styles.historyTitle}>Histórico do pedido</Text></View>
-          <OrderTimeline steps={timeline} />
-        </View>
+          <OrderTimeline steps={order.timeline.map(({ date, ...step }) => ({ ...step, date: date ?? undefined }))} />
+        </View> : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -93,4 +104,5 @@ const styles = StyleSheet.create({
   historySection: { marginTop: 26 },
   historyHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 17 },
   historyTitle: { color: '#273847', fontSize: 17, fontWeight: '800' },
+  feedback: { color: '#78716C', fontSize: 14, paddingVertical: 28, textAlign: 'center' },
 });

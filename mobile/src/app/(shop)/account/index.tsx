@@ -31,6 +31,9 @@ export default function AccountScreen() {
     'Ana Ferreira';
   const displayEmail = user?.email || 'ana.ferreira@email.com';
   const avatarLetter = (user?.first_name?.[0] || 'A').toUpperCase();
+  const olfactoryFamilies = user?.olfactory_families ?? [];
+  const preferredNotes = user?.preferred_notes ?? [];
+  const hasOlfactoryProfile = olfactoryFamilies.length > 0 || preferredNotes.length > 0;
 
   const confirmSignOut = async () => {
     setShowLogoutModal(false);
@@ -91,24 +94,42 @@ export default function AccountScreen() {
             </View>
           </View>
 
-          {/* --- BANNER PERFIL OLFATIVO --- */}
-          <View style={styles.olfactoryBanner}>
-            <Text style={styles.olfactoryTitle}>
-              Complete seu Perfil Olfativo
-            </Text>
-            <Text style={styles.olfactoryDesc}>
-              Responda 5 perguntas rápidas e receba recomendações de fragrâncias
-              sob medida para você.
-            </Text>
-            <TouchableOpacity
-              style={styles.olfactoryBtn}
-              activeOpacity={0.85}
-              onPress={() =>
-                router.push('/(shop)/account/edit-olfactory-profile' as any)
-              }
-            >
-              <Text style={styles.olfactoryBtnText}>Completar Agora</Text>
-            </TouchableOpacity>
+          {hasOlfactoryProfile ? (
+            <View style={styles.olfactoryBanner}>
+              <Text style={styles.olfactoryTitle}>Famílias</Text>
+              <View style={styles.chipsRow}>
+                {olfactoryFamilies.map((family: string) => <Text key={family} style={styles.profileChip}>{family}</Text>)}
+              </View>
+              <Text style={[styles.olfactoryTitle, styles.notesTitle]}>Notas favoritas</Text>
+              <View style={styles.chipsRow}>
+                {preferredNotes.map((note: string) => <Text key={note} style={styles.profileChip}>{note}</Text>)}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.olfactoryBanner}>
+              <Text style={styles.olfactoryTitle}>Complete seu perfil olfativo</Text>
+              <Text style={styles.olfactoryDesc}>
+                Responda 5 perguntas rápidas e receba recomendações de fragrâncias
+                sob medida para você.
+              </Text>
+              <TouchableOpacity
+                style={styles.olfactoryBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
+              >
+                <Text style={styles.olfactoryBtnText}>Completar agora</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.personalSection}>
+            <View style={styles.personalHeading}>
+              <Text style={styles.personalTitle}>Dados Pessoais</Text>
+              <TouchableOpacity onPress={() => router.push('/(shop)/account/edit-profile' as any)}>
+                <Text style={styles.editText}>Editar</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.personalEmail}>{displayEmail}</Text>
           </View>
 
           {/* --- MENU CARD --- */}
@@ -294,6 +315,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  notesTitle: { marginTop: 16 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  profileChip: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E8D8CF',
+    borderRadius: 16,
+    borderWidth: 1,
+    color: '#5D514A',
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  personalSection: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  personalHeading: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  personalTitle: { color: '#273847', fontSize: 16, fontWeight: '800' },
+  editText: { color: '#A85A38', fontSize: 13, fontWeight: '700' },
+  personalEmail: { color: '#78716C', fontSize: 13 },
 
   // --- Menu Card ---
   menuCard: {

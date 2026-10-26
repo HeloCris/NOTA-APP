@@ -9,18 +9,33 @@ from .models import Order, OrderItem
 from apps.inventory.models import StoreProduct
 from apps.stores.models import Store
 from apps.core.permissions import IsSeller, get_user_store_id
-from .serializers import OrderSerializer, ShippingUpdateSerializer, StoreOrderSerializer
+from .serializers import (
+    CustomerOrderDetailSerializer,
+    OrderSerializer,
+    ShippingUpdateSerializer,
+    StoreOrderSerializer,
+)
 
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all().order_by('-created_at')
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return CustomerOrderDetailSerializer
+        return OrderSerializer
 
     def get_queryset(self):
-        """Garante que o usuário autenticado acesse apenas seus próprios pedidos."""
         if self.request.user.is_authenticated:
-            return Order.objects.filter(user=self.request.user).order_by('-created_at')
+            return (
+                Order.objects
+                .filter(user=self.request.user)
+                .prefetch_related('items__store_product__product')
+                .order_by('-created_at')
+            )
         return Order.objects.none()
 
     def create(self, request, *args, **kwargs):

@@ -1,15 +1,41 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const orders = [
-  { id: '105', date: '22 set. 2026', item: 'Eclat No. 04 e mais 1 item', total: 'R$ 358,00', status: 'Enviado', icon: 'bus-outline' as const, statusColor: '#A85A38', statusBackground: '#F7E8E1' },
-  { id: '98', date: '17 set. 2026', item: 'Vetiver Serein', total: 'R$ 189,00', status: 'Entregue', icon: 'checkmark-circle-outline' as const, statusColor: '#4C663F', statusBackground: '#EDF2E9' },
-];
+import { listCustomerOrders, type CustomerOrder, type CustomerOrderStatus } from '@/services/customerOrders';
+
+const statusLabels: Record<CustomerOrderStatus, string> = {
+  PENDING: 'Pendente', PAID: 'Pago', PROCESSING: 'Em separação',
+  SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELLED: 'Cancelado',
+};
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+}
+
+function getStatusAppearance(status: CustomerOrderStatus) {
+  if (status === 'DELIVERED') return { icon: 'checkmark-circle-outline' as const, color: '#4C663F', background: '#EDF2E9' };
+  if (status === 'SHIPPED') return { icon: 'bus-outline' as const, color: '#A85A38', background: '#F7E8E1' };
+  return { icon: 'time-outline' as const, color: '#4A6072', background: '#EEF1F2' };
+}
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    listCustomerOrders()
+      .then(setOrders)
+      .catch(() => {
+        setError(true);
+        setOrders([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -28,26 +54,35 @@ export default function OrdersScreen() {
           <Text style={styles.heading}>Suas compras, do jeito que você gosta de acompanhar.</Text>
         </View>
 
-        {orders.map((order) => (
+        {loading ? <ActivityIndicator accessibilityLabel="Carregando pedidos" color="#A85A38" /> : null}
+        {error ? <Text style={styles.feedback}>Não foi possível carregar seus pedidos.</Text> : null}
+        {!loading && !error && orders.length === 0 ? <Text style={styles.feedback}>Você ainda não fez nenhum pedido.</Text> : null}
+        {Array.isArray(orders) && orders.map((order) => {
+          const appearance = getStatusAppearance(order.status);
+          const itemNames = order.items.map((item) => item.product_name).filter(Boolean);
+          const itemSummary = itemNames.length > 1 ? `${itemNames[0]} e mais ${itemNames.length - 1} item(ns)` : itemNames[0] ?? 'Pedido sem itens';
+
+          return (
           <TouchableOpacity key={order.id} style={styles.orderCard} activeOpacity={0.75} onPress={() => router.push(`/(shop)/orders/${order.id}` as any)}>
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.orderId}>Pedido #{order.id}</Text>
-                <Text style={styles.date}>{order.date}</Text>
+                <Text style={styles.date}>{formatDate(order.created_at)}</Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: order.statusBackground }]}>
-                <Ionicons name={order.icon} size={14} color={order.statusColor} />
-                <Text style={[styles.statusText, { color: order.statusColor }]}>{order.status}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: appearance.background }]}>
+                <Ionicons name={appearance.icon} size={14} color={appearance.color} />
+                <Text style={[styles.statusText, { color: appearance.color }]}>{statusLabels[order.status]}</Text>
               </View>
             </View>
             <View style={styles.divider} />
-            <Text style={styles.item}>{order.item}</Text>
+            <Text style={styles.item}>{itemSummary}</Text>
             <View style={styles.cardFooter}>
-              <Text style={styles.total}>{order.total}</Text>
+              <Text style={styles.total}>R$ {Number(order.total_amount).toFixed(2).replace('.', ',')}</Text>
               <View style={styles.detailsAction}><Text style={styles.detailsText}>Ver detalhes</Text><Ionicons name="chevron-forward" size={16} color="#4A6072" /></View>
             </View>
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -75,4 +110,5 @@ const styles = StyleSheet.create({
   total: { color: '#273847', fontSize: 14, fontWeight: '800' },
   detailsAction: { alignItems: 'center', flexDirection: 'row', gap: 2 },
   detailsText: { color: '#4A6072', fontSize: 12, fontWeight: '700' },
+  feedback: { color: '#78716C', fontSize: 14, paddingVertical: 28, textAlign: 'center' },
 });

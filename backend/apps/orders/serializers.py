@@ -36,6 +36,48 @@ class OrderSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'status', 'created_at', 'updated_at']
 
 
+class CustomerOrderDetailSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    timeline = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'status', 'total_amount', 'shipping_cost',
+            'shipping_service', 'shipping_address', 'tracking_code',
+            'carrier', 'created_at', 'updated_at', 'items', 'timeline',
+        ]
+
+    def get_timeline(self, obj):
+        steps = [
+            ('PENDING', 'Pedido criado', 'Seu pedido foi recebido.'),
+            ('PAID', 'Pagamento aprovado', 'Pagamento confirmado com sucesso.'),
+            ('PROCESSING', 'Em separação na loja', 'A loja preparou seus itens.'),
+            ('SHIPPED', 'Enviado pela transportadora', 'Sua encomenda está a caminho.'),
+            ('DELIVERED', 'Entregue', 'Seu pedido foi entregue.'),
+        ]
+        current_index = next(
+            (index for index, (status_code, _, _) in enumerate(steps)
+             if status_code == obj.status),
+            -1,
+        )
+        created_at = obj.created_at.isoformat() if obj.created_at else None
+        updated_at = obj.updated_at.isoformat() if obj.updated_at else None
+
+        return [
+            {
+                'status': status_code,
+                'label': label,
+                'description': description,
+                'date': created_at if index == 0 else (
+                    updated_at if index == current_index else None
+                ),
+                'completed': index <= current_index,
+                'current': index == current_index,
+            }
+            for index, (status_code, label, description) in enumerate(steps)
+        ]
+
 class ShippingUpdateSerializer(serializers.Serializer):
     carrier = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
     tracking_code = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
