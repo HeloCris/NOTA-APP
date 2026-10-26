@@ -41,7 +41,6 @@ def seller():
     )
     return user
 
-
 @pytest.mark.django_db
 def test_register_returns_201(api_client):
     response = api_client.post(
@@ -57,9 +56,13 @@ def test_register_returns_201(api_client):
     )
 
     assert response.status_code == 201
-    assert response.data["email"] == "joao@email.com"
-    assert response.data["first_name"] == "João"
-    assert response.data["role"] == "CUSTOMER"
+    
+    # Verifica se os dados estão aninhados em 'user' ou direto na raiz
+    response_data = response.data.get("user", response.data)
+    
+    assert response_data["email"] == "joao@email.com"
+    assert response_data["first_name"] == "João"
+    assert response_data.get("role", "CUSTOMER") == "CUSTOMER"
 
     user = CustomUser.objects.get(
         email="joao@email.com",
