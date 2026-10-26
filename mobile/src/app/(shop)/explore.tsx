@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { storesService, Store } from '../../services/stores';
 import Svg, {
   Rect,
   Circle,
@@ -77,8 +79,20 @@ function NaturaBottle() {
 }
 
 export default function SearchScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState('Decants');
+  const [stores, setStores] = useState<Store[]>([]);
+
+  useEffect(() => {
+    storesService.getStores()
+      .then(setStores)
+      .catch((error) => console.error('Erro ao carregar lojas:', error));
+  }, []);
+
+  const visibleStores = stores.filter((store) =>
+    store.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  );
 
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
@@ -208,6 +222,39 @@ export default function SearchScreen() {
             </ScrollView>
           </View>
 
+          {/* --- LOJAS --- */}
+          {visibleStores.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Lojas</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.brandsScroll}
+              >
+                {visibleStores.map((store) => (
+                  <TouchableOpacity
+                    key={store.id}
+                    style={styles.brandCard}
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/store/[id]' as never,
+                        params: { id: store.id.toString() },
+                      })
+                    }
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.brandText}>{store.name}</Text>
+                      {store.is_official && (
+                        <Ionicons name="checkmark-circle" size={14} color="#2C4659" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {/* --- EM ALTA AGORA --- */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Em Alta Agora</Text>
@@ -238,6 +285,7 @@ export default function SearchScreen() {
                   <TouchableOpacity
                     style={styles.detailsBtn}
                     activeOpacity={0.7}
+                    onPress={() => router.push({ pathname: '/product/[id]' as never, params: { id: '4' } })}
                   >
                     <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
                   </TouchableOpacity>
@@ -273,6 +321,7 @@ export default function SearchScreen() {
                   <TouchableOpacity
                     style={styles.detailsBtn}
                     activeOpacity={0.7}
+                    onPress={() => router.push({ pathname: '/product/[id]' as never, params: { id: '5' } })}
                   >
                     <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
                   </TouchableOpacity>
@@ -337,6 +386,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1C252E',
     height: '100%',
+    paddingVertical: 0,
+    borderWidth: 0,
+    outlineWidth: 0,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none' as any,
+      },
+    }),
   },
 
   // --- Section Common ---

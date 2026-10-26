@@ -50,16 +50,34 @@ type AddProductFormInput = z.input<typeof addProductSchema>;
 type AddProductFormValues = z.output<typeof addProductSchema>;
 
 function getApiErrorMessage(error: unknown): string {
-  const axiosError = error as AxiosError<{
-    detail?: string | string[];
-  }>;
-  const detail = axiosError.response?.data?.detail;
+  const axiosError = error as AxiosError<any>;
+  const data = axiosError.response?.data;
 
-  if (Array.isArray(detail)) {
-    return detail[0] ?? "Não foi possível adicionar o perfume.";
+  if (!data) {
+    return "Não foi possível adicionar o perfume. Tente novamente.";
   }
 
-  return detail ?? "Não foi possível adicionar o perfume. Tente novamente.";
+  if (typeof data.detail === "string") {
+    return data.detail;
+  }
+
+  if (Array.isArray(data.detail)) {
+    return data.detail[0] ?? "Não foi possível adicionar o perfume.";
+  }
+
+  // Erros de campos específicos vindos do Django REST Framework (ex: { non_field_errors: [...] } ou { volume_ml: [...] })
+  const firstKey = Object.keys(data)[0];
+  if (firstKey) {
+    const fieldError = data[firstKey];
+    if (Array.isArray(fieldError)) {
+      return `${firstKey !== "non_field_errors" ? `${firstKey}: ` : ""}${fieldError[0]}`;
+    }
+    if (typeof fieldError === "string") {
+      return fieldError;
+    }
+  }
+
+  return "Não foi possível adicionar o perfume. Tente novamente.";
 }
 
 const inputClassName =
@@ -192,20 +210,43 @@ export function AddProductModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label
-                className="mb-1.5 block text-[13px] font-bold text-[#23282D]"
-                htmlFor="volume-ml"
-              >
-                Volume (ml)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  className="block text-[13px] font-bold text-[#23282D]"
+                  htmlFor="volume-ml"
+                >
+                  Volume (ml)
+                </label>
+                <span className="text-[11px] text-[#8A5B22] font-semibold bg-[#FFF4E5] px-2 py-0.5 rounded-full border border-[#F0DDC5]">
+                  ≤ 15ml = Decant
+                </span>
+              </div>
               <input
                 className={inputClassName}
                 id="volume-ml"
                 min={1}
-                placeholder="Ex.: 100"
+                placeholder="Ex.: 5, 10, 50, 100"
                 type="number"
                 {...register("volume_ml")}
               />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[5, 10, 15, 50, 100].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById("volume-ml") as HTMLInputElement;
+                      if (input) {
+                        input.value = String(v);
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                      }
+                    }}
+                    className="px-2 py-1 bg-[#F5F3E9] hover:bg-[#E9EDF0] text-[#354B5E] text-[11px] font-bold rounded-md border border-[#E6E1D2] transition-colors"
+                  >
+                    {v <= 15 ? `Decant ${v}ml` : `${v}ml`}
+                  </button>
+                ))}
+              </div>
               {errors.volume_ml ? (
                 <p className={errorClassName}>{errors.volume_ml.message}</p>
               ) : null}

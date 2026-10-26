@@ -109,9 +109,21 @@ export function BrandPortfolioTab() {
                       <div className="text-[11px] text-[#93927F] font-mono mt-0.5">EAN: {p.ean || 'N/A'}</div>
                     </td>
                     <td className="p-[14px_22px] align-middle">
-                      <span className="inline-block bg-[#F5F3E9] text-[#5A6067] text-[12px] font-semibold px-2.5 py-1 rounded-md border border-[#E6E1D2]">
-                        {p.olfactory_family}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {p.concentration && (
+                          <span className="inline-block bg-[#354B5E]/10 text-[#354B5E] text-[11px] font-bold px-2 py-0.5 rounded-md border border-[#354B5E]/20">
+                            {p.concentration}
+                          </span>
+                        )}
+                        {p.gender && (
+                          <span className="inline-block bg-[#F5F3E9] text-[#23282D] text-[11px] font-bold px-2 py-0.5 rounded-md border border-[#E6E1D2]">
+                            {p.gender}
+                          </span>
+                        )}
+                        <span className="inline-block bg-[#F5F3E9] text-[#5A6067] text-[12px] font-semibold px-2.5 py-1 rounded-md border border-[#E6E1D2]">
+                          {p.olfactory_family}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-[14px_22px] align-middle text-[13px] text-[#5A6067] font-mono">
                       {p.anvisa_code || 'N/A'}
@@ -129,10 +141,7 @@ export function BrandPortfolioTab() {
                     </td>
                     <td className="p-[14px_22px] align-middle text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="w-8 h-8 rounded-lg text-[#93927F] hover:bg-[#E9EDF0] hover:text-[#354B5E] transition-colors flex items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                        </button>
-                        <button onClick={() => handleDelete(p.id)} className="w-8 h-8 rounded-lg text-[#93927F] hover:bg-[#FBEEE7] hover:text-[#A24726] transition-colors flex items-center justify-center">
+                        <button onClick={() => handleDelete(p.id)} title="Excluir perfume" className="w-8 h-8 rounded-lg text-[#93927F] hover:bg-[#FBEEE7] hover:text-[#A24726] transition-colors flex items-center justify-center">
                           <svg className="w-4 h-4"><use href="#ic-trash" /></svg>
                         </button>
                       </div>

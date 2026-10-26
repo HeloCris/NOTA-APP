@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,20 @@ import {
   StatusBar,
   useWindowDimensions,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
+import { storesService, ShippingQuoteResponse } from '@/services/stores';
+import { useCart } from '@/context/CartContext';
+import {
+  UserAddress,
+  getDefaultAddress,
+  getSavedAddresses,
+  addOrUpdateAddress,
+} from '@/utils/addressStorage';
 
 interface ShippingOption {
   id: 'express' | 'standard';
@@ -28,52 +38,64 @@ export default function ProtoRF10Checkout() {
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  // --- Endereço de Entrega (RF-10.2 / RF-10.3) ---
-  const [cep, setCep] = useState('01310-100');
-  const [street, setStreet] = useState('Av. Paulista');
-  const [number, setNumber] = useState('1000');
-  const [complement, setComplement] = useState('Apt 42');
-  const [neighborhood, setNeighborhood] = useState('Bela Vista');
-  const [city, setCity] = useState('São Paulo');
-  const [stateUf, setStateUf] = useState('SP');
+  const { items: cartItems } = useCart();
+
+  // Usa itens reais do carrinho ou fallback se acessado diretamente
+  const items = cartItems.length > 0
+    ? cartItems.map((c) => {
+        // Mapeia productId para o ID do StoreProduct caso o item antigo esteja no carrinho sem storeProductId
+        let fallbackSpId = 13;
+        if (c.productId === 7) fallbackSpId = 14;
+        else if (c.productId === 8) fallbackSpId = 15;
+        else if (c.productId === 3) fallbackSpId = 16;
+
+        return {
+          id: c.id,
+          storeProductId: c.storeProductId || fallbackSpId,
+          brand: c.storeName || c.brandName,
+          name: c.productName,
+          volume: c.volume,
+          quantity: c.quantity,
+          price: c.price,
+          storeId: c.storeId || 1,
+        };
+      })
+    : [
+        {
+          id: '1',
+          storeProductId: 13,
+          brand: 'YVES SAINT LAURENT',
+          name: 'Libre EDP',
+          volume: '50ml',
+          quantity: 1,
+          price: 620.0,
+          storeId: 2,
+        },
+      ];
+
+  const primaryStoreId = items[0]?.storeId || 2;
+
+  // --- Endereço de Entrega (Carregado dinamicamente de Meus Endereços) ---
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<UserAddress | null>(null);
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [isEditingNewAddress, setIsEditingNewAddress] = useState(false);
+
+  const [newTag, setNewTag] = useState('Casa');
+  const [cep, setCep] = useState('');
+  const [street, setStreet] = useState('');
+  const [number, setNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [stateUf, setStateUf] = useState('');
   const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false);
+  const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResponse | null>(null);
 
-  // --- Modalidade de Frete (RF-10.4) ---
-  const shippingOptions: ShippingOption[] = [
-    {
-      id: 'express',
-      title: 'Expresso',
-      estimate: '2–3 dias úteis',
-      price: 25.0,
-    },
-    {
-      id: 'standard',
-      title: 'Econômico',
-      estimate: '5–7 dias úteis',
-      price: 12.0,
-    },
-  ];
+  // --- Modalidade de Frete Dinâmica conectada à loja (RF-10.4) ---
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [selectedShipping, setSelectedShipping] = useState<'express' | 'standard'>('express');
-
-  // --- Resumo do Pedido (RF-10.1) ---
-  const items = [
-    {
-      id: '1',
-      brand: 'YVES SAINT LAURENT',
-      name: 'Libre EDP',
-      volume: '50ml',
-      quantity: 1,
-      price: 620.0,
-    },
-    {
-      id: '2',
-      brand: 'MAISON F. KURKDJIAN',
-      name: 'Baccarat Rouge 540',
-      volume: '70ml',
-      quantity: 1,
-      price: 1890.0,
-    },
-  ];
 
   const subtotal = items.reduce((acc, i) => acc + i.price * i.quantity, 0);
   const currentShippingCost =
@@ -85,6 +107,153 @@ export default function ProtoRF10Checkout() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+  };
+
+  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
+    setIsLoadingShipping(true);
+    try {
+      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
+        postal_code: cleanCep,
+        cart_subtotal: subtotal,
+        state: uf,
+      });
+      void shippingQuote; // placeholder to prevent unused warning if needed or set quote
+      setShippingQuote(quote);
+
+      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
+      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
+
+      setShippingOptions([
+        {
+          id: 'express',
+          title: 'SEDEX (Expresso)',
+          estimate: `${sedexMethod?.total_delivery_days_min || 1}–${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
+          price: sedexMethod?.price ?? 12.92,
+        },
+        {
+          id: 'standard',
+          title: 'PAC (Econômico)',
+          estimate: `${pacMethod?.total_delivery_days_min || 3}–${pacMethod?.total_delivery_days_max || 5} dias úteis`,
+          price: pacMethod?.price ?? 13.0,
+        },
+      ]);
+    } catch (quoteErr) {
+      console.error('Erro ao buscar cotação de frete:', quoteErr);
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
+
+  // Carrega a lista de endereços e define o padrão (se houver)
+  const loadAddresses = async () => {
+    try {
+      const list = await getSavedAddresses();
+      setSavedAddresses(list);
+      if (list.length > 0) {
+        const def = list.find((a) => a.isDefault) || list[0];
+        setSelectedAddress(def);
+        setIsEditingNewAddress(false);
+
+        // Preenche os campos do formulário para referência
+        setCep(def.cep || '');
+        setStreet(def.street || '');
+        setNumber(def.number || '');
+        setComplement(def.complement || '');
+        setNeighborhood(def.neighborhood || '');
+        setCity(def.city || '');
+        setStateUf(def.stateUf || '');
+
+        if (def.cep) {
+          const raw = def.cep.replace(/\D/g, '');
+          if (raw.length === 8) {
+            fetchShippingForCep(raw, def.stateUf || 'GO');
+          }
+        }
+      } else {
+        setSelectedAddress(null);
+        setIsEditingNewAddress(true);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar endereços salvos:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const list = await getSavedAddresses();
+        if (!isMounted) return;
+        setSavedAddresses(list);
+        if (list.length > 0) {
+          const def = list.find((a) => a.isDefault) || list[0];
+          setSelectedAddress(def);
+          setIsEditingNewAddress(false);
+
+          setCep(def.cep || '');
+          setStreet(def.street || '');
+          setNumber(def.number || '');
+          setComplement(def.complement || '');
+          setNeighborhood(def.neighborhood || '');
+          setCity(def.city || '');
+          setStateUf(def.stateUf || '');
+
+          if (def.cep) {
+            const raw = def.cep.replace(/\D/g, '');
+            if (raw.length === 8) {
+              fetchShippingForCep(raw, def.stateUf || 'GO');
+            }
+          }
+        } else {
+          setSelectedAddress(null);
+          setIsEditingNewAddress(true);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar endereços salvos:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Selecionar um endereço existente da lista
+  const handleSelectAddress = (addr: UserAddress) => {
+    setSelectedAddress(addr);
+    setIsEditingNewAddress(false);
+    setIsAddressModalVisible(false);
+
+    setCep(addr.cep || '');
+    setStreet(addr.street || '');
+    setNumber(addr.number || '');
+    setComplement(addr.complement || '');
+    setNeighborhood(addr.neighborhood || '');
+    setCity(addr.city || '');
+    setStateUf(addr.stateUf || '');
+
+    if (addr.cep) {
+      const raw = addr.cep.replace(/\D/g, '');
+      if (raw.length === 8) {
+        fetchShippingForCep(raw, addr.stateUf || 'GO');
+      }
+    }
+  };
+
+  // Abrir formulário para adicionar novo endereço
+  const handleStartAddNewAddress = () => {
+    setSelectedAddress(null);
+    setIsEditingNewAddress(true);
+    setIsAddressModalVisible(false);
+    setNewTag('Casa');
+    setCep('');
+    setStreet('');
+    setNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setCity('');
+    setStateUf('');
+    setShippingOptions([]);
   };
 
   const handleCepSearch = async (text: string) => {
@@ -100,17 +269,17 @@ export default function ProtoRF10Checkout() {
       try {
         const response = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
         const data = await response.json();
+        let currentUf = 'GO';
         if (!data.erro) {
           setStreet(data.logradouro || '');
           setNeighborhood(data.bairro || '');
           setCity(data.localidade || '');
           setStateUf(data.uf || '');
+          currentUf = data.uf || 'GO';
         }
-      } catch {
-        setStreet('Av. Paulista');
-        setNeighborhood('Bela Vista');
-        setCity('São Paulo');
-        setStateUf('SP');
+        await fetchShippingForCep(raw, currentUf);
+      } catch (err) {
+        console.error('Erro ao buscar CEP:', err);
       } finally {
         setIsLoadingCep(false);
       }
@@ -118,15 +287,68 @@ export default function ProtoRF10Checkout() {
   };
 
   const isFormValid =
-    cep.length >= 8 &&
-    street.trim().length > 0 &&
-    number.trim().length > 0 &&
-    neighborhood.trim().length > 0 &&
-    city.trim().length > 0 &&
-    stateUf.trim().length > 0;
+    (selectedAddress !== null && !isEditingNewAddress) ||
+    ((cep.replace(/\D/g, '').length >= 8 || selectedAddress !== null) &&
+      street.trim().length > 0 &&
+      number.trim().length > 0);
 
-  const handleGoToPayment = () => {
-    router.push('/rf11-pagamento' as any);
+  const handleGoToPayment = async () => {
+    if (!isFormValid) {
+      Alert.alert(
+        'Endereço Incompleto',
+        'Por favor, preencha o CEP, Rua e Número para calcular a entrega e prosseguir.'
+      );
+      return;
+    }
+
+    let addressToUse: any = selectedAddress;
+
+    // Se estiver preenchendo um novo endereço, salva em Meus Endereços
+    if (isEditingNewAddress) {
+      try {
+        const newAddr = {
+          tag: newTag || 'Principal',
+          street: street.trim(),
+          number: number.trim(),
+          complement: complement.trim() || undefined,
+          neighborhood: neighborhood.trim(),
+          city: city.trim(),
+          stateUf: stateUf.trim().toUpperCase(),
+          cep: cep.trim(),
+          isDefault: savedAddresses.length === 0,
+        };
+        await addOrUpdateAddress(newAddr);
+        addressToUse = newAddr;
+      } catch (err) {
+        console.error('Erro ao salvar endereço em Meus Endereços:', err);
+      }
+    }
+
+    const payloadItems = items.map((i) => ({
+      store_product_id: Number(i.storeProductId),
+      quantity: i.quantity,
+      unit_price: Number(i.price).toFixed(2),
+    }));
+
+    router.push({
+      pathname: '/(shop)/checkout/payment' as any,
+      params: {
+        store_id: String(primaryStoreId),
+        total_amount: total.toFixed(2),
+        shipping_cost: String(currentShippingCost.toFixed(2)),
+        shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
+        address: JSON.stringify(addressToUse || {
+          street: street.trim(),
+          number: number.trim(),
+          complement: complement.trim(),
+          neighborhood: neighborhood.trim(),
+          city: city.trim(),
+          stateUf: stateUf.trim().toUpperCase(),
+          cep: cep.trim(),
+        }),
+        cartItems: JSON.stringify(payloadItems),
+      },
+    });
   };
 
   return (
@@ -142,7 +364,7 @@ export default function ProtoRF10Checkout() {
           >
             <Ionicons name="arrow-back" size={22} color="#1C252E" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Checkout (RF-10)</Text>
+          <Text style={styles.headerTitle}>Entrega</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -185,112 +407,185 @@ export default function ProtoRF10Checkout() {
           </View>
 
           {/* --- SEÇÃO 2: ENDEREÇO DE ENTREGA --- */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="location-outline" size={19} color="#A85A38" />
-              <Text style={styles.cardTitle}>Endereço de Entrega</Text>
-            </View>
+          {selectedAddress && !isEditingNewAddress ? (
+            // CARD DE ENDEREÇO SELECIONADO / PADRÃO
+            <View style={styles.card}>
+              <View style={styles.cardHeaderBetween}>
+                <View style={styles.cardHeaderTitleGroup}>
+                  <Ionicons name="location" size={20} color="#A85A38" />
+                  <Text style={styles.cardTitle}>Endereço de Entrega</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.changeAddressBtn}
+                  onPress={() => setIsAddressModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.changeAddressText}>Trocar</Text>
+                  <Feather name="chevron-right" size={16} color="#A85A38" />
+                </TouchableOpacity>
+              </View>
 
-            {/* CEP */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>CEP</Text>
-              <View style={styles.inputWithIcon}>
+              <View style={styles.selectedAddressContent}>
+                <View style={styles.addressTagRow}>
+                  <View style={styles.addressBadge}>
+                    <Text style={styles.addressBadgeText}>
+                      {selectedAddress.tag || 'Principal'}
+                    </Text>
+                  </View>
+                  {selectedAddress.isDefault ? (
+                    <View style={styles.defaultBadge}>
+                      <Text style={styles.defaultBadgeText}>Padrão</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <Text style={styles.selectedAddressLine1}>
+                  {selectedAddress.street}, {selectedAddress.number}
+                  {selectedAddress.complement ? ` - ${selectedAddress.complement}` : ''}
+                </Text>
+                <Text style={styles.selectedAddressLine2}>
+                  {selectedAddress.neighborhood} • {selectedAddress.city} - {selectedAddress.stateUf}
+                </Text>
+                <Text style={styles.selectedAddressCep}>
+                  CEP: {selectedAddress.cep}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            // FORMULÁRIO DE NOVO ENDEREÇO
+            <View style={styles.card}>
+              <View style={styles.cardHeaderBetween}>
+                <View style={styles.cardHeaderTitleGroup}>
+                  <Ionicons name="location-outline" size={19} color="#A85A38" />
+                  <Text style={styles.cardTitle}>Novo Endereço de Entrega</Text>
+                </View>
+                {savedAddresses.length > 0 ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsEditingNewAddress(false);
+                      const def = savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+                      if (def) handleSelectAddress(def);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelNewAddressText}>Cancelar</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Tag / Identificador */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Identificação (Ex: Casa, Trabalho)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="00000-000"
+                  placeholder="Ex: Casa, Trabalho"
                   placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                  value={cep}
-                  onChangeText={handleCepSearch}
-                  maxLength={9}
+                  value={newTag}
+                  onChangeText={setNewTag}
                 />
-                {isLoadingCep && (
-                  <ActivityIndicator
-                    size="small"
-                    color="#2C4659"
-                    style={styles.inputSpinner}
+              </View>
+
+              {/* CEP */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>CEP</Text>
+                <View style={styles.inputWithIcon}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="00000-000"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={cep}
+                    onChangeText={handleCepSearch}
+                    maxLength={9}
                   />
-                )}
+                  {isLoadingCep ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#2C4659"
+                      style={styles.inputSpinner}
+                    />
+                  ) : null}
+                </View>
               </View>
-            </View>
 
-            {/* Rua */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Rua / Logradouro</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: Av. Paulista"
-                placeholderTextColor="#9CA3AF"
-                value={street}
-                onChangeText={setStreet}
-              />
-            </View>
-
-            {/* Número & Complemento */}
-            <View style={styles.rowTwoCols}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.inputLabel}>Número</Text>
+              {/* Rua */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Rua / Logradouro</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="123"
+                  placeholder="Ex: Av. Paulista"
                   placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                  value={number}
-                  onChangeText={setNumber}
+                  value={street}
+                  onChangeText={setStreet}
                 />
               </View>
 
-              <View style={[styles.inputGroup, { flex: 1.4, marginLeft: 8 }]}>
-                <Text style={styles.inputLabel}>Complemento</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Apto, Bloco..."
-                  placeholderTextColor="#9CA3AF"
-                  value={complement}
-                  onChangeText={setComplement}
-                />
-              </View>
-            </View>
+              {/* Número & Complemento */}
+              <View style={styles.rowTwoCols}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.inputLabel}>Número</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={number}
+                    onChangeText={setNumber}
+                  />
+                </View>
 
-            {/* Bairro */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Bairro</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Bairro"
-                placeholderTextColor="#9CA3AF"
-                value={neighborhood}
-                onChangeText={setNeighborhood}
-              />
-            </View>
-
-            {/* Cidade & Estado */}
-            <View style={styles.rowTwoCols}>
-              <View style={[styles.inputGroup, { flex: 2, marginRight: 8 }]}>
-                <Text style={styles.inputLabel}>Cidade</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Cidade"
-                  placeholderTextColor="#9CA3AF"
-                  value={city}
-                  onChangeText={setCity}
-                />
+                <View style={[styles.inputGroup, { flex: 1.4, marginLeft: 8 }]}>
+                  <Text style={styles.inputLabel}>Complemento</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Apto, Bloco..."
+                    placeholderTextColor="#9CA3AF"
+                    value={complement}
+                    onChangeText={setComplement}
+                  />
+                </View>
               </View>
 
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.inputLabel}>UF</Text>
+              {/* Bairro */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Bairro</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="SP"
+                  placeholder="Bairro"
                   placeholderTextColor="#9CA3AF"
-                  maxLength={2}
-                  autoCapitalize="characters"
-                  value={stateUf}
-                  onChangeText={setStateUf}
+                  value={neighborhood}
+                  onChangeText={setNeighborhood}
                 />
               </View>
+
+              {/* Cidade & Estado */}
+              <View style={styles.rowTwoCols}>
+                <View style={[styles.inputGroup, { flex: 2, marginRight: 8 }]}>
+                  <Text style={styles.inputLabel}>Cidade</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Cidade"
+                    placeholderTextColor="#9CA3AF"
+                    value={city}
+                    onChangeText={setCity}
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={styles.inputLabel}>UF</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="SP"
+                    placeholderTextColor="#9CA3AF"
+                    maxLength={2}
+                    autoCapitalize="characters"
+                    value={stateUf}
+                    onChangeText={setStateUf}
+                  />
+                </View>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* --- SEÇÃO 3: MODALIDADE DE FRETE --- */}
           <View style={styles.card}>
@@ -299,37 +594,50 @@ export default function ProtoRF10Checkout() {
               <Text style={styles.cardTitle}>Modalidade de Frete</Text>
             </View>
 
-            {shippingOptions.map((opt) => {
-              const isSelected = selectedShipping === opt.id;
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[
-                    styles.shippingOption,
-                    isSelected && styles.shippingOptionActive,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setSelectedShipping(opt.id)}
-                >
-                  <View style={styles.radioOuter}>
-                    {isSelected && <View style={styles.radioInner} />}
-                  </View>
+            {isLoadingShipping ? (
+              <View style={styles.shippingLoading}>
+                <ActivityIndicator size="small" color="#2C4659" />
+                <Text style={styles.shippingLoadingText}>Calculando frete com a transportadora...</Text>
+              </View>
+            ) : shippingOptions.length > 0 ? (
+              shippingOptions.map((opt) => {
+                const isSelected = selectedShipping === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[
+                      styles.shippingOption,
+                      isSelected && styles.shippingOptionActive,
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedShipping(opt.id)}
+                  >
+                    <View style={styles.radioOuter}>
+                      {isSelected ? <View style={styles.radioInner} /> : null}
+                    </View>
 
-                  <View style={styles.shippingDetails}>
-                    <Text style={styles.shippingTitle}>
-                      {opt.title}{' '}
-                      <Text style={styles.shippingEstimate}>
-                        ({opt.estimate})
+                    <View style={styles.shippingDetails}>
+                      <Text style={styles.shippingTitle}>
+                        {opt.title}{' '}
+                        <Text style={styles.shippingEstimate}>
+                          ({opt.estimate})
+                        </Text>
                       </Text>
-                    </Text>
-                  </View>
+                    </View>
 
-                  <Text style={styles.shippingPrice}>
-                    R$ {formatBRL(opt.price)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text style={styles.shippingPrice}>
+                      R$ {formatBRL(opt.price)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={styles.emptyShippingText}>
+                {isFormValid
+                  ? 'Nenhuma opção de frete disponível para esta região.'
+                  : 'Preencha o CEP para consultar opções de envio.'}
+              </Text>
+            )}
           </View>
 
           {/* --- RESUMO TOTAL --- */}
@@ -364,15 +672,81 @@ export default function ProtoRF10Checkout() {
             ]}
             activeOpacity={0.88}
             onPress={handleGoToPayment}
-            disabled={!isFormValid}
           >
-            <Text style={styles.payButtonText}>
-              Ir para Pagamento → R$ {formatBRL(total)}
-            </Text>
+            <Text style={styles.payButtonText}>Ir para o pagamento</Text>
           </TouchableOpacity>
 
           <View style={{ height: 36 }} />
         </ScrollView>
+
+        {/* --- MODAL DE SELEÇÃO DE ENDEREÇOS --- */}
+        <Modal
+          visible={isAddressModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsAddressModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { maxWidth: containerWidth - 32 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Endereços Salvos</Text>
+                <TouchableOpacity
+                  onPress={() => setIsAddressModalVisible(false)}
+                  style={styles.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                {savedAddresses.map((addr) => {
+                  const isCur = selectedAddress?.id === addr.id;
+                  return (
+                    <TouchableOpacity
+                      key={addr.id}
+                      style={[
+                        styles.addressChoiceCard,
+                        isCur && styles.addressChoiceCardActive,
+                      ]}
+                      onPress={() => handleSelectAddress(addr)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.radioOuter}>
+                        {isCur ? <View style={styles.radioInner} /> : null}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.addressTagRow}>
+                          <Text style={styles.addressChoiceTag}>{addr.tag || 'Endereço'}</Text>
+                          {addr.isDefault ? (
+                            <View style={styles.defaultBadge}>
+                              <Text style={styles.defaultBadgeText}>Padrão</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.addressChoiceText}>
+                          {addr.street}, {addr.number}
+                          {addr.complement ? ` - ${addr.complement}` : ''}
+                        </Text>
+                        <Text style={styles.addressChoiceSub}>
+                          {addr.neighborhood} • {addr.city}-{addr.stateUf} • CEP {addr.cep}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={styles.modalAddNewBtn}
+                onPress={handleStartAddNewAddress}
+                activeOpacity={0.8}
+              >
+                <Feather name="plus-circle" size={18} color="#A85A38" />
+                <Text style={styles.modalAddNewBtnText}>Adicionar outro endereço</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -652,5 +1026,189 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15.5,
     fontWeight: '700',
+  },
+
+  // --- Endereço Selecionado Card & Header ---
+  cardHeaderBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  cardHeaderTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  changeAddressBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  changeAddressText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#A85A38',
+  },
+  cancelNewAddressText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#78716C',
+  },
+  selectedAddressContent: {
+    backgroundColor: '#FAF9F5',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    gap: 4,
+  },
+  addressTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  addressBadge: {
+    backgroundColor: '#EBE7DE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  addressBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  defaultBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  defaultBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  selectedAddressLine1: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
+  selectedAddressLine2: {
+    fontSize: 13,
+    color: '#525B64',
+  },
+  selectedAddressCep: {
+    fontSize: 12.5,
+    color: '#78716C',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+
+  // --- Shipping States ---
+  shippingLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  shippingLoadingText: {
+    fontSize: 13,
+    color: '#78716C',
+  },
+  emptyShippingText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+
+  // --- Modal de Endereços ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F5F2EB',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1C252E',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  addressChoiceCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    marginBottom: 10,
+    backgroundColor: '#FAF9F5',
+  },
+  addressChoiceCardActive: {
+    borderColor: '#2C4659',
+    backgroundColor: '#F3F6F9',
+  },
+  addressChoiceTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C4659',
+  },
+  addressChoiceText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1C252E',
+    marginTop: 2,
+  },
+  addressChoiceSub: {
+    fontSize: 12,
+    color: '#78716C',
+    marginTop: 2,
+  },
+  modalAddNewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#A85A38',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    backgroundColor: '#FFF9F6',
+  },
+  modalAddNewBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#A85A38',
   },
 });

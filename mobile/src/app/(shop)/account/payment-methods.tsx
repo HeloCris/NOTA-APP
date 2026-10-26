@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,75 +11,95 @@ import {
   StatusBar,
   useWindowDimensions,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
-
-interface PaymentCard {
-  id: string;
-  brand: 'Mastercard' | 'Visa' | 'Elo';
-  last4: string;
-  holder: string;
-  expiry: string;
-  isDefault: boolean;
-}
+import {
+  SavedPaymentCard,
+  getSavedCards,
+  addOrUpdateCard,
+  setDefaultCard as apiSetDefaultCard,
+  deleteCard as apiDeleteCard,
+} from '@/utils/cardStorage';
+import { authService } from '@/services/auth';
+import { detectCardBrand, CardBrandLogo } from '@/components/checkout/CreditCardForm';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  const [cards, setCards] = useState<PaymentCard[]>([
-    {
-      id: '1',
-      brand: 'Mastercard',
-      last4: '4532',
-      holder: 'ANA FERREIRA',
-      expiry: '12/28',
-      isDefault: true,
-    },
-    {
-      id: '2',
-      brand: 'Visa',
-      last4: '8810',
-      holder: 'ANA FERREIRA',
-      expiry: '08/29',
-      isDefault: false,
-    },
-  ]);
+  const [cards, setCards] = useState<SavedPaymentCard[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Modal para adicionar cartão
   const [modalVisible, setModalVisible] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
-  const [holderName, setHolderName] = useState('ANA FERREIRA');
+  const [holderName, setHolderName] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [isDefaultNew, setIsDefaultNew] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  const handleSetDefault = (id: string) => {
-    setCards((prev) =>
-      prev.map((c) => ({
-        ...c,
-        isDefault: c.id === id,
-      }))
-    );
+  const brandInfo = detectCardBrand(cardNumber);
+
+  // Carrega cartões reais e dados do usuário logado
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [savedList, user] = await Promise.all([
+          getSavedCards(),
+          authService.me().catch(() => null),
+        ]);
+
+        if (!isMounted) return;
+        setCards(savedList);
+
+        if (user) {
+          const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+          if (fullName) {
+            setHolderName(fullName.toUpperCase());
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar meios de pagamento:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      const updated = await apiSetDefaultCard(id);
+      setCards(updated);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleDeleteCard = (id: string) => {
-    setCards((prev) => {
-      const remaining = prev.filter((c) => c.id !== id);
-      if (remaining.length > 0 && !remaining.some((c) => c.isDefault)) {
-        remaining[0].isDefault = true;
-      }
-      return remaining;
-    });
+  const handleDeleteCard = async (id: string) => {
+    try {
+      const updated = await apiDeleteCard(id);
+      setCards(updated);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleFormatCardNumber = (text: string) => {
     const cleaned = text.replace(/\D/g, '').slice(0, 16);
     const parts = cleaned.match(/[\s\S]{1,4}/g) || [];
     setCardNumber(parts.join(' '));
+    if (formError) setFormError('');
   };
 
   const handleFormatExpiry = (text: string) => {
@@ -89,41 +109,58 @@ export default function PaymentMethodsScreen() {
     } else {
       setExpiryDate(cleaned);
     }
+    if (formError) setFormError('');
   };
 
-  const handleSaveCard = () => {
+  const handleFormatCvv = (text: string) => {
+    const cleaned = text.replace(/\D/g, '').slice(0, 3);
+    setCvv(cleaned);
+    if (formError) setFormError('');
+  };
+
+  const handleSaveCard = async () => {
     const digitsOnly = cardNumber.replace(/\D/g, '');
-    if (digitsOnly.length < 4 || !holderName.trim() || !expiryDate.trim()) {
+    if (digitsOnly.length < 13 || digitsOnly.length > 16) {
+      setFormError('Número do cartão inválido (deve ter 16 dígitos).');
+      return;
+    }
+    if (!holderName.trim() || holderName.trim().split(/\s+/).length < 2) {
+      setFormError('Informe o nome e sobrenome como impressos no cartão.');
+      return;
+    }
+    if (expiryDate.replace(/\D/g, '').length < 4) {
+      setFormError('Data de validade incompleta (MM/AA).');
+      return;
+    }
+    if (cvv.length !== 3) {
+      setFormError('O código CVV deve ter 3 dígitos.');
       return;
     }
 
     const last4Digits = digitsOnly.slice(-4);
-    const detectedBrand: 'Mastercard' | 'Visa' | 'Elo' =
-      digitsOnly.startsWith('4') ? 'Visa' : 'Mastercard';
+    const brandName = brandInfo.name === 'CARTÃO' ? 'Cartão' : (brandInfo.name.charAt(0) + brandInfo.name.slice(1).toLowerCase() as any);
 
-    const newCard: PaymentCard = {
-      id: Date.now().toString(),
-      brand: detectedBrand,
-      last4: last4Digits,
-      holder: holderName.trim().toUpperCase(),
-      expiry: expiryDate.trim(),
-      isDefault: isDefaultNew || cards.length === 0,
-    };
+    try {
+      const updated = await addOrUpdateCard({
+        brand: brandName,
+        last4: last4Digits,
+        holder: holderName.trim().toUpperCase(),
+        expiry: expiryDate.trim(),
+        isDefault: isDefaultNew || cards.length === 0,
+      });
 
-    setCards((prev) => {
-      if (newCard.isDefault) {
-        return [newCard, ...prev.map((c) => ({ ...c, isDefault: false }))];
-      }
-      return [newCard, ...prev];
-    });
+      setCards(updated);
 
-    // Resetar
-    setCardNumber('');
-    setHolderName('ANA FERREIRA');
-    setExpiryDate('');
-    setCvv('');
-    setIsDefaultNew(false);
-    setModalVisible(false);
+      // Resetar form
+      setCardNumber('');
+      setExpiryDate('');
+      setCvv('');
+      setIsDefaultNew(false);
+      setFormError('');
+      setModalVisible(false);
+    } catch (err) {
+      console.error('Erro ao salvar cartão:', err);
+    }
   };
 
   return (
@@ -165,62 +202,76 @@ export default function PaymentMethodsScreen() {
           </TouchableOpacity>
 
           {/* --- LISTA DE CARTÕES --- */}
-          <View style={styles.cardList}>
-            {cards.map((card) => (
-              <View
-                key={card.id}
-                style={[
-                  styles.cardBox,
-                  card.isDefault && styles.cardBoxDefault,
-                ]}
-              >
-                {/* Top Row: Bandeira & Badge de Padrão */}
-                <View style={styles.cardTopRow}>
-                  <View style={styles.brandRow}>
-                    <View style={styles.iconCircle}>
-                      <Ionicons name="card" size={17} color="#2C4659" />
+          {loading ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#1E2B37" />
+            </View>
+          ) : cards.length === 0 ? (
+            <View style={styles.emptyCardBox}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="card-outline" size={28} color="#9CA3AF" />
+              </View>
+              <Text style={styles.emptyTitle}>Nenhum cartão cadastrado</Text>
+              <Text style={styles.emptySubtitle}>
+                Cadastre seu cartão para finalizar suas compras com mais rapidez e segurança.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.cardList}>
+              {cards.map((card) => (
+                <View
+                  key={card.id}
+                  style={[
+                    styles.cardBox,
+                    card.isDefault && styles.cardBoxDefault,
+                  ]}
+                >
+                  {/* Top Row: Bandeira & Badge de Padrão */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.brandRow}>
+                      <CardBrandLogo brand={(card.brand.toUpperCase() as any)} />
+                      <Text style={styles.brandTitle}>
+                        {card.brand} •••• {card.last4}
+                      </Text>
                     </View>
-                    <Text style={styles.brandTitle}>
-                      {card.brand} •••• {card.last4}
-                    </Text>
+
+                    {card.isDefault ? (
+                      <View style={styles.defaultBadge}>
+                        <Ionicons name="checkmark" size={13} color="#A85A38" />
+                        <Text style={styles.defaultBadgeText}>Padrão</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.setDefaultBtn}
+                        activeOpacity={0.7}
+                        onPress={() => handleSetDefault(card.id)}
+                      >
+                        <Text style={styles.setDefaultText}>Definir como padrão</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
-                  {card.isDefault ? (
-                    <View style={styles.defaultBadge}>
-                      <Ionicons name="checkmark" size={13} color="#A85A38" />
-                      <Text style={styles.defaultBadgeText}>Padrão</Text>
-                    </View>
-                  ) : (
+                  {/* Card Info */}
+                  <View style={styles.cardDetails}>
+                    <Text style={styles.holderText}>{card.holder}</Text>
+                    <Text style={styles.expiryText}>Expira em {card.expiry}</Text>
+                  </View>
+
+                  {/* Footer com Remover */}
+                  <View style={styles.cardFooter}>
                     <TouchableOpacity
-                      style={styles.setDefaultBtn}
-                      activeOpacity={0.7}
-                      onPress={() => handleSetDefault(card.id)}
+                      style={styles.deleteBtn}
+                      activeOpacity={0.65}
+                      onPress={() => handleDeleteCard(card.id)}
                     >
-                      <Text style={styles.setDefaultText}>Definir como padrão</Text>
+                      <Feather name="trash-2" size={14} color="#9CA3AF" />
+                      <Text style={styles.deleteText}>Remover</Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
-
-                {/* Card Info */}
-                <View style={styles.cardDetails}>
-                  <Text style={styles.holderText}>{card.holder}</Text>
-                  <Text style={styles.expiryText}>Expira em {card.expiry}</Text>
-                </View>
-
-                {/* Footer com Remover */}
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    activeOpacity={0.65}
-                    onPress={() => handleDeleteCard(card.id)}
-                  >
-                    <Feather name="trash-2" size={14} color="#9CA3AF" />
-                    <Text style={styles.deleteText}>Remover</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           {/* Dica de Segurança */}
           <View style={styles.securityBox}>
@@ -254,19 +305,29 @@ export default function PaymentMethodsScreen() {
               </TouchableOpacity>
             </View>
 
+            {formError ? (
+              <View style={styles.errorBox}>
+                <Feather name="alert-circle" size={14} color="#DC2626" />
+                <Text style={styles.errorText}>{formError}</Text>
+              </View>
+            ) : null}
+
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Número do Cartão */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Número do Cartão</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="0000 0000 0000 0000"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                  value={cardNumber}
-                  onChangeText={handleFormatCardNumber}
-                  maxLength={19}
-                />
+                <View style={styles.inputWithBrand}>
+                  <TextInput
+                    style={styles.innerCardInput}
+                    placeholder="0000 0000 0000 0000"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    value={cardNumber}
+                    onChangeText={handleFormatCardNumber}
+                    maxLength={19}
+                  />
+                  <CardBrandLogo brand={brandInfo.name} />
+                </View>
               </View>
 
               {/* Titular */}
@@ -278,7 +339,10 @@ export default function PaymentMethodsScreen() {
                   placeholderTextColor="#9CA3AF"
                   autoCapitalize="characters"
                   value={holderName}
-                  onChangeText={setHolderName}
+                  onChangeText={(t) => {
+                    setHolderName(t.toUpperCase());
+                    if (formError) setFormError('');
+                  }}
                 />
               </View>
 
@@ -288,7 +352,7 @@ export default function PaymentMethodsScreen() {
                   <Text style={styles.inputLabel}>Validade (MM/AA)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="12/28"
+                    placeholder="MM/AA"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="numeric"
                     value={expiryDate}
@@ -301,13 +365,13 @@ export default function PaymentMethodsScreen() {
                   <Text style={styles.inputLabel}>CVV</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="123"
+                    placeholder="•••"
                     placeholderTextColor="#9CA3AF"
                     keyboardType="numeric"
                     secureTextEntry
                     value={cvv}
-                    onChangeText={setCvv}
-                    maxLength={4}
+                    onChangeText={handleFormatCvv}
+                    maxLength={3}
                   />
                 </View>
               </View>
@@ -673,5 +737,69 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  emptyCardBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EFEBE2',
+    marginBottom: 20,
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#78716C',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+    flex: 1,
+  },
+  inputWithBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF9F5',
+    borderWidth: 1,
+    borderColor: '#E8E4D8',
+    borderRadius: 10,
+    paddingRight: 10,
+  },
+  innerCardInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 9,
+    fontSize: 14,
+    color: '#1C252E',
   },
 });

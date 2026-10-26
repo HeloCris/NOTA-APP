@@ -6,38 +6,51 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenBlacklistView as SimpleJWTTokenBlacklistView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import CustomUser
+from .models import CustomUser, UserAddress
 from .serializers import (
     CustomTokenObtainPairSerializer,
     RegisterSerializer,
     MeSerializer,
     OlfactoryProfileSerializer,
+    UserAddressSerializer,
 )
 
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
-    permission_classes = [
-        permissions.AllowAny,
-    ]
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        refresh = RefreshToken.for_user(user)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {
+                "user": serializer.data,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    permission_classes = [
-        permissions.AllowAny,
-    ]
+    permission_classes = [permissions.AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
 
 
 class TokenBlacklistView(SimpleJWTTokenBlacklistView):
-
     _serializer_class = api_settings.TOKEN_BLACKLIST_SERIALIZER
-    permission_classes = [
-        permissions.AllowAny,
-    ]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -52,42 +65,36 @@ class TokenBlacklistView(SimpleJWTTokenBlacklistView):
 
 class MeView(generics.RetrieveUpdateAPIView):
     serializer_class = MeSerializer
-    permission_classes = [
-        permissions.IsAuthenticated,
-    ]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
         return self.request.user
 
 
 class GoogleAuthView(APIView):
-    permission_classes = [
-        permissions.AllowAny,
-    ]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         token = request.data.get("id_token")
         if not token:
             return Response(
                 {"detail": "id_token é obrigatório."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-
             idinfo = id_token.verify_oauth2_token(
                 token,
                 google_requests.Request(),
-                getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
+                getattr(settings, "GOOGLE_OAUTH2_CLIENT_ID", None),
             )
 
             email = idinfo.get("email")
             if not email:
                 return Response(
                     {"detail": "Token não contém e-mail."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-
 
             try:
                 user = CustomUser.objects.get(email=email)
@@ -96,9 +103,8 @@ class GoogleAuthView(APIView):
                     email=email,
                     first_name=idinfo.get("given_name", ""),
                     last_name=idinfo.get("family_name", ""),
-                    role=CustomUser.Roles.CUSTOMER
+                    role=CustomUser.Roles.CUSTOMER,
                 )
-
 
             refresh = CustomTokenObtainPairSerializer.get_token(user)
 
@@ -107,21 +113,38 @@ class GoogleAuthView(APIView):
                     "access": str(refresh.access_token),
                     "refresh": str(refresh),
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
 
         except ValueError:
             return Response(
                 {"detail": "Token do Google inválido."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
 
 class OlfactoryProfileView(generics.UpdateAPIView):
     serializer_class = OlfactoryProfileSerializer
-    permission_classes = [
-        permissions.IsAuthenticated,
-    ]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
         return self.request.user
+
+
+class UserAddressListCreateView(generics.ListCreateAPIView):
+    serializer_class = UserAddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserAddress.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class UserAddressDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = UserAddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserAddress.objects.filter(user=self.request.user)

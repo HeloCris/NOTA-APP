@@ -253,3 +253,102 @@ def test_store_deactivate_and_reactivate(api_client, seller_a, store_a):
     assert response.status_code == 200
     store_a.refresh_from_db()
     assert store_a.is_active
+
+
+@pytest.mark.django_db
+def test_store_shipping_settings_update(api_client, seller_a, store_a):
+    api_client.force_authenticate(user=seller_a)
+
+    payload = {
+        "shipping_local_pac": "14.50",
+        "shipping_local_sedex": "25.00",
+        "shipping_pac_price": "21.50",
+        "shipping_sedex_price": "39.90",
+        "shipping_handling_days": 2,
+        "free_shipping_threshold": "250.00",
+    }
+
+    response = api_client.patch("/api/v1/stores/me/", payload, format="json")
+    assert response.status_code == 200
+    store_a.refresh_from_db()
+
+    assert float(store_a.shipping_local_pac) == 14.50
+    assert float(store_a.shipping_local_sedex) == 25.00
+    assert float(store_a.shipping_pac_price) == 21.50
+    assert float(store_a.shipping_sedex_price) == 39.90
+    assert store_a.shipping_handling_days == 2
+    assert float(store_a.free_shipping_threshold) == 250.00
+
+
+@pytest.mark.django_db
+def test_store_shipping_quote_regional_and_delivery_breakdown(api_client, store_a):
+    store_a.state = "SP"
+    store_a.postal_code = "01310100"
+    store_a.shipping_local_pac = 14.00
+    store_a.shipping_local_sedex = 22.00
+    store_a.shipping_pac_price = 28.00
+    store_a.shipping_sedex_price = 45.00
+    store_a.shipping_handling_days = 2
+    store_a.free_shipping_threshold = 200.00
+    store_a.save()
+
+    # 1. Cotação Local (dentro de SP)
+    quote_local = {
+        "postal_code": "01414000",
+        "state": "SP",
+        "cart_subtotal": 100.00,
+    }
+    res_local = api_client.post(
+        f"/api/v1/stores/{store_a.id}/shipping-quote/",
+        quote_local,
+        format="json",
+    )
+    assert res_local.status_code == 200
+    data_local = res_local.json()
+    assert data_local["region_tier"] == "LOCAL"
+    pac_local = next(m for m in data_local["methods"] if m["id"] == "PAC")
+    assert pac_local["price"] == 14.00
+    # Prazo de envio (manuseio) = 2, total = 2 + 2 a 4 = 4 a 6 dias
+    assert pac_local["handling_days"] == 2
+    assert pac_local["total_delivery_days_min"] == 4
+    assert pac_local["total_delivery_days_max"] == 6
+
+    # 2. Cotação Nacional (para RJ ou outro estado)
+    quote_national = {
+        "postal_code": "20000000",
+        "state": "RJ",
+        "cart_subtotal": 100.00,
+    }
+    res_nat = api_client.post(
+        f"/api/v1/stores/{store_a.id}/shipping-quote/",
+        quote_national,
+        format="json",
+    )
+    assert res_nat.status_code == 200
+    data_nat = res_nat.json()
+    assert data_nat["region_tier"] == "NATIONAL"
+    pac_nat = next(m for m in data_nat["methods"] if m["id"] == "PAC")
+    assert pac_nat["price"] == 28.00
+    # Prazo de envio = 2, trânsito = 5 a 8, total = 7 a 10 dias
+    assert pac_nat["total_delivery_days_min"] == 7
+    assert pac_nat["total_delivery_days_max"] == 10
+
+    # 3. Cotação com Frete Grátis atingido
+    quote_free = {
+        "postal_code": "20000000",
+        "state": "RJ",
+        "cart_subtotal": 250.00,
+    }
+    res_free = api_client.post(
+        f"/api/v1/stores/{store_a.id}/shipping-quote/",
+        quote_free,
+        format="json",
+    )
+    assert res_free.status_code == 200
+    data_free = res_free.json()
+    assert data_free["qualifies_for_free_shipping"] is True
+    pac_free = next(m for m in data_free["methods"] if m["id"] == "PAC")
+    assert pac_free["price"] == 0.00
+    assert pac_free["is_free"] is True
+
+

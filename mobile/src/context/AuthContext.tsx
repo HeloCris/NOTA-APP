@@ -24,6 +24,7 @@ interface AuthContextData {
   isAuthenticated: boolean;
   isLoading: boolean;
   signIn: (data: any) => Promise<void>;
+  signUp: (data: any) => Promise<void>;
   signInWithGoogle: (idToken: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
@@ -32,20 +33,9 @@ interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
-const DEFAULT_STATIC_USER: User = {
-  id: 1,
-  email: 'ana.ferreira@email.com',
-  first_name: 'Ana',
-  last_name: 'Ferreira',
-  phone: '11999999999',
-  role: 'CUSTOMER',
-  olfactory_families: ['Floral', 'Amadeirado', 'Cítrico'],
-  preferred_notes: ['Baunilha', 'Jasmim', 'Sândalo'],
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(DEFAULT_STATIC_USER);
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const signOut = useCallback(async () => {
     try {
@@ -66,10 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userData = await authService.me();
           if (active) setUser(userData);
         } else if (active) {
-          setUser(DEFAULT_STATIC_USER);
+          setUser(null);
         }
       } catch {
-        if (active) setUser(DEFAULT_STATIC_USER);
+        if (active) setUser(null);
       } finally {
         if (active) setIsLoading(false);
       }
@@ -93,6 +83,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
     const userData = await authService.me();
     setUser(userData);
+  }
+
+  async function signUp(data: any) {
+    const response = await authService.register(data);
+    
+    if (response?.access && response?.refresh) {
+      await saveToken(ACCESS_TOKEN_KEY, response.access);
+      await saveToken(REFRESH_TOKEN_KEY, response.refresh);
+      const userData = await authService.me();
+      setUser(userData);
+    } else {
+      await signIn({ email: data.email, password: data.password });
+    }
   }
 
   async function signInWithGoogle(idToken: string) {
@@ -120,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: user !== null,
         isLoading,
         signIn,
+        signUp,
         signInWithGoogle,
         signOut,
         updateProfile,

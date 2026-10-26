@@ -83,12 +83,14 @@ def get_user_store_id(request):
         if store:
             return store.id
 
-        return (
+        official_store_id = (
             Brand.objects
             .filter(owner=user, d2c_store__isnull=False)
             .values_list("d2c_store_id", flat=True)
             .first()
         )
+        if official_store_id:
+            return official_store_id
 
     return None
 

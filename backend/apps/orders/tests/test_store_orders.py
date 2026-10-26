@@ -407,8 +407,6 @@ class TestShipStoreOrder:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
-
-
 @pytest.mark.django_db
 class TestCustomerOrderTracking:
     def test_owner_retrieves_detail_with_timeline_and_tracking(

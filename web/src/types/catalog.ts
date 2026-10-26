@@ -14,6 +14,8 @@ export interface Product {
   anvisa_code: string;
   name: string;
   brand: Brand;
+  concentration?: string;
+  gender?: string;
   olfactory_family: string;
   top_notes: string[];
   heart_notes: string[];

@@ -78,7 +78,6 @@ class CustomerOrderDetailSerializer(serializers.ModelSerializer):
             for index, (status_code, label, description) in enumerate(steps)
         ]
 
-
 class ShippingUpdateSerializer(serializers.Serializer):
     carrier = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
     tracking_code = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
