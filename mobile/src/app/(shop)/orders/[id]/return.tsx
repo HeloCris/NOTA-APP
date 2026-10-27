@@ -16,24 +16,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import * as customerOrders from '@/services/customerOrders';
 import {
   getCustomerOrder,
+  requestCustomerReturn,
   type CustomerOrderDetail,
 } from '@/services/customerOrders';
-
-type ReturnPayload = {
-  reason: string;
-  description: string;
-  items: { order_item_id: string; quantity: number }[];
-};
-
-// Fallback dinâmico para garantir compatibilidade com as rotas de serviço
-const submitReturnApi =
-  (customerOrders as any).createReturnRequest ||
-  (customerOrders as any).createCustomerReturn ||
-  (customerOrders as any).createReturn ||
-  (customerOrders as any).requestReturn;
 
 const RETURN_REASONS = [
   'Produto com defeito / avariado',
@@ -42,6 +29,15 @@ const RETURN_REASONS = [
   'Arrependimento da compra',
   'Outro motivo',
 ];
+
+const showAlert = (title: string, message?: string, onOk?: () => void) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}${message ? `: ${message}` : ''}`);
+    onOk?.();
+  } else {
+    Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
+  }
+};
 
 export default function OrderReturnScreen() {
   const router = useRouter();
@@ -62,8 +58,7 @@ export default function OrderReturnScreen() {
         setOrder(data);
       })
       .catch(() => {
-        Alert.alert('Erro', 'Não foi possível carregar os dados do pedido.');
-        router.back();
+        showAlert('Erro', 'Não foi possível carregar os dados do pedido.', () => router.back());
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -77,7 +72,7 @@ export default function OrderReturnScreen() {
         delete updated[key];
         return updated;
       }
-      return { ...prev, 1: 1 };
+      return { ...prev, [key]: 1 };
     });
   };
 
@@ -99,7 +94,7 @@ export default function OrderReturnScreen() {
   const handleSubmitReturn = async () => {
     if (!id) return;
     if (!selectedReason) {
-      Alert.alert('Atenção', 'Selecione o motivo da devolução.');
+      showAlert('Atenção', 'Selecione o motivo da devolução.');
       return;
     }
 
@@ -109,31 +104,24 @@ export default function OrderReturnScreen() {
     }));
 
     if (itemsPayload.length === 0) {
-      Alert.alert('Atenção', 'Selecione ao menos um produto para devolver.');
-      return;
-    }
-
-    if (!submitReturnApi) {
-      Alert.alert('Erro', 'A solicitação de devolução não está disponível no momento.');
+      showAlert('Atenção', 'Selecione ao menos um produto para devolver.');
       return;
     }
 
     try {
       setSubmitting(true);
-      await submitReturnApi(id, {
-        reason: selectedReason,
-        description: description.trim(),
-        items: itemsPayload,
-      });
 
-      Alert.alert('Sucesso', 'Solicitação de devolução enviada com sucesso!', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      // FIX 3: Construção do FormData exigido pelo endpoint
+      const formData = new FormData();
+      formData.append('reason', selectedReason);
+      formData.append('description', description.trim());
+      formData.append('items', JSON.stringify(itemsPayload));
+
+      await requestCustomerReturn(id, formData);
+
+      showAlert('Sucesso', 'Solicitação de devolução enviada com sucesso!', () => router.back());
     } catch (err: any) {
-      Alert.alert(
+      showAlert(
         'Erro',
         err?.response?.data?.error || 'Não foi possível solicitar a devolução.'
       );

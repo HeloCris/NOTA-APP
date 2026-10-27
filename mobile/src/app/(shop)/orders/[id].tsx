@@ -51,6 +51,28 @@ const CANCEL_REASONS = [
   'Outro',
 ];
 
+// Helper para exibição universal de Alertas e Confirmações (Mobile + Web)
+const showAlert = (title: string, message?: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}${message ? `: ${message}` : ''}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) {
+      onConfirm();
+    }
+  } else {
+    Alert.alert(title, message, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Confirmar', onPress: onConfirm },
+    ]);
+  }
+};
+
 export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -74,13 +96,20 @@ export default function OrderDetailScreen() {
   const [stateUF, setStateUF] = useState('');
   const [zipCode, setZipCode] = useState('');
 
+  // FIX 2: Adicionado mapeamento de 'stateUf' do backend
   const syncAddressState = (shippingAddress: Record<string, any> | null | undefined) => {
     if (!shippingAddress) return;
     setStreet(shippingAddress.shipping_street || shippingAddress.street || '');
     setNumber(shippingAddress.shipping_number || shippingAddress.number || '');
     setNeighborhood(shippingAddress.shipping_neighborhood || shippingAddress.neighborhood || '');
     setCity(shippingAddress.shipping_city || shippingAddress.city || '');
-    setStateUF(shippingAddress.shipping_state || shippingAddress.state || '');
+    setStateUF(
+      shippingAddress.shipping_state ||
+        shippingAddress.state ||
+        shippingAddress.stateUf ||
+        shippingAddress.state_uf ||
+        ''
+    );
     setZipCode(shippingAddress.shipping_zip_code || shippingAddress.cep || shippingAddress.zip_code || '');
   };
 
@@ -120,7 +149,7 @@ export default function OrderDetailScreen() {
   function openTrackingUrl() {
     if (order?.carrier_url && order?.tracking_code) {
       Linking.openURL(`${order.carrier_url}${order.tracking_code}`).catch(() => {
-        Alert.alert('Erro', 'Não foi possível abrir o link da transportadora.');
+        showAlert('Erro', 'Não foi possível abrir o link da transportadora.');
       });
     }
   }
@@ -129,7 +158,7 @@ export default function OrderDetailScreen() {
     if (!id || !order) return;
     const reason = selectedReason === 'Outro' ? customReason.trim() : selectedReason;
     if (!reason) {
-      Alert.alert('Atenção', 'Selecione ou informe o motivo do cancelamento.');
+      showAlert('Atenção', 'Selecione ou informe o motivo do cancelamento.');
       return;
     }
 
@@ -139,10 +168,10 @@ export default function OrderDetailScreen() {
       setCancelModalVisible(false);
       setSelectedReason('');
       setCustomReason('');
-      Alert.alert('Sucesso', 'Solicitação de cancelamento enviada.');
+      showAlert('Sucesso', 'Solicitação de cancelamento enviada.');
       await loadOrder();
     } catch (err: any) {
-      Alert.alert(
+      showAlert(
         'Erro',
         err?.response?.data?.error || err?.response?.data?.reason || 'Erro ao cancelar o pedido.'
       );
@@ -154,7 +183,7 @@ export default function OrderDetailScreen() {
   async function handleSaveAddress() {
     if (!id || !order) return;
     if (!street || !number || !neighborhood || !city || !stateUF || !zipCode) {
-      Alert.alert('Atenção', 'Preencha todos os campos do endereço.');
+      showAlert('Atenção', 'Preencha todos os campos do endereço.');
       return;
     }
 
@@ -170,7 +199,7 @@ export default function OrderDetailScreen() {
       });
 
       setAddressModalVisible(false);
-      Alert.alert('Sucesso', 'Endereço atualizado com sucesso.');
+      showAlert('Sucesso', 'Endereço atualizado com sucesso.');
 
       if (updatedOrder) {
         setOrder((currentOrder) =>
@@ -187,7 +216,7 @@ export default function OrderDetailScreen() {
         await loadOrder();
       }
     } catch (err: any) {
-      Alert.alert(
+      showAlert(
         'Erro ao alterar endereço',
         err?.response?.data?.error || 'A alteração só é permitida para a mesma cidade/UF.'
       );
@@ -196,62 +225,51 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // FIX 1: Suporte a Web + Native no "Recebi meu pedido"
   async function handleConfirmDelivery() {
     if (!id) return;
-    Alert.alert(
+    showConfirm(
       'Confirmar Entrega',
       'Você confirma que recebeu todos os produtos deste pedido?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sim, recebi',
-          onPress: async () => {
-            try {
-              setActionLoading(true);
-              await confirmCustomerDelivery(id);
-              Alert.alert('Sucesso', 'Entrega confirmada com sucesso!');
-              await loadOrder();
-            } catch (err: any) {
-              Alert.alert(
-                'Erro',
-                err?.response?.data?.error || 'Não foi possível confirmar a entrega.'
-              );
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          setActionLoading(true);
+          await confirmCustomerDelivery(id);
+          showAlert('Sucesso', 'Entrega confirmada com sucesso!');
+          await loadOrder();
+        } catch (err: any) {
+          showAlert(
+            'Erro',
+            err?.response?.data?.error || 'Não foi possível confirmar a entrega.'
+          );
+        } finally {
+          setActionLoading(false);
+        }
+      }
     );
   }
 
+  // FIX 1: Suporte a Web + Native no "Contestar Entrega"
   async function handleDisputeDelivery() {
     if (!id) return;
-    Alert.alert(
+    showConfirm(
       'Contestar Entrega',
       'Informa que não recebeu o pedido? A loja será notificada para resolução.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Contestar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setActionLoading(true);
-              await disputeCustomerDelivery(id, 'Cliente informou que não recebeu o pedido.');
-              Alert.alert('Contestação Registrada', 'Entraremos em contato via chat.');
-              await loadOrder();
-            } catch (err: any) {
-              Alert.alert(
-                'Erro',
-                err?.response?.data?.error || 'Não foi possível registrar a contestação.'
-              );
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          setActionLoading(true);
+          await disputeCustomerDelivery(id, 'Cliente informou que não recebeu o pedido.');
+          showAlert('Contestação Registrada', 'Entraremos em contato via chat.');
+          await loadOrder();
+        } catch (err: any) {
+          showAlert(
+            'Erro',
+            err?.response?.data?.error || 'Não foi possível registrar a contestação.'
+          );
+        } finally {
+          setActionLoading(false);
+        }
+      }
     );
   }
 
@@ -801,7 +819,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Estilos de Modais
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

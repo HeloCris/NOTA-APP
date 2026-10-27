@@ -197,18 +197,11 @@ export async function disputeCustomerDelivery(
  * Solicita devolução parcial ou total do pedido (até 7 dias após entrega).
  * Envia FormData com motivo, descrição, itens e fotos.
  */
-export async function requestCustomerReturn(
-  id: string | number,
-  formData: FormData
-): Promise<ReturnRequest> {
-  const response = await api.post<ReturnRequest>(
-    `/orders/${id}/returns/`,
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
-  );
+export async function requestCustomerReturn(orderId: string, formData: FormData) {
+  const response = await api.post(`/orders/${orderId}/return/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
   return response.data;
 }
