@@ -137,15 +137,15 @@ class OrderPostPurchaseService:
     def change_shipping_address(order: Order, new_address_data: dict):
         """
         Atualiza o endereço de entrega garantindo que seja para a mesma Cidade/UF
-        e salvando de forma persistente no JSONField e nos campos direct do modelo.
+        e salvando de forma persistente no JSONField do modelo.
         """
         if order.status not in [OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.PROCESSING]:
             raise ValidationError('Endereço só pode ser alterado até a etapa de separação.')
 
-        if getattr(order, 'address_changed', False):
+        if order.address_changed:
             raise ValidationError('O endereço de entrega já foi alterado anteriormente para este pedido.')
 
-        current_addr = order.shipping_address if hasattr(order, 'shipping_address') else {}
+        current_addr = order.shipping_address or {}
         if isinstance(current_addr, str):
             try:
                 current_addr = json.loads(current_addr)
@@ -153,13 +153,11 @@ class OrderPostPurchaseService:
                 current_addr = {}
 
         old_city = (
-            getattr(order, 'shipping_city', '') or 
-            (current_addr.get('city') or current_addr.get('shipping_city') if isinstance(current_addr, dict) else '')
+            current_addr.get('city') or current_addr.get('shipping_city') or ''
         ).strip().upper()
 
         old_state = (
-            getattr(order, 'shipping_state', '') or 
-            (current_addr.get('state') or current_addr.get('shipping_state') if isinstance(current_addr, dict) else '')
+            current_addr.get('state') or current_addr.get('shipping_state') or ''
         ).strip().upper()
 
         new_city = (new_address_data.get('shipping_city') or new_address_data.get('city') or '').strip().upper()
@@ -172,29 +170,18 @@ class OrderPostPurchaseService:
         if old_state and new_state and old_state != new_state:
             raise ValidationError('Alteração permitida apenas para a mesma Cidade/UF.')
 
-        if hasattr(order, 'shipping_address'):
-            updated_json = {
-                "street": new_address_data.get('shipping_street') or new_address_data.get('street', ''),
-                "number": new_address_data.get('shipping_number') or new_address_data.get('number', ''),
-                "complement": new_address_data.get('shipping_complement') or new_address_data.get('complement', ''),
-                "neighborhood": new_address_data.get('shipping_neighborhood') or new_address_data.get('neighborhood', ''),
-                "city": new_city or old_city,
-                "state": new_state or old_state,
-                "zip_code": new_address_data.get('shipping_zip_code') or new_address_data.get('zip_code', ''),
-            }
-            order.shipping_address = updated_json
-
-        if hasattr(order, 'shipping_street'):
-            order.shipping_street = new_address_data.get('shipping_street', getattr(order, 'shipping_street', ''))
-        if hasattr(order, 'shipping_number'):
-            order.shipping_number = new_address_data.get('shipping_number', getattr(order, 'shipping_number', ''))
-        if hasattr(order, 'shipping_neighborhood'):
-            order.shipping_neighborhood = new_address_data.get('shipping_neighborhood', getattr(order, 'shipping_neighborhood', ''))
-        if hasattr(order, 'shipping_zip_code'):
-            order.shipping_zip_code = new_address_data.get('shipping_zip_code', getattr(order, 'shipping_zip_code', ''))
-
+        updated_json = {
+            "street": new_address_data.get('shipping_street') or new_address_data.get('street', ''),
+            "number": new_address_data.get('shipping_number') or new_address_data.get('number', ''),
+            "complement": new_address_data.get('shipping_complement') or new_address_data.get('complement', ''),
+            "neighborhood": new_address_data.get('shipping_neighborhood') or new_address_data.get('neighborhood', ''),
+            "city": new_city or old_city,
+            "state": new_state or old_state,
+            "zip_code": new_address_data.get('shipping_zip_code') or new_address_data.get('zip_code', ''),
+        }
+        order.shipping_address = updated_json
         order.address_changed = True
-        order.save()
+        order.save(update_fields=['shipping_address', 'address_changed', 'updated_at'])
 
         OrderPostPurchaseService.log_history(
             order, order.status, order.status, reason="Endereço de entrega alterado pelo cliente."
@@ -343,7 +330,7 @@ class OrderPostPurchaseService:
             raise ValidationError('Solicitação de devolução precisa estar aprovada para recebimento.')
 
         return_req.resellable = resellable
-        return_req.status = ReturnStatus.RECEIVED if hasattr(ReturnStatus, 'RECEIVED') else ReturnStatus.REFUNDED
+        return_req.status = ReturnStatus.RECEIVED
         return_req.save(update_fields=['resellable', 'status', 'updated_at'])
 
         if resellable:

@@ -15,6 +15,8 @@ const StoreShowcasePage = lazy(() =>
     default: module.StoreShowcasePage,
   }))
 );
+
+// ✅ Caminho corrigido para a estrutura real do projeto em src/features/store/StoreOrderDetail.tsx
 const StoreOrderDetailPage = lazy(() =>
   import("./features/store/StoreOrderDetail").then((module) => ({
     default: module.StoreOrderDetailPage,
@@ -61,7 +63,7 @@ export default function App() {
           }
         />
 
-        {/* Rotas de Detalhe do Pedido da Loja (RF-15) */}
+        {/* Rotas de Detalhes do Pedido da Loja (RF-15) */}
         <Route
           path="/seller/orders/:id"
           element={

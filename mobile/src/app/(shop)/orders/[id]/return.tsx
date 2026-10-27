@@ -28,24 +28,12 @@ type ReturnPayload = {
   items: { order_item_id: string; quantity: number }[];
 };
 
-const createReturn =
-  (
-    customerOrders as unknown as {
-      createReturn?: (orderId: string, payload: ReturnPayload) => Promise<unknown>;
-      createReturnRequest?: (orderId: string, payload: ReturnPayload) => Promise<unknown>;
-      requestReturn?: (orderId: string, payload: ReturnPayload) => Promise<unknown>;
-    }
-  ).createReturn ??
-  (
-    customerOrders as unknown as {
-      createReturnRequest?: (orderId: string, payload: ReturnPayload) => Promise<unknown>;
-    }
-  ).createReturnRequest ??
-  (
-    customerOrders as unknown as {
-      requestReturn?: (orderId: string, payload: ReturnPayload) => Promise<unknown>;
-    }
-  ).requestReturn;
+// Fallback dinâmico para garantir compatibilidade com as rotas de serviço
+const submitReturnApi =
+  (customerOrders as any).createReturnRequest ||
+  (customerOrders as any).createCustomerReturn ||
+  (customerOrders as any).createReturn ||
+  (customerOrders as any).requestReturn;
 
 const RETURN_REASONS = [
   'Produto com defeito / avariado',
@@ -89,7 +77,7 @@ export default function OrderReturnScreen() {
         delete updated[key];
         return updated;
       }
-      return { ...prev, [key]: 1 };
+      return { ...prev, 1: 1 };
     });
   };
 
@@ -125,14 +113,14 @@ export default function OrderReturnScreen() {
       return;
     }
 
-    if (!createReturn) {
+    if (!submitReturnApi) {
       Alert.alert('Erro', 'A solicitação de devolução não está disponível no momento.');
       return;
     }
 
     try {
       setSubmitting(true);
-      await createReturn(id, {
+      await submitReturnApi(id, {
         reason: selectedReason,
         description: description.trim(),
         items: itemsPayload,
@@ -190,7 +178,7 @@ export default function OrderReturnScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>ITENS DO PEDIDO</Text>
-            {order?.items?.map((item) => {
+            {order?.items?.map((item: any) => {
               const itemKey = String(item.id);
               const qtySelected = selectedItems[itemKey] || 0;
               const isSelected = qtySelected > 0;
@@ -208,7 +196,9 @@ export default function OrderReturnScreen() {
                       color={isSelected ? '#A85A38' : '#78716C'}
                     />
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.product_name}</Text>
+                      <Text style={styles.itemName}>
+                        {item.product_name || item.name || `Item #${item.id}`}
+                      </Text>
                       <Text style={styles.itemPrice}>
                         R$ {Number(item.unit_price || 0).toFixed(2).replace('.', ',')} (Qtd comprada: {item.quantity})
                       </Text>

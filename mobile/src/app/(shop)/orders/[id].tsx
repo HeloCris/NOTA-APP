@@ -171,14 +171,14 @@ export default function OrderDetailScreen() {
 
       setAddressModalVisible(false);
       Alert.alert('Sucesso', 'Endereço atualizado com sucesso.');
-      
+
       if (updatedOrder) {
         setOrder((currentOrder) =>
           currentOrder
-            ? { 
-                ...currentOrder, 
+            ? {
+                ...currentOrder,
                 shipping_address: updatedOrder.shipping_address,
-                address_changed: true 
+                address_changed: true,
               }
             : currentOrder
         );
@@ -383,7 +383,7 @@ export default function OrderDetailScreen() {
                 <TouchableOpacity
                   style={styles.btnOutline}
                   activeOpacity={0.8}
-                  onPress={() => router.push({ pathname: '/(shop)/orders/[id]/return', params: { id } } as never)}
+                  onPress={() => router.push(`/(shop)/orders/${id}/return` as never)}
                 >
                   <Ionicons name="return-down-back-outline" size={18} color="#273847" />
                   <Text style={styles.btnOutlineText}>Solicitar devolução</Text>
