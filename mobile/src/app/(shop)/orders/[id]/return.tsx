@@ -91,44 +91,46 @@ export default function OrderReturnScreen() {
     });
   };
 
-  const handleSubmitReturn = async () => {
-    if (!id) return;
-    if (!selectedReason) {
-      showAlert('Atenção', 'Selecione o motivo da devolução.');
-      return;
-    }
 
-    const itemsPayload = Object.entries(selectedItems).map(([order_item_id, quantity]) => ({
-      order_item_id: String(order_item_id),
-      quantity,
-    }));
+const handleSubmitReturn = async () => {
+  if (!id) return;
+  if (!selectedReason) {
+    showAlert('Atenção', 'Selecione o motivo da devolução.');
+    return;
+  }
 
-    if (itemsPayload.length === 0) {
-      showAlert('Atenção', 'Selecione ao menos um produto para devolver.');
-      return;
-    }
+  const itemsPayload = Object.entries(selectedItems).map(([order_item_id, quantity]) => ({
+    order_item_id: String(order_item_id),
+    quantity,
+  }));
 
-    try {
-      setSubmitting(true);
+  if (itemsPayload.length === 0) {
+    showAlert('Atenção', 'Selecione ao menos um produto para devolver.');
+    return;
+  }
 
-      // FIX 3: Construção do FormData exigido pelo endpoint
-      const formData = new FormData();
-      formData.append('reason', selectedReason);
-      formData.append('description', description.trim());
-      formData.append('items', JSON.stringify(itemsPayload));
+  try {
+    setSubmitting(true);
 
-      await requestCustomerReturn(id, formData);
+    // ✅ Envio como JSON direto para o DRF deserializar como list de dicts
+    const payload = {
+      reason: selectedReason,
+      description: description.trim(),
+      items: itemsPayload,
+    };
 
-      showAlert('Sucesso', 'Solicitação de devolução enviada com sucesso!', () => router.back());
-    } catch (err: any) {
-      showAlert(
-        'Erro',
-        err?.response?.data?.error || 'Não foi possível solicitar a devolução.'
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    await requestCustomerReturn(id, payload);
+
+    showAlert('Sucesso', 'Solicitação de devolução enviada com sucesso!', () => router.back());
+  } catch (err: any) {
+    showAlert(
+      'Erro',
+      err?.response?.data?.error || err?.response?.data?.detail || 'Não foi possível solicitar a devolução.'
+    );
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (loading) {
     return (
