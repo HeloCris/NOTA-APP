@@ -87,7 +87,7 @@ class Order(models.Model):
 
     def __str__(self):
         email = getattr(self.user, 'email', str(self.user))
-        return f'Order #{self.id} - {email} - {self.status}'
+        return f'Order #{self.id} - {email} ({self.status})'
 
 
 class OrderItem(models.Model):

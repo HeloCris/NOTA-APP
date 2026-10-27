@@ -5,8 +5,10 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -72,21 +74,24 @@ export default function OrderDetailScreen() {
   const [stateUF, setStateUF] = useState('');
   const [zipCode, setZipCode] = useState('');
 
+  const syncAddressState = (shippingAddress: Record<string, any> | null | undefined) => {
+    if (!shippingAddress) return;
+    setStreet(shippingAddress.shipping_street || shippingAddress.street || '');
+    setNumber(shippingAddress.shipping_number || shippingAddress.number || '');
+    setNeighborhood(shippingAddress.shipping_neighborhood || shippingAddress.neighborhood || '');
+    setCity(shippingAddress.shipping_city || shippingAddress.city || '');
+    setStateUF(shippingAddress.shipping_state || shippingAddress.state || '');
+    setZipCode(shippingAddress.shipping_zip_code || shippingAddress.cep || shippingAddress.zip_code || '');
+  };
+
   const loadOrder = async () => {
     if (!id) return;
     try {
       setError(false);
       const data = await getCustomerOrder(id);
       setOrder(data);
-
       if (data?.shipping_address) {
-        const addr = data.shipping_address as Record<string, any>;
-        setStreet(addr.shipping_street || addr.street || '');
-        setNumber(addr.shipping_number || addr.number || '');
-        setNeighborhood(addr.shipping_neighborhood || addr.neighborhood || '');
-        setCity(addr.shipping_city || addr.city || '');
-        setStateUF(addr.shipping_state || addr.state || '');
-        setZipCode(addr.shipping_zip_code || addr.cep || addr.zip_code || '');
+        syncAddressState(data.shipping_address as Record<string, any>);
       }
     } catch {
       setError(true);
@@ -98,6 +103,13 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     loadOrder();
   }, [id]);
+
+  const handleCloseAddressModal = () => {
+    setAddressModalVisible(false);
+    if (order?.shipping_address) {
+      syncAddressState(order.shipping_address as Record<string, any>);
+    }
+  };
 
   async function copyTrackingCode() {
     if (!order?.tracking_code) return;
@@ -148,7 +160,7 @@ export default function OrderDetailScreen() {
 
     try {
       setActionLoading(true);
-      await updateCustomerAddress(id, {
+      const updatedOrder = await updateCustomerAddress(id, {
         shipping_street: street,
         shipping_number: number,
         shipping_neighborhood: neighborhood,
@@ -156,9 +168,24 @@ export default function OrderDetailScreen() {
         shipping_state: stateUF,
         shipping_zip_code: zipCode,
       });
+
       setAddressModalVisible(false);
       Alert.alert('Sucesso', 'Endereço atualizado com sucesso.');
-      await loadOrder();
+      
+      if (updatedOrder) {
+        setOrder((currentOrder) =>
+          currentOrder
+            ? { 
+                ...currentOrder, 
+                shipping_address: updatedOrder.shipping_address,
+                address_changed: true 
+              }
+            : currentOrder
+        );
+        syncAddressState(updatedOrder.shipping_address as Record<string, any>);
+      } else {
+        await loadOrder();
+      }
     } catch (err: any) {
       Alert.alert(
         'Erro ao alterar endereço',
@@ -356,7 +383,7 @@ export default function OrderDetailScreen() {
                 <TouchableOpacity
                   style={styles.btnOutline}
                   activeOpacity={0.8}
-                  onPress={() => router.push(`/(shop)/orders/${id}/return` as any)}
+                  onPress={() => router.push({ pathname: '/(shop)/orders/[id]/return', params: { id } } as never)}
                 >
                   <Ionicons name="return-down-back-outline" size={18} color="#273847" />
                   <Text style={styles.btnOutlineText}>Solicitar devolução</Text>
@@ -367,7 +394,7 @@ export default function OrderDetailScreen() {
                 <TouchableOpacity
                   style={styles.btnPrimary}
                   activeOpacity={0.8}
-                  onPress={() => router.push(`/(shop)/chat?order_id=${id}` as any)}
+                  onPress={() => router.push({ pathname: '/(shop)/chat', params: { order_id: id } } as never)}
                 >
                   <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
                   <Text style={styles.btnPrimaryText}>Abrir chat com a loja</Text>
@@ -498,7 +525,10 @@ export default function OrderDetailScreen() {
 
       {/* Modal de Alteração de Endereço */}
       <Modal visible={addressModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <ScrollView contentContainerStyle={styles.modalContent}>
             <Text style={styles.modalTitle}>Alterar Endereço</Text>
             <Text style={styles.modalSubtitle}>
@@ -548,7 +578,7 @@ export default function OrderDetailScreen() {
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => setAddressModalVisible(false)}
+                onPress={handleCloseAddressModal}
               >
                 <Text style={styles.modalCancelBtnText}>Voltar</Text>
               </TouchableOpacity>
@@ -566,7 +596,7 @@ export default function OrderDetailScreen() {
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

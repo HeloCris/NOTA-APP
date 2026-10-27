@@ -157,7 +157,12 @@ export default function OrdersScreen() {
                 key={order.id}
                 style={styles.orderCard}
                 activeOpacity={0.75}
-                onPress={() => router.push(`/(shop)/orders/${order.id}` as any)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(shop)/orders/[id]',
+                    params: { id: order.id },
+                  } as never)
+                }
               >
                 <View style={styles.cardHeader}>
                   <View>
