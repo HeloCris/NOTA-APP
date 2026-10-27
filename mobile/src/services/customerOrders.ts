@@ -198,7 +198,7 @@ export async function disputeCustomerDelivery(
  * Envia FormData com motivo, descrição, itens e fotos.
  */
 export async function requestCustomerReturn(orderId: string, formData: FormData) {
-  const response = await api.post(`/orders/${orderId}/return/`, formData, {
+  const response = await api.post(`/orders/${orderId}/returns/`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
