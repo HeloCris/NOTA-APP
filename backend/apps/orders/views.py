@@ -1,7 +1,9 @@
+from typing import cast
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import permissions, status, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -70,7 +72,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                                 id=product_id
                             )
                         )
-                    except StoreProduct.DoesNotExist:
+                    except StoreProduct.DoesNotExist:  # type: ignore
                         return Response(
                             {
                                 "error": (
@@ -209,7 +211,7 @@ def process_payment(request):
             status=status.HTTP_200_OK,
         )
 
-    except Order.DoesNotExist:
+    except Order.DoesNotExist:  # type: ignore
         return Response(
             {"error": "Pedido não encontrado."},
             status=status.HTTP_404_NOT_FOUND,
@@ -316,8 +318,8 @@ class UpdateOrderStatusView(APIView):
         )
 
         store = Store.objects.filter(pk=order.store_id).first()
-        serializer = StoreOrderSerializer(order, context={'store': store})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        response_serializer = StoreOrderSerializer(order, context={'store': store})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 class ShipOrderView(APIView):
@@ -354,10 +356,11 @@ class ShipOrderView(APIView):
 
         old_status = order.status
         order.status = OrderStatus.SHIPPED
-        order.carrier = serializer.validated_data["carrier"]
-        order.tracking_code = serializer.validated_data["tracking_code"]
-        if "carrier_url" in serializer.validated_data:
-            order.carrier_url = serializer.validated_data["carrier_url"]
+        shipping_data = cast(dict, serializer.validated_data)
+        order.carrier = shipping_data["carrier"]
+        order.tracking_code = shipping_data["tracking_code"]
+        if "carrier_url" in shipping_data:
+            order.carrier_url = shipping_data["carrier_url"]
         order.shipped_at = timezone.now()
         order.save(
             update_fields=[

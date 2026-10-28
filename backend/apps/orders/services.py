@@ -9,7 +9,6 @@ from rest_framework.exceptions import ValidationError
 from .models import (
     DeliveryConfirmedBy,
     Order,
-    OrderItem,
     OrderStatus,
     OrderStatusHistory,
     ReturnItem,

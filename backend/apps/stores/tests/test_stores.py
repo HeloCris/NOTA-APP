@@ -1,6 +1,5 @@
 
 import pytest
-from django.urls import reverse  # type: ignore
 from rest_framework.test import APIClient
 
 # pyrefly: ignore

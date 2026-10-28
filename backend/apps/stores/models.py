@@ -197,7 +197,7 @@ class Store(models.Model):
         Para uma loja aparecer na vitrine e receber pedidos,
         deve estar ativa, com endereço de origem e tarifas de frete configuradas.
         """
-        return bool(self.is_active and self.has_complete_address and self.has_shipping_configured)
+        return bool(self.is_active and self.has_complete_address and self.has_shipping_configured)  # pyrefly: ignore[unnecessary-type-conversion]
 
     class Meta:
         db_table = "stores"

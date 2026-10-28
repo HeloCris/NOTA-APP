@@ -44,13 +44,13 @@ class RegisterView(generics.CreateAPIView):
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]  # stub de simplejwt tipa como tuple[()]
     serializer_class = CustomTokenObtainPairSerializer
 
 
 class TokenBlacklistView(SimpleJWTTokenBlacklistView):
     _serializer_class = api_settings.TOKEN_BLACKLIST_SERIALIZER
-    permission_classes = [permissions.AllowAny]
+    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]  # stub de simplejwt tipa como tuple[()]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -136,7 +136,7 @@ class UserAddressListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserAddress.objects.filter(user=self.request.user)
+        return UserAddress.objects.filter(user=self.request.user)  # type: ignore[misc]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -147,4 +147,4 @@ class UserAddressDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserAddress.objects.filter(user=self.request.user)
+        return UserAddress.objects.filter(user=self.request.user)  # type: ignore[misc]

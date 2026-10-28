@@ -7,7 +7,6 @@ from django.db import transaction
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
 
 from apps.orders.models import OrderItem, OrderStatus, ReturnRequest, ReturnStatus
 from apps.stores.models import Store
@@ -56,19 +55,19 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewSerializer
 
     def get_queryset(self):
-        return Review.objects.filter(user=self.request.user, is_deleted=False)
+        return Review.objects.filter(user=self.request.user, is_deleted=False)  # type: ignore[misc]
 
     def perform_create(self, serializer):
         user = self.request.user
-        order_item_id = self.request.data.get('order_item')
+        order_item_id = self.request.data.get('order_item')  # type: ignore[union-attr]
         if not order_item_id:
             raise ValidationError({'order_item': 'O item do pedido é obrigatório.'})
 
         try:
-            order_item = OrderItem.objects.select_related('order', 'store_product__store', 'store_product__product').get(
+            order_item = OrderItem.objects.select_related('order', 'store_product__store', 'store_product__product').get(  # type: ignore[misc]
                 id=order_item_id, order__user=user
             )
-        except OrderItem.DoesNotExist:
+        except OrderItem.DoesNotExist:  # type: ignore
             raise ValidationError({'order_item': 'Item de pedido não encontrado ou não pertence a você.'})
 
         # RN-02: Apenas 1 avaliação por OrderItem (inclusive após exclusão)
@@ -102,11 +101,11 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
         if len(photos) > 3:
             raise ValidationError({'photos': 'Você pode enviar no máximo 3 fotos por avaliação.'})
 
-        rating = self.request.data.get('rating')
+        rating = self.request.data.get('rating')  # type: ignore[union-attr]
         if not rating or int(rating) < 1 or int(rating) > 5:
             raise ValidationError({'rating': 'A nota de 1 a 5 é obrigatória.'})
 
-        comment = self.request.data.get('comment', '')
+        comment = self.request.data.get('comment', '')  # type: ignore[union-attr]
         if len(comment) > 1000:
             raise ValidationError({'comment': 'O comentário pode ter no máximo 1000 caracteres.'})
 
@@ -190,7 +189,7 @@ class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
         store_id = self.kwargs.get('store_id')
         product_id = self.kwargs.get('product_id')
 
-        qs = Review.objects.filter(
+        qs = Review.objects.filter(  # type: ignore[misc]
             store_id=store_id,
             is_hidden=False,
             is_deleted=False,
@@ -251,7 +250,7 @@ class StoreReviewViewSet(viewsets.GenericViewSet):
         user = self.request.user
         store = getattr(user, 'store', None)
         if not store:
-            store = Store.objects.filter(owner=user).first()
+            store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
         return store
 
     def list(self, request):

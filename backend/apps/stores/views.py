@@ -37,10 +37,11 @@ class StoreListView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        store = serializer.save(owner=self.request.user)
-        if self.request.user.role == "CUSTOMER":
-            self.request.user.role = "SELLER"
-            self.request.user.save(update_fields=["role"])
+        serializer.save(owner=self.request.user)
+        user = self.request.user
+        if user.role == "CUSTOMER":  # type: ignore[union-attr]
+            user.role = "SELLER"  # type: ignore[union-attr]
+            user.save(update_fields=["role"])  # type: ignore[call-arg]
 
 
 class StoreDetailView(generics.RetrieveAPIView):
@@ -55,7 +56,7 @@ class StoreMeView(generics.RetrieveUpdateAPIView):
     http_method_names = ["get", "patch", "head", "options"]
 
     def get_object(self) -> Store:
-        store = Store.objects.filter(owner=self.request.user).first()
+        store = Store.objects.filter(owner=self.request.user).first()  # type: ignore[misc]
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
         return store
@@ -73,7 +74,7 @@ class StoreDashboardView(APIView):
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
-        store = Store.objects.filter(owner=self.request.user).first()
+        store = Store.objects.filter(owner=self.request.user).first()  # type: ignore[misc]
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
         data = {

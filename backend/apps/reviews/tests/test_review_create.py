@@ -11,7 +11,7 @@ from PIL import Image
 from apps.catalog.models import Brand, Product
 from apps.inventory.models import StoreProduct
 from apps.orders.models import Order, OrderItem, OrderStatus, ReturnRequest, ReturnStatus
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review
 from apps.stores.models import Store
 
 User = get_user_model()
@@ -97,6 +97,7 @@ class ReviewCreateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Review.objects.count(), 1)
         review = Review.objects.first()
+        assert review is not None
         self.assertEqual(review.rating, 5)
         self.assertEqual(review.comment, 'Excelente perfume, fixação fantástica!')
         self.assertEqual(review.user, self.user)

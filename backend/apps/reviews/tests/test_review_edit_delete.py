@@ -11,7 +11,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from apps.catalog.models import Brand, Product
 from apps.inventory.models import StoreProduct
 from apps.orders.models import Order, OrderItem, OrderStatus
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review
 from apps.stores.models import Store
 
 User = get_user_model()

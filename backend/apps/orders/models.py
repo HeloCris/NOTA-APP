@@ -31,6 +31,7 @@ class ReturnStatus(models.TextChoices):
 
 
 class Order(models.Model):
+    items: models.Manager['OrderItem']
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -39,7 +40,7 @@ class Order(models.Model):
     store = models.ForeignKey(
         Store, on_delete=models.CASCADE, related_name='orders'
     )
-    status = models.CharField(
+    status: str = models.CharField(  # type: ignore
         max_length=30,
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING,
@@ -144,6 +145,8 @@ class OrderStatusHistory(models.Model):
 
 
 class ReturnRequest(models.Model):
+    items: models.Manager['ReturnItem']
+    photos: models.Manager['ReturnPhoto']
     order = models.ForeignKey(
         Order, on_delete=models.CASCADE, related_name='return_requests'
     )

@@ -92,6 +92,7 @@ class ReviewReplyTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(ReviewReply.objects.count(), 1)
         reply = ReviewReply.objects.first()
+        assert reply is not None
         self.assertEqual(reply.text, 'Muito obrigado pela preferência, Maria!')
         self.assertEqual(reply.author, self.seller)
         self.assertEqual(reply.review, self.review)
