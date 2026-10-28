@@ -60,7 +60,7 @@ class ReviewEditDeleteTests(APITestCase):
             stock_quantity=10,
             volume_ml=100,
         )
-        self.order = Order.objects.create(
+        self.order = Order.objects.create(  # type: ignore
             user=self.user,
             store=self.store,
             status=OrderStatus.DELIVERED,
@@ -68,13 +68,13 @@ class ReviewEditDeleteTests(APITestCase):
             total_amount=Decimal('500.00'),
             shipping_address={'city': 'São Paulo', 'state': 'SP'},
         )
-        self.order_item = OrderItem.objects.create(
+        self.order_item = OrderItem.objects.create(  # type: ignore
             order=self.order,
             store_product=self.store_product,
             quantity=1,
             unit_price=Decimal('500.00'),
         )
-        self.review = Review.objects.create(
+        self.review = Review.objects.create(  # type: ignore
             order_item=self.order_item,
             user=self.user,
             store=self.store,
