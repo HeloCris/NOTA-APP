@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   StoreOrder,
   StoreOrderShippingAddress,
@@ -11,6 +12,9 @@ const STATUS_LABELS: Record<StoreOrder["status"], string> = {
   SHIPPED: "Enviado",
   DELIVERED: "Entregue",
   CANCELLED: "Cancelado",
+  CANCEL_REQUESTED: "Cancelamento Solicitado",
+  DELIVERY_DISPUTED: "Entrega Contestada",
+  REFUNDED: "Reembolsado",
 };
 
 const STATUS_STYLES: Record<StoreOrder["status"], string> = {
@@ -20,6 +24,9 @@ const STATUS_STYLES: Record<StoreOrder["status"], string> = {
   SHIPPED: "bg-[#EDF0E7] text-[#454F3A] border-[#D6DCCB]",
   DELIVERED: "bg-[#F0F5EE] text-[#3A5C30] border-[#B8CFAF]",
   CANCELLED: "bg-[#FDF4F0] text-[#BA1A1A] border-[#F0C4B0]",
+  CANCEL_REQUESTED: "bg-[#FFF3CD] text-[#856404] border-[#FFEEBA]",
+  DELIVERY_DISPUTED: "bg-[#F8D7DA] text-[#721C24] border-[#F5C6CB]",
+  REFUNDED: "bg-[#E2E3E5] text-[#383D41] border-[#D6D8DB]",
 };
 
 const URGENCY_LABELS: Record<UrgencyStatus, string> = {
@@ -29,12 +36,9 @@ const URGENCY_LABELS: Record<UrgencyStatus, string> = {
 };
 
 const URGENCY_STYLES: Record<UrgencyStatus, string> = {
-  ON_TIME:
-    "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]",
-  DUE_TODAY:
-    "bg-[#FFF9E6] border-[#F0D58A] text-[#8C6D1F]",
-  DELAYED:
-    "bg-[#FDF4F0] border-[#F0C4B0] text-[#BA1A1A] font-bold",
+  ON_TIME: "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]",
+  DUE_TODAY: "bg-[#FFF9E6] border-[#F0D58A] text-[#8C6D1F]",
+  DELAYED: "bg-[#FDF4F0] border-[#F0C4B0] text-[#BA1A1A] font-bold",
 };
 
 function formatBRL(value: string | number): string {
@@ -54,18 +58,15 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function formatDate(isoDate: string): string {
+function formatDate(isoDate: string | undefined): string {
+  if (!isoDate) return "—";
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;
 }
 
-function formatAddress(
-  address: StoreOrderShippingAddress | null,
-): string {
+function formatAddress(address: StoreOrderShippingAddress | null): string {
   if (!address) return "—";
-  const line1 = [address.street, address.number]
-    .filter(Boolean)
-    .join(", ");
+  const line1 = [address.street, address.number].filter(Boolean).join(", ");
   const line2 = [address.neighborhood, address.city, address.state]
     .filter(Boolean)
     .join(" - ");
@@ -76,6 +77,7 @@ interface OrderCardProps {
   order: StoreOrder;
   onProcess?: (order: StoreOrder) => void;
   onShip?: (order: StoreOrder) => void;
+  onRespondCancel?: (order: StoreOrder, approve: boolean, reason?: string) => void;
   isProcessing?: boolean;
   isShipping?: boolean;
 }
@@ -84,17 +86,49 @@ export function OrderCard({
   order,
   onProcess,
   onShip,
+  onRespondCancel,
   isProcessing = false,
   isShipping = false,
 }: OrderCardProps) {
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
   const canStartProcessing = order.status === "PAID";
   const canShip = order.status === "PROCESSING";
+  const isCancelRequested = order.status === "CANCEL_REQUESTED";
+
+  const handleConfirmReject = () => {
+    if (!rejectReason.trim()) return;
+    onRespondCancel?.(order, false, rejectReason);
+    setShowRejectModal(false);
+    setRejectReason("");
+  };
 
   return (
     <article
       data-testid={`order-card-${order.id}`}
       className="bg-white border border-[#EFEBDD] rounded-[18px] p-6 shadow-[0_1px_3px_rgba(35,40,45,0.06)]"
     >
+      {/* Banner de alerta para mudança de endereço */}
+      {order.address_changed && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-[#FFF9E6] border border-[#F0D58A] px-3 py-2 text-[12px] font-bold text-[#8C6D1F]">
+          <span>⚠️</span>
+          <span>
+            Endereço alterado pelo cliente após a realização do pedido. Verifique a nova etiqueta de envio.
+          </span>
+        </div>
+      )}
+
+      {/* Banner de alerta para solicitação de cancelamento */}
+      {isCancelRequested && (
+        <div className="mb-4 rounded-lg bg-[#FFF3CD] border border-[#FFEEBA] p-3 text-[12px] text-[#856404]">
+          <p className="font-bold">⚠️ O cliente solicitou o cancelamento deste pedido.</p>
+          {order.cancel_reason && (
+            <p className="mt-1 italic">"Motivo: {order.cancel_reason}"</p>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h3 className="font-jakarta text-[16px] font-extrabold text-[#23282D]">
@@ -108,24 +142,26 @@ export function OrderCard({
         <div className="flex items-center gap-2 flex-wrap">
           {order.urgency_status && (
             <span
-              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border ${URGENCY_STYLES[order.urgency_status]}`}
+              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] border ${
+                URGENCY_STYLES[order.urgency_status]
+              }`}
             >
               {URGENCY_LABELS[order.urgency_status]}
             </span>
           )}
           <span
-            className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLES[order.status]}`}
+            className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold border ${
+              STATUS_STYLES[order.status] || "bg-[#EFEBDD] text-[#23282D]"
+            }`}
           >
-            {STATUS_LABELS[order.status]}
+            {STATUS_LABELS[order.status] || order.status}
           </span>
         </div>
       </div>
 
       <ul className="border-t border-[#F5F3E9] pt-3 mb-4 space-y-1.5">
         {order.items.length === 0 ? (
-          <li className="text-[12px] text-[#93927F]">
-            Nenhum item registrado.
-          </li>
+          <li className="text-[12px] text-[#93927F]">Nenhum item registrado.</li>
         ) : (
           order.items.map((item) => (
             <li
@@ -176,6 +212,7 @@ export function OrderCard({
         </div>
       </dl>
 
+      {/* Ações conforme o Status do Pedido */}
       {canStartProcessing && (
         <button
           type="button"
@@ -183,9 +220,6 @@ export function OrderCard({
           onClick={() => onProcess?.(order)}
           className="inline-flex items-center gap-2 bg-[#354B5E] text-white rounded-full px-5 py-2.5 text-[12.5px] font-bold hover:bg-[#263847] transition-colors disabled:opacity-60"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 3h3M10.5 3v6.5L5.8 18a2 2 0 0 0 1.7 3h9a2 2 0 0 0 1.7-3l-4.7-8.5V3" />
-          </svg>
           {isProcessing ? "Processando..." : "Iniciar Separação"}
         </button>
       )}
@@ -197,17 +231,70 @@ export function OrderCard({
           onClick={() => onShip?.(order)}
           className="inline-flex items-center gap-2 bg-[#A85A38] text-white rounded-full px-5 py-2.5 text-[12.5px] font-bold hover:bg-[#873F25] transition-colors disabled:opacity-60"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h13m0 0-4-4m4 4-4 4M16 5h2a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-2" />
-          </svg>
           {isShipping ? "Despachando..." : "Despachar Pedido"}
         </button>
+      )}
+
+      {isCancelRequested && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onRespondCancel?.(order, true)}
+            className="bg-[#BA1A1A] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#961515] transition-colors"
+          >
+            Aprovar Cancelamento
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRejectModal(true)}
+            className="bg-[#EFEBDD] text-[#23282D] rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#E2DDD0] transition-colors"
+          >
+            Recusar Cancelamento
+          </button>
+        </div>
       )}
 
       {order.status === "SHIPPED" && order.tracking_code && (
         <div className="border-t border-[#F5F3E9] pt-4 text-[12.5px] text-[#454F3A]">
           <span className="font-bold">Rastreio:</span> {order.tracking_code}
           {order.carrier ? ` · ${order.carrier}` : ""}
+        </div>
+      )}
+
+      {/* Modal de recusa de cancelamento pelo lojista */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-lg">
+            <h4 className="font-jakarta text-[16px] font-bold text-[#23282D] mb-2">
+              Motivo da Recusa do Cancelamento
+            </h4>
+            <p className="text-[12.5px] text-[#5A6067] mb-4">
+              Informe a justificativa para o cliente. O pedido retornará ao fluxo de preparação/envio.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ex: O pedido já foi embalado e coletado pela transportadora."
+              className="w-full h-24 p-3 border border-[#E8E4D8] rounded-xl text-[13px] text-[#23282D] focus:outline-none focus:border-[#354B5E] mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="px-4 py-2 rounded-full text-[12px] font-bold text-[#5A6067] bg-[#F4F1EA]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!rejectReason.trim()}
+                onClick={handleConfirmReject}
+                className="px-4 py-2 rounded-full text-[12px] font-bold text-white bg-[#354B5E] disabled:opacity-50"
+              >
+                Confirmar Recusa
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </article>

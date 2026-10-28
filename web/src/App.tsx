@@ -1,12 +1,5 @@
-import {
-  Suspense,
-  lazy,
-} from "react";
-import {
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
+import { Suspense, lazy } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
@@ -20,48 +13,37 @@ const BrandHomePage = lazy(() => import("./pages/BrandHomePage.lazy"));
 const StoreShowcasePage = lazy(() =>
   import("./features/showcase/StoreShowcasePage").then((module) => ({
     default: module.StoreShowcasePage,
-  })),
+  }))
+);
+
+// ✅ Caminho corrigido para a estrutura real do projeto em src/features/store/StoreOrderDetail.tsx
+const StoreOrderDetailPage = lazy(() =>
+  import("./features/store/StoreOrderDetail").then((module) => ({
+    default: module.StoreOrderDetailPage,
+  }))
 );
 
 export default function App() {
   return (
-    <Suspense fallback={
-      <main className="flex min-h-screen items-center justify-center bg-app-canvas p-6">
-        <p className="font-inter text-sm text-text-mineral">
-          Carregando...
-        </p>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-app-canvas p-6">
+          <p className="font-inter text-sm text-text-mineral">Carregando...</p>
+        </main>
+      }
+    >
       <Routes>
-        <Route
-          path="/"
-          element={<WelcomePage />}
-        />
+        <Route path="/" element={<WelcomePage />} />
 
-        <Route
-          path="/login"
-          element={<AuthPage />}
-        />
+        <Route path="/login" element={<AuthPage />} />
 
-        <Route
-          path="/register"
-          element={<AuthPage />}
-        />
+        <Route path="/register" element={<AuthPage />} />
 
-        <Route
-          path="/lojas/:slug"
-          element={<StoreShowcasePage />}
-        />
+        <Route path="/lojas/:slug" element={<StoreShowcasePage />} />
 
-        <Route
-          path="/brand-onboarding"
-          element={<BrandOnboardingPage />}
-        />
+        <Route path="/brand-onboarding" element={<BrandOnboardingPage />} />
 
-        <Route
-          path="/brand-status"
-          element={<BrandStatusPage />}
-        />
+        <Route path="/brand-status" element={<BrandStatusPage />} />
 
         <Route
           path="/admin"
@@ -81,6 +63,24 @@ export default function App() {
           }
         />
 
+        {/* Rotas de Detalhes do Pedido da Loja (RF-15) */}
+        <Route
+          path="/seller/orders/:id"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+              <StoreOrderDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/store/orders/:id"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+              <StoreOrderDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/brand"
           element={
@@ -90,15 +90,7 @@ export default function App() {
           }
         />
 
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
-        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Suspense>
   );
