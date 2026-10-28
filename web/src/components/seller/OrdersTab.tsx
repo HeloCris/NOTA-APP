@@ -39,10 +39,14 @@ export function OrdersTab() {
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<FilterKey>("ALL");
   const [orderToShip, setOrderToShip] = useState<StoreOrder | null>(null);
-  
+
   // Estados para o Modal de Resposta de Cancelamento
   const [cancelModalOrder, setCancelModalOrder] = useState<StoreOrder | null>(null);
   const [cancelRejectReason, setCancelRejectReason] = useState<string>("");
+
+  // Estados para o Modal de Resolução de Contestação
+  const [disputeModalOrder, setDisputeModalOrder] = useState<StoreOrder | null>(null);
+  const [newTrackingCode, setNewTrackingCode] = useState<string>("");
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -424,6 +428,17 @@ export function OrdersTab() {
                             >
                               ⚠️ Responder solicitação
                             </button>
+                          ) : order.status === "DELIVERY_DISPUTED" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDisputeModalOrder(order);
+                                setNewTrackingCode("");
+                              }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#721C24] bg-[#F8D7DA] border border-[#F5C6CB] px-3 py-1.5 rounded-full hover:bg-[#F1AEB5] transition-colors cursor-pointer"
+                            >
+                              🚨 Resolver contestação
+                            </button>
                           ) : (
                             <button
                               type="button"
@@ -504,6 +519,95 @@ export function OrdersTab() {
                 className="px-4 py-2 text-[12px] text-white bg-[#3A5C30] hover:bg-[#2E4A26] rounded-full font-bold transition-colors disabled:opacity-60"
               >
                 Aprovar Cancelamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Resolução de Contestação na Tabela */}
+      {disputeModalOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex justify-center items-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[20px] p-6 max-w-md w-full space-y-4 shadow-xl border border-[#E6E1D2]">
+            <div className="flex items-center justify-between border-b border-[#EFEBDD] pb-3">
+              <h3 className="font-jakarta font-extrabold text-[16px] text-[#23282D]">
+                Contestação — Pedido #{disputeModalOrder.code || disputeModalOrder.id}
+              </h3>
+              <button
+                onClick={() => setDisputeModalOrder(null)}
+                className="text-[#93927F] hover:text-[#23282D] text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[12.5px] text-[#5A6067] leading-relaxed">
+              O cliente alegou não ter recebido o pedido. Escolha se deseja reenviar informando o novo código de rastreio ou realizar o reembolso:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-[#354B5E]">
+                Novo Código de Rastreio (obrigatório para reenvio):
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: AA123456789BR"
+                value={newTrackingCode}
+                onChange={(e) => setNewTrackingCode(e.target.value)}
+                className="w-full border border-[#E6E1D2] p-2.5 text-[12.5px] rounded-xl focus:outline-none focus:border-[#354B5E] bg-[#FAF8F5]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#EFEBDD]">
+              <button
+                type="button"
+                disabled={busyId === disputeModalOrder.id}
+                onClick={async () => {
+                  if (!window.confirm("Confirmar o reembolso do valor total ao cliente?")) return;
+                  try {
+                    setBusyId(disputeModalOrder.id);
+                    await storeOrderService.resolveDispute(disputeModalOrder.id, "refund");
+                    toast.success("Cliente reembolsado com sucesso.");
+                    setDisputeModalOrder(null);
+                    await loadOrders();
+                  } catch {
+                    toast.error("Erro ao reembolsar o cliente.");
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+                className="px-4 py-2 text-[12px] text-white bg-[#BA1A1A] hover:bg-[#9E1414] rounded-full font-bold transition-colors disabled:opacity-60"
+              >
+                Reembolsar Cliente
+              </button>
+
+              <button
+                type="button"
+                disabled={busyId === disputeModalOrder.id}
+                onClick={async () => {
+                  if (!newTrackingCode.trim()) {
+                    toast.error("Informe o novo código de rastreio para o reenvio.");
+                    return;
+                  }
+                  try {
+                    setBusyId(disputeModalOrder.id);
+                    await storeOrderService.resolveDispute(
+                      disputeModalOrder.id,
+                      "reship",
+                      newTrackingCode.trim()
+                    );
+                    toast.success("Pedido reenviado! Status atualizado para ENVIADO.");
+                    setDisputeModalOrder(null);
+                    await loadOrders();
+                  } catch {
+                    toast.error("Erro ao reenviar o pedido.");
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+                className="px-4 py-2 text-[12px] text-white bg-[#354B5E] hover:bg-[#263847] rounded-full font-bold transition-colors disabled:opacity-60"
+              >
+                Reenviar Pedido
               </button>
             </div>
           </div>

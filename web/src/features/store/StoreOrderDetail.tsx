@@ -14,10 +14,15 @@ export const StoreOrderDetailPage: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [actionReason, setActionReason] = useState<string>('');
 
-  // Estados para Despacho e Reenvio
+  // Estados para Despacho
   const [carrier, setCarrier] = useState<string>('');
   const [trackingCode, setTrackingCode] = useState<string>('');
   const [showDispatchForm, setShowDispatchForm] = useState<boolean>(false);
+
+  // Estados para Reenvio em Contestação
+  const [resendModalVisible, setResendModalVisible] = useState<boolean>(false);
+  const [newCarrier, setNewCarrier] = useState<string>('');
+  const [newTrackingCode, setNewTrackingCode] = useState<string>('');
 
   // Estados para Devolução e Reestocagem (resellable)
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
@@ -71,7 +76,28 @@ export const StoreOrderDetailPage: React.FC = () => {
     }
   };
 
-  // Ação: Aprovar Solicitação de Devolução (processReturn com 'approve')
+  // Ação: Reenviar Pedido Contested com Novo Rastreio
+  const handleResendDisputedOrder = async () => {
+    if (!order || !newTrackingCode.trim()) {
+      alert('Informe o novo código de rastreio para o reenvio.');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await storeOrderService.resolveDispute(order.id, 'reship', newTrackingCode.trim());
+      alert('Pedido reenviado com sucesso! Status alterado para ENVIADO.');
+      setResendModalVisible(false);
+      setNewTrackingCode('');
+      setNewCarrier('');
+      await loadOrder();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Erro ao reenviar o pedido.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Ação: Aprovar Solicitação de Devolução
   const handleApproveReturn = async (returnId: number) => {
     if (!window.confirm('Deseja aprovar esta solicitação de devolução?')) return;
     try {
@@ -85,7 +111,7 @@ export const StoreOrderDetailPage: React.FC = () => {
     }
   };
 
-  // Ação: Confirmar Recebimento Físico e Reestocagem (processReturn com 'receive' e resellable)
+  // Ação: Confirmar Recebimento Físico e Reestocagem (resellable)
   const handleConfirmReturnReceipt = async () => {
     if (!selectedReturnId) return;
     try {
@@ -197,7 +223,7 @@ export const StoreOrderDetailPage: React.FC = () => {
                   <button
                     disabled={actionLoading}
                     onClick={() => handleApproveReturn(ret.id)}
-                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded font-semibold"
+                    className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-3 py-1.5 rounded font-semibold transition-colors"
                   >
                     Aprovar Devolução
                   </button>
@@ -210,7 +236,7 @@ export const StoreOrderDetailPage: React.FC = () => {
                       setSelectedReturnId(ret.id);
                       setReceiptModalVisible(true);
                     }}
-                    className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1.5 rounded font-semibold"
+                    className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1.5 rounded font-semibold transition-colors"
                   >
                     Confirmar Produto Recebido
                   </button>
@@ -318,7 +344,7 @@ export const StoreOrderDetailPage: React.FC = () => {
             {!showDispatchForm ? (
               <button
                 onClick={() => setShowDispatchForm(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold transition-colors"
               >
                 Despachar Pedido
               </button>
@@ -428,7 +454,7 @@ export const StoreOrderDetailPage: React.FC = () => {
             onClick={() =>
               storeOrderService.markDelivered(order.id).then(loadOrder)
             }
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold transition-colors"
           >
             Marcar como Entregue
           </button>
@@ -439,23 +465,32 @@ export const StoreOrderDetailPage: React.FC = () => {
           <div className="flex gap-2">
             <button
               disabled={actionLoading}
-              onClick={() =>
-                storeOrderService
-                  .resolveDispute(order.id, 'reship')
-                  .then(loadOrder)
-              }
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold"
+              onClick={() => {
+                setNewCarrier('');
+                setNewTrackingCode('');
+                setResendModalVisible(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold transition-colors"
             >
-              Reenviar Pedido
+              Reenviar Pedido (Novo Rastreio)
             </button>
+
             <button
               disabled={actionLoading}
-              onClick={() =>
-                storeOrderService
-                  .resolveDispute(order.id, 'refund')
-                  .then(loadOrder)
-              }
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-semibold"
+              onClick={async () => {
+                if (!window.confirm('Confirmar reembolso total para o cliente?')) return;
+                try {
+                  setActionLoading(true);
+                  await storeOrderService.resolveDispute(order.id, 'refund');
+                  alert('Cliente reembolsado com sucesso.');
+                  await loadOrder();
+                } catch (err: any) {
+                  alert(err?.response?.data?.error || 'Erro ao reembolsar.');
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm font-semibold transition-colors"
             >
               Reembolsar Cliente
             </button>
@@ -483,6 +518,65 @@ export const StoreOrderDetailPage: React.FC = () => {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Modal: Inserir Novo Rastreio para Reenvio */}
+      {resendModalVisible && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800">Reenviar Pedido Contestado</h3>
+            <p className="text-xs text-gray-600">
+              Informe os dados do novo pacote para o envio ao cliente:
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Transportadora (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Correios, SEDEX..."
+                  value={newCarrier}
+                  onChange={(e) => setNewCarrier(e.target.value)}
+                  className="w-full border p-2 text-xs rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Novo Código de Rastreio (obrigatório)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: AA123456789BR"
+                  value={newTrackingCode}
+                  onChange={(e) => setNewTrackingCode(e.target.value)}
+                  className="w-full border p-2 text-xs rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                onClick={() => {
+                  setResendModalVisible(false);
+                  setNewTrackingCode('');
+                }}
+                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={handleResendDisputedOrder}
+                className="px-3 py-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded font-semibold"
+              >
+                Confirmar Reenvio
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
