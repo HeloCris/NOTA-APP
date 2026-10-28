@@ -33,9 +33,16 @@ class Command(BaseCommand):
         pending_returns = ReturnRequest.objects.filter(status=ReturnStatus.REQUESTED, created_at__lte=forty_eight_hours_ago)
 
         auto_return_count = 0
+        from apps.reviews.models import Review
         for ret in pending_returns:
             ret.status = ReturnStatus.APPROVED
             ret.save()
+            # RF-16.8 / RN-05: Ao aprovar devolução, ocultar avaliação dos itens devolvidos
+            item_ids = ret.items.values_list('order_item_id', flat=True)
+            if item_ids:
+                Review.objects.filter(order_item_id__in=item_ids).update(is_hidden=True)
+            else:
+                Review.objects.filter(order_item__order=ret.order).update(is_hidden=True)
             auto_return_count += 1
 
         self.stdout.write(

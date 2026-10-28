@@ -32,6 +32,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
     total_price = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
     )
+    can_review = serializers.SerializerMethodField()
+    review_id = serializers.SerializerMethodField()
+    can_edit_review = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
@@ -42,7 +45,54 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'quantity',
             'unit_price',
             'total_price',
+            'can_review',
+            'review_id',
+            'can_edit_review',
         ]
+
+    def get_review_id(self, obj):
+        review = getattr(obj, 'review', None)
+        if review and not review.is_deleted:
+            return review.id
+        return None
+
+    def get_can_review(self, obj):
+        from apps.orders.models import OrderStatus, ReturnRequest, ReturnStatus
+        from django.utils import timezone
+
+        order = obj.order
+        if order.status != OrderStatus.DELIVERED or not order.delivered_at:
+            return False
+
+        if (timezone.now() - order.delivered_at).days > 30:
+            return False
+
+        # RN-02: Se já avaliou (inclusive se deletou), não pode avaliar novamente
+        if hasattr(obj, 'review'):
+            return False
+
+        # RN-04: Devolução em andamento ou aprovada não recusada
+        has_return = ReturnRequest.objects.filter(
+            order=order, items__order_item=obj
+        ).exclude(status=ReturnStatus.REJECTED).exists()
+        if not has_return:
+            has_return = ReturnRequest.objects.filter(
+                order=order
+            ).exclude(status=ReturnStatus.REJECTED).exists()
+
+        return not has_return
+
+    def get_can_edit_review(self, obj):
+        from django.utils import timezone
+        review = getattr(obj, 'review', None)
+        if not review or review.is_deleted:
+            return False
+        if review.edited_at is not None:
+            return False
+        order = obj.order
+        if not order.delivered_at or (timezone.now() - order.delivered_at).days > 30:
+            return False
+        return True
 
 
 class OrderStatusHistorySerializer(serializers.ModelSerializer):

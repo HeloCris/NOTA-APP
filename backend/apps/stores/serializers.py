@@ -24,10 +24,18 @@ class StorePublicSerializer(serializers.ModelSerializer):
         ]
 
     def get_rating(self, obj):
-        return 0.0
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        avg = Review.objects.filter(
+            store=obj, is_hidden=False, is_deleted=False
+        ).aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else 0.0
 
     def get_reviews_count(self, obj):
-        return 0
+        from apps.reviews.models import Review
+        return Review.objects.filter(
+            store=obj, is_hidden=False, is_deleted=False
+        ).count()
 
     def get_followers_count(self, obj):
         return obj.followers.count()

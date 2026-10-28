@@ -23,6 +23,8 @@ class StoreProductSerializer(serializers.ModelSerializer):
     )
 
     product = ProductSummarySerializer(read_only=True)
+    rating = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
 
     class Meta:
         model = StoreProduct
@@ -35,10 +37,26 @@ class StoreProductSerializer(serializers.ModelSerializer):
             "promotional_price",
             "stock_quantity",
             "is_available",
+            "rating",
+            "reviews_count",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "product", "created_at", "updated_at"]
+        read_only_fields = ["id", "product", "rating", "reviews_count", "created_at", "updated_at"]
+
+    def get_rating(self, obj):
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        avg = Review.objects.filter(
+            store=obj.store, product=obj.product, is_hidden=False, is_deleted=False
+        ).aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else 0.0
+
+    def get_reviews_count(self, obj):
+        from apps.reviews.models import Review
+        return Review.objects.filter(
+            store=obj.store, product=obj.product, is_hidden=False, is_deleted=False
+        ).count()
 
     def validate_volume_ml(self, value: int) -> int:
         if value <= 0:

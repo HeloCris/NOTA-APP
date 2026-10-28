@@ -705,6 +705,13 @@ class StoreProcessReturnView(APIView):
             if action_lower == 'approve':
                 return_req.status = ReturnStatus.APPROVED
                 return_req.save()
+                # RF-16.8 / RN-05: Ao aprovar devolução, ocultar avaliação dos itens devolvidos
+                from apps.reviews.models import Review
+                item_ids = return_req.items.values_list('order_item_id', flat=True)
+                if item_ids:
+                    Review.objects.filter(order_item_id__in=item_ids).update(is_hidden=True)
+                else:
+                    Review.objects.filter(order_item__order=return_req.order).update(is_hidden=True)
             elif action_lower == 'reject':
                 reason = request.data.get('reason', '')
                 if not reason:
