@@ -81,6 +81,8 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = models.Manager()
+
     @property
     def code(self) -> str:
         return f'ORD-{self.id:04d}' if self.id else 'ORD-NEW'
@@ -99,6 +101,8 @@ class OrderItem(models.Model):
     )
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    objects = models.Manager()
 
     @property
     def total_price(self):
@@ -127,6 +131,8 @@ class OrderStatusHistory(models.Model):
     )
     reason = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = models.Manager()
 
     class Meta:
         ordering = ['created_at']
@@ -158,6 +164,8 @@ class ReturnRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = models.Manager()
+
     def __str__(self):
         return f'Devolução #{self.id} - Pedido #{self.order.id} ({self.status})'
 
@@ -170,6 +178,8 @@ class ReturnItem(models.Model):
         OrderItem, on_delete=models.CASCADE, related_name='return_items'
     )
     quantity = models.PositiveIntegerField()
+
+    objects = models.Manager()
 
     def __str__(self):
         return f'{self.quantity}x item #{self.order_item_id} (Devolução #{self.return_request_id})'

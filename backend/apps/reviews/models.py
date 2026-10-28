@@ -70,6 +70,8 @@ class Review(models.Model):
         verbose_name='Última Atualização',
     )
 
+    objects = models.Manager()
+
     class Meta:
         verbose_name = 'Avaliação'
         verbose_name_plural = 'Avaliações'
@@ -80,7 +82,7 @@ class Review(models.Model):
         ]
 
     def __str__(self):
-        return f'Review {self.id} - {self.rating}★ by {self.user}'
+        return f'Review {self.pk} - {self.rating}★ by {self.user}'
 
     @property
     def is_edited(self):
@@ -127,13 +129,15 @@ class ReviewPhoto(models.Model):
         verbose_name='Data de Envio',
     )
 
+    objects = models.Manager()
+
     class Meta:
         verbose_name = 'Foto da Avaliação'
         verbose_name_plural = 'Fotos das Avaliações'
         ordering = ['id']
 
     def __str__(self):
-        return f'Photo {self.id} of Review {self.review_id}'
+        return f'Photo {self.pk} of Review {self.review.pk}'
 
 
 class ReviewReply(models.Model):
@@ -165,10 +169,12 @@ class ReviewReply(models.Model):
         verbose_name='Última Edição',
     )
 
+    objects = models.Manager()
+
     class Meta:
         verbose_name = 'Resposta da Loja'
         verbose_name_plural = 'Respostas das Lojas'
         ordering = ['created_at']
 
     def __str__(self):
-        return f'Reply to Review {self.review_id}'
+        return f'Reply to Review {self.review.pk}'
