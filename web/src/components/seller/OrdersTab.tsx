@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import { ShippingModal } from "../../features/store/ShippingModal";
 import {
   storeOrderService,
@@ -34,9 +35,15 @@ const statusLabels: Record<StoreOrderStatus, string> = {
 };
 
 export function OrdersTab() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<FilterKey>("ALL");
   const [orderToShip, setOrderToShip] = useState<StoreOrder | null>(null);
+  
+  // Estados para o Modal de Resposta de Cancelamento
+  const [cancelModalOrder, setCancelModalOrder] = useState<StoreOrder | null>(null);
+  const [cancelRejectReason, setCancelRejectReason] = useState<string>("");
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -107,6 +114,38 @@ export function OrdersTab() {
       toast.success(`Pedido #${updated.id} despachado com sucesso.`);
     } catch {
       toast.error("Não foi possível despachar o pedido.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Ação: Responder à Solicitação de Cancelamento
+  async function handleRespondCancel(approve: boolean) {
+    if (!cancelModalOrder) return;
+    if (!approve && !cancelRejectReason.trim()) {
+      toast.error("Atenção: Informe o motivo da recusa.");
+      return;
+    }
+
+    setBusyId(cancelModalOrder.id);
+    try {
+      await storeOrderService.respondCancelRequest(
+        cancelModalOrder.id,
+        approve,
+        approve ? undefined : cancelRejectReason.trim()
+      );
+
+      if (approve) {
+        toast.success(`Solicitação APROVADA. Pedido #${cancelModalOrder.id} foi cancelado.`);
+      } else {
+        toast.success(`Solicitação RECUSADA. Pedido #${cancelModalOrder.id} retornou para Em Separação.`);
+      }
+
+      setCancelModalOrder(null);
+      setCancelRejectReason("");
+      await loadOrders();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Não foi possível processar a resposta de cancelamento.");
     } finally {
       setBusyId(null);
     }
@@ -290,7 +329,12 @@ export function OrdersTab() {
                         className="border-t border-[#EFEBDD] hover:bg-[#FBFAF6] transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <p className="font-bold text-[13px] text-[#23282D]">#{order.id}</p>
+                          <button
+                            onClick={() => navigate(`/seller/orders/${order.id}`)}
+                            className="font-bold text-[13px] text-[#354B5E] hover:underline cursor-pointer text-left"
+                          >
+                            #{order.id}
+                          </button>
                           <p className="text-[11px] text-[#93927F] mt-1">
                             {new Date(order.created_at).toLocaleDateString("pt-BR")}
                           </p>
@@ -357,7 +401,7 @@ export function OrdersTab() {
                               type="button"
                               disabled={busyId === order.id}
                               onClick={() => void startProcessing(order)}
-                              className="inline-flex items-center gap-2 bg-[#354B5E] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#263847] disabled:opacity-60"
+                              className="inline-flex items-center gap-2 bg-[#354B5E] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#263847] disabled:opacity-60 transition-colors"
                             >
                               Iniciar separação
                             </button>
@@ -370,13 +414,24 @@ export function OrdersTab() {
                               Despachar pedido
                             </button>
                           ) : order.status === "CANCEL_REQUESTED" ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#856404] bg-[#FFF3CD] px-2.5 py-1 rounded-full">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCancelModalOrder(order);
+                                setCancelRejectReason("");
+                              }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#856404] bg-[#FFF3CD] border border-[#FFEEBA] px-3 py-1.5 rounded-full hover:bg-[#FFE8A1] transition-colors cursor-pointer"
+                            >
                               ⚠️ Responder solicitação
-                            </span>
+                            </button>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#5C6B4E]">
-                              Rastreio informado
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/seller/orders/${order.id}`)}
+                              className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#354B5E] hover:underline"
+                            >
+                              Ver detalhes &rarr;
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -389,6 +444,7 @@ export function OrdersTab() {
         </div>
       )}
 
+      {/* Modal de Despacho */}
       {orderToShip && (
         <ShippingModal
           order={orderToShip}
@@ -396,6 +452,62 @@ export function OrdersTab() {
           onCancel={closeShippingModal}
           onSubmit={(carrier, code) => void confirmShipping(carrier, code)}
         />
+      )}
+
+      {/* Modal de Resposta de Cancelamento */}
+      {cancelModalOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex justify-center items-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[20px] p-6 max-w-md w-full space-y-4 shadow-xl border border-[#E6E1D2]">
+            <div className="flex items-center justify-between border-b border-[#EFEBDD] pb-3">
+              <h3 className="font-jakarta font-extrabold text-[16px] text-[#23282D]">
+                Solicitação de Cancelamento — Pedido #{cancelModalOrder.code || cancelModalOrder.id}
+              </h3>
+              <button
+                onClick={() => setCancelModalOrder(null)}
+                className="text-[#93927F] hover:text-[#23282D] text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[12.5px] text-[#5A6067] leading-relaxed">
+              O cliente solicitou o cancelamento do pedido que está atualmente em separação. Escolha se deseja aprovar ou recusar o pedido:
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-[#8C6D1F]">
+                Motivo da Recusa (obrigatório se for recusar):
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: Pedido já embalado e separado para a transportadora."
+                value={cancelRejectReason}
+                onChange={(e) => setCancelRejectReason(e.target.value)}
+                className="w-full border border-[#E6E1D2] p-2.5 text-[12.5px] rounded-xl focus:outline-none focus:border-[#A85A38] bg-[#FAF8F5]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#EFEBDD]">
+              <button
+                type="button"
+                disabled={busyId === cancelModalOrder.id}
+                onClick={() => handleRespondCancel(false)}
+                className="px-4 py-2 text-[12px] text-white bg-[#BA1A1A] hover:bg-[#9E1414] rounded-full font-bold transition-colors disabled:opacity-60"
+              >
+                Recusar Cancelamento
+              </button>
+
+              <button
+                type="button"
+                disabled={busyId === cancelModalOrder.id}
+                onClick={() => handleRespondCancel(true)}
+                className="px-4 py-2 text-[12px] text-white bg-[#3A5C30] hover:bg-[#2E4A26] rounded-full font-bold transition-colors disabled:opacity-60"
+              >
+                Aprovar Cancelamento
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
