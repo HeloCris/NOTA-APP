@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   Platform,
-  StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, {
   Path,
@@ -209,7 +209,7 @@ export default function ShopIndex() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         <ScrollView
           style={styles.container}

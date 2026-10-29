@@ -28,6 +28,13 @@ urlpatterns = [
         name='public-store-product-reviews',
     ),
 
+    # Público - Perfume Geral
+    path(
+        'products/<int:product_id>/reviews/',
+        PublicReviewViewSet.as_view({'get': 'list'}),
+        name='public-product-reviews',
+    ),
+
     # RF-16.6: Lojista
     path(
         'store/reviews/',

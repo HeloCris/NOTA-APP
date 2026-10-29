@@ -4,9 +4,10 @@ import { storeService } from "../../services/storeService";
 
 interface DashboardTabProps {
     store: Store | null;
+    onOpenReviews?: () => void;
 }
 
-export function DashboardTab({ store }: DashboardTabProps) {
+export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
     const [data, setData] = useState<DashboardData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -78,17 +79,21 @@ export function DashboardTab({ store }: DashboardTabProps) {
                         {store?.created_at ? `Membro desde ${new Date(store.created_at).getFullYear()}` : 'Membro novo'} · {store?.bio || 'Sua bio olfativa aparecerá aqui'}
                     </div>
                 </div>
-                <div className="text-right flex-shrink-0 flex flex-col items-end gap-0.5">
-                    <div className="flex items-center gap-1.5">
-                        <span className="font-jakarta text-[20px] font-extrabold text-[#263847]">
+                <button
+                    type="button"
+                    onClick={() => onOpenReviews && onOpenReviews()}
+                    className="text-right flex-shrink-0 flex items-center gap-2 p-2.5 -mr-2 rounded-2xl hover:bg-[#F5F3E9] transition-all cursor-pointer group border border-transparent hover:border-[#EAE5D5]"
+                    title="Ver todas as avaliações da loja"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="font-jakarta text-[30px] font-black text-[#1C252E] group-hover:text-[#2C4659] leading-none tracking-tight">
                             {data.rating > 0 ? data.rating.toFixed(1) : "Novo"}
                         </span>
-                        <svg className="w-[16px] h-[16px] text-[#263847]" viewBox="0 0 20 20" fill="currentColor">
+                        <svg className="w-[24px] h-[24px] text-[#F59E0B] drop-shadow-sm group-hover:scale-110 transition-transform" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
                     </div>
-                    <div className="text-[10.5px] text-[#93927F] font-semibold uppercase tracking-[0.05em] pr-[2px]">Avaliação</div>
-                </div>
+                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[18px] mb-[22px]">

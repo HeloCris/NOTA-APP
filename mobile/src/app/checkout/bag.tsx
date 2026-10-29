@@ -5,16 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart, CartItem } from '@/context/CartContext';
 import { CheckoutStepper } from '@/components/checkout/CheckoutStepper';
+import { formatProductVolume } from '@/utils/productUtils';
 
 export default function CheckoutBagScreen() {
   const router = useRouter();
@@ -53,12 +54,12 @@ export default function CheckoutBagScreen() {
   }, [items]);
 
   const handleContinue = () => {
-    router.push('/(shop)/checkout/shipping' as any);
+    router.push('/checkout/shipping' as any);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* Header com botão voltar e título */}
         <View style={styles.header}>
@@ -112,7 +113,7 @@ export default function CheckoutBagScreen() {
 
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemVolumeTag}>
-                      {item.volume ? item.volume.toUpperCase() : 'DECANT • 10 ML'}
+                      {(item.volume || formatProductVolume(item.volumeMl)).toUpperCase()}
                     </Text>
                     <Text style={styles.itemName} numberOfLines={1}>
                       {item.productName}

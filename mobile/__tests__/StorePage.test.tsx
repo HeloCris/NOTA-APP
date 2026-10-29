@@ -176,7 +176,7 @@ jest.mock('@/components/common/SkeletonLoader', () => {
   };
 });
 
-const { default: StoreScreen, StoreEmptyState } = require('@/app/(shop)/store/[id]');
+const { default: StoreScreen, StoreEmptyState } = require('@/app/store/[id]');
 const SkeletonLoader = require('@/components/common/SkeletonLoader').SkeletonLoader;
 
 describe('StorePage - RF-08', () => {

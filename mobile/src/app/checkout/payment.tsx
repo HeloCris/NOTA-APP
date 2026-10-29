@@ -1,28 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
-  StatusBar,
-  useWindowDimensions,
   Alert,
   TextInput,
+  useWindowDimensions,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { CreditCardForm } from '@/components/checkout/CreditCardForm';
 import { PixView } from '@/components/checkout/PixView';
-import { createOrder, processPayment } from '@/services/orders';
-import { useCart } from '@/context/CartContext';
-import { CheckoutStepper } from '@/components/checkout/CheckoutStepper';
+import { createOrder, processPayment } from '../../services/orders';
+import { useCart } from '../../context/CartContext';
+import { CheckoutStepper } from '../../components/checkout/CheckoutStepper';
+import {
+  getSavedCards,
+  addOrUpdateCard,
+  SavedPaymentCard,
+} from '../../utils/cardStorage';
 
 interface SavedCard {
   id: string;
-  brand: 'Visa' | 'Mastercard';
+  brand: 'Visa' | 'Mastercard' | 'Elo' | 'Amex' | 'Hipercard' | 'Cartão';
   lastDigits: string;
   holder: string;
   expiry: string;
@@ -38,12 +45,35 @@ export default function PaymentScreen() {
   const [activeTab, setActiveTab] = useState<'CREDIT_CARD' | 'PIX'>('CREDIT_CARD');
   const [loading, setLoading] = useState(false);
 
-  // Modo de cartão: inicia direto no formulário para preencher os dados reais do cartão
   const [hasSavedCards, setHasSavedCards] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState('');
   const [savedCardsCvv, setSavedCardsCvv] = useState('');
+  const [cvvError, setCvvError] = useState('');
 
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedCards = await getSavedCards();
+        if (storedCards && storedCards.length > 0) {
+          const mapped: SavedCard[] = storedCards.map((c) => ({
+            id: c.id,
+            brand: c.brand as any,
+            lastDigits: c.last4,
+            holder: c.holder,
+            expiry: c.expiry,
+          }));
+          setSavedCards(mapped);
+          setHasSavedCards(true);
+          const defaultCard = storedCards.find((c) => c.isDefault) || storedCards[0];
+          setSelectedCardId(defaultCard.id);
+        }
+      } catch (err) {
+        console.error('Erro ao ler cartões salvos no checkout:', err);
+      }
+    })();
+  }, []);
 
   const totalAmount = (params.total_amount as string) || "27.92";
   const shippingCost = Number(params.shipping_cost) || 12.92;
@@ -62,47 +92,121 @@ export default function PaymentScreen() {
   const handlePaymentSubmit = async (paymentData: any) => {
     setLoading(true);
     try {
-      const address = parseParam(params.address);
+      const parsedAddress = parseParam(params.address);
+      const safeAddress =
+        parsedAddress &&
+        typeof parsedAddress === 'object' &&
+        !Array.isArray(parsedAddress) &&
+        Object.keys(parsedAddress).length > 0
+          ? parsedAddress
+          : {
+              street: 'Endereço Principal',
+              number: '100',
+              neighborhood: 'Centro',
+              city: 'Goiânia',
+              state: 'GO',
+              cep: '74000-000',
+            };
+
       const rawItems = parseParam(params.cartItems);
-      const parsedItems = rawItems.length > 0 ? rawItems : [{ store_product_id: 16, quantity: 1, unit_price: '15.00' }];
-      const validStockIds = [4, 5, 12, 13, 14, 15, 16];
+      const parsedItems =
+        rawItems.length > 0
+          ? rawItems
+          : [{ store_product_id: 16, quantity: 1, unit_price: '15.00' }];
+
       const sanitizedItems = parsedItems.map((it: any) => ({
-        ...it,
-        store_product_id: validStockIds.includes(Number(it.store_product_id)) ? Number(it.store_product_id) : 16,
+        store_product_id: Number(it.store_product_id || it.storeProductId) || 16,
+        quantity: Number(it.quantity) || 1,
+        unit_price: String(it.unit_price || it.price || '15.00'),
       }));
 
+      const primaryStoreId =
+        (params.store_id as string) ||
+        (parsedItems[0]?.store_id ? String(parsedItems[0].store_id) : '2');
+
       const orderResponse = await createOrder({
-        store_id: (params.store_id as string) || '2',
+        store_id: primaryStoreId,
         total_amount: totalAmount,
         shipping_cost: shippingCost,
         shipping_service: shippingService,
-        shipping_address: address,
+        shipping_address: safeAddress,
         items: sanitizedItems,
       });
 
+      const orderId = orderResponse?.order_id || orderResponse?.id;
+      const orderIds: number[] = Array.isArray(orderResponse?.order_ids) && orderResponse.order_ids.length > 0
+        ? orderResponse.order_ids
+        : (orderId ? [orderId] : []);
+
+      if (orderIds.length === 0) {
+        throw new Error('Identificador do pedido não retornado pelo servidor.');
+      }
+
       await processPayment({
-        order_id: orderResponse.order_id,
+        order_id: orderId,
+        order_ids: orderIds,
         payment_method: paymentData?.payment_method || activeTab,
         ...paymentData,
       });
 
-      // Limpa os itens comprados da sacola
-      clearCart();
+      // Se o usuário optou por salvar o cartão para compras futuras
+      if (paymentData?.save_card && paymentData?.card_last_digits) {
+        try {
+          const rawBrand = (paymentData.card_brand || 'Cartão').toLowerCase();
+          let formattedBrand: SavedPaymentCard['brand'] = 'Cartão';
+          if (rawBrand.includes('master')) formattedBrand = 'Mastercard';
+          else if (rawBrand.includes('visa')) formattedBrand = 'Visa';
+          else if (rawBrand.includes('elo')) formattedBrand = 'Elo';
+          else if (rawBrand.includes('amex')) formattedBrand = 'Amex';
+          else if (rawBrand.includes('hiper')) formattedBrand = 'Hipercard';
+
+          await addOrUpdateCard({
+            brand: formattedBrand,
+            last4: paymentData.card_last_digits,
+            holder: paymentData.card_holder || 'TITULAR',
+            expiry: paymentData.expiration_date || '12/29',
+            isDefault: savedCards.length === 0,
+          });
+        } catch (saveCardErr) {
+          console.error('Erro ao salvar cartão para próximas compras:', saveCardErr);
+        }
+      }
+
+      // Limpa os itens comprados da sacola com fallback seguro
+      try {
+        if (typeof clearCart === 'function') {
+          clearCart();
+        }
+      } catch (cartErr) {
+        console.warn('Erro ao limpar carrinho pós-compra:', cartErr);
+      }
+
+      const ordersList = orderResponse?.orders || [];
+      const orderCodes = ordersList.map((o: any) => o.code).filter(Boolean).join(', ');
 
       router.replace({
-        pathname: '/(shop)/checkout/success' as any,
+        pathname: '/checkout/success' as any,
         params: {
-          order_id: String(orderResponse.order_id || '48213'),
+          order_id: String(orderId || '48213'),
+          order_count: String(orderIds.length),
+          order_codes: orderCodes,
           total_amount: totalAmount,
-          address: typeof params.address === 'string' ? params.address : JSON.stringify(params.address),
+          address: typeof params.address === 'string' ? params.address : JSON.stringify(safeAddress),
           shipping_service: shippingService,
         },
       });
     } catch (error: any) {
       console.error('Erro ao processar pedido/pagamento:', error.response?.data || error.message);
-      const serverMsg = error.response?.data?.error || error.response?.data?.detail;
+      const serverMsg =
+        error.response?.data?.error ||
+        error.response?.data?.detail ||
+        (typeof error.response?.data === 'string' ? error.response.data : undefined) ||
+        error.message;
+
       if (error.response?.status === 400) {
-        Alert.alert("Estoque Esgotado", serverMsg || "Um ou mais itens do seu carrinho esgotaram.");
+        Alert.alert("Estoque ou Dados Inválidos", serverMsg || "Um ou mais itens do seu carrinho esgotaram.");
+      } else if (error.response?.status === 401) {
+        Alert.alert("Sessão Expirada", "Por favor, faça login para concluir o pagamento.");
       } else if (error.response?.status === 402) {
         Alert.alert("Pagamento Recusado", serverMsg || "A transação foi recusada pela operadora do cartão.");
       } else if (error.response?.status === 404) {
@@ -116,22 +220,39 @@ export default function PaymentScreen() {
   };
 
   const handlePayWithSavedCard = () => {
-    if (!savedCardsCvv || savedCardsCvv.length < 3) {
-      Alert.alert('Atenção', 'Digite o código CVV de segurança do cartão selecionado.');
+    if (!savedCards || savedCards.length === 0) {
+      setHasSavedCards(false);
       return;
     }
     const card = savedCards.find((c) => c.id === selectedCardId) || savedCards[0];
+    if (!card) {
+      Alert.alert('Atenção', 'Selecione um cartão para prosseguir.');
+      return;
+    }
+    if (!savedCardsCvv || savedCardsCvv.trim().length < 3) {
+      setCvvError('Digite o CVV de segurança (3 ou 4 dígitos).');
+      if (Platform.OS === 'web') {
+        window.alert('Digite o código CVV de 3 ou 4 dígitos do seu cartão para continuar.');
+      } else {
+        Alert.alert('CVV Obrigatório', 'Digite o código CVV de segurança impresso no verso do cartão selecionado.');
+      }
+      return;
+    }
+    setCvvError('');
     handlePaymentSubmit({
       payment_method: 'CREDIT_CARD',
       payment_token: 'tok_saved_card_mock',
-      card_number: `•••• •••• •••• ${card.lastDigits}`,
+      card_number: `453212345678${card.lastDigits}`,
       card_last_digits: card.lastDigits,
+      card_holder: card.holder || 'TITULAR DO CARTAO',
+      expiration_date: card.expiry || '12/28',
+      cvv: savedCardsCvv.trim(),
     });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -153,6 +274,7 @@ export default function PaymentScreen() {
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Card Resumo Total */}
           <View style={styles.summaryCard}>
@@ -163,7 +285,7 @@ export default function PaymentScreen() {
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.summaryItems}>1 item • {shippingService}</Text>
-                <TouchableOpacity onPress={() => router.push('/(shop)/checkout/shipping' as any)}>
+                <TouchableOpacity onPress={() => router.push('/checkout/shipping' as any)}>
                   <Text style={styles.summaryLink}>Ver resumo</Text>
                 </TouchableOpacity>
               </View>
@@ -259,17 +381,24 @@ export default function PaymentScreen() {
 
                     {isSelected && (
                       <View style={styles.savedCardExtraRow}>
-                        <View style={{ width: 85 }}>
-                          <Text style={styles.miniLabel}>CVV</Text>
+                        <View style={{ width: 95 }}>
+                          <Text style={styles.miniLabel}>CVV (Segurança)</Text>
                           <TextInput
-                            style={styles.miniInput}
+                            style={[styles.miniInput, !!cvvError && styles.miniInputError]}
                             placeholder="•••"
+                            placeholderTextColor="#9CA3AF"
                             secureTextEntry
                             keyboardType="numeric"
                             maxLength={4}
                             value={savedCardsCvv}
-                            onChangeText={setSavedCardsCvv}
+                            onChangeText={(val) => {
+                              setSavedCardsCvv(val);
+                              if (cvvError) setCvvError('');
+                            }}
                           />
+                          {!!cvvError && (
+                            <Text style={styles.cvvErrorText}>{cvvError}</Text>
+                          )}
                         </View>
 
                         <View style={{ flex: 1 }}>
@@ -310,8 +439,14 @@ export default function PaymentScreen() {
                 disabled={loading}
                 activeOpacity={0.88}
               >
-                <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.payButtonText}>Pagar R$ {totalAmount}</Text>
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.payButtonText}>Pagar R$ {totalAmount}</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           ) : (
@@ -322,14 +457,17 @@ export default function PaymentScreen() {
                 isLoading={loading}
                 totalFormatted={totalAmount}
               />
-              <TouchableOpacity
-                style={{ alignItems: 'center', marginTop: 12 }}
-                onPress={() => setHasSavedCards(true)}
-              >
-                <Text style={{ fontSize: 13, color: '#1E2B37', textDecorationLine: 'underline', fontWeight: '600' }}>
-                  ← Voltar para cartões salvos
-                </Text>
-              </TouchableOpacity>
+              {savedCards.length > 0 && (
+                <TouchableOpacity
+                  style={{ alignItems: 'center', marginTop: 14, paddingVertical: 8 }}
+                  onPress={() => setHasSavedCards(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 13, color: '#1E2B37', textDecorationLine: 'underline', fontWeight: '600' }}>
+                    ← Voltar para cartões salvos
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -552,6 +690,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     fontSize: 12,
     color: '#1C252E',
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none' as any,
+        outlineWidth: 0,
+      },
+    }),
+  },
+  miniInputError: {
+    borderColor: '#EF4444',
+    borderWidth: 1.5,
+    backgroundColor: '#FEF2F2',
+  },
+  cvvErrorText: {
+    color: '#EF4444',
+    fontSize: 10,
+    marginTop: 3,
+    fontWeight: '500',
   },
   miniSelect: {
     flexDirection: 'row',

@@ -68,9 +68,9 @@ class OrderViewSet(viewsets.ModelViewSet):
 
                     try:
                         store_product = (
-                            StoreProduct.objects.select_for_update().get(
-                                id=product_id
-                            )
+                            StoreProduct.objects.select_for_update()
+                            .select_related('product', 'store')
+                            .get(id=product_id)
                         )
                     except StoreProduct.DoesNotExist:  # type: ignore
                         return Response(
@@ -109,44 +109,85 @@ class OrderViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                # 2. Criação do Pedido
-                order = Order.objects.create(
-                    user=request.user,
-                    store_id=data['store_id'],
-                    total_amount=data['total_amount'],
-                    shipping_cost=data.get('shipping_cost', 0.00),
-                    shipping_service=data.get('shipping_service'),
-                    shipping_address=data['shipping_address'],
-                    status=OrderStatus.PENDING,
-                )
-
-                # Registrar no histórico
-                OrderPostPurchaseService.log_history(
-                    order,
-                    from_status=OrderStatus.PENDING,
-                    to_status=OrderStatus.PENDING,
-                    actor=request.user,
-                    reason="Pedido criado pelo cliente.",
-                )
-
-                # 3. Criação dos Itens e Baixa Atômica no Estoque
+                # 2. Agrupamento dos itens por Loja (Split Multi-Loja)
+                items_by_store: dict[int, list[dict]] = {}
                 for item in items_data:
-                    product_id = item['store_product_id']
-                    qty = item['quantity']
-                    store_product = store_products_map[product_id]
+                    p_id = item['store_product_id']
+                    sp = store_products_map[p_id]
+                    store_id = sp.store_id
+                    if store_id not in items_by_store:
+                        items_by_store[store_id] = []
+                    items_by_store[store_id].append(item)
 
-                    OrderItem.objects.create(
-                        order=order,
-                        store_product=store_product,
-                        quantity=qty,
-                        unit_price=item['unit_price'],
+                total_stores_count = len(items_by_store)
+                global_shipping_cost = float(data.get('shipping_cost', 0.00))
+                # Se houver mais de uma loja, divide o frete global entre elas
+                per_store_shipping = round(global_shipping_cost / total_stores_count, 2) if total_stores_count > 0 else 0.00
+
+                created_orders = []
+
+                # 3. Criação de cada Order por Loja e seus OrderItems
+                for store_id, store_items in items_by_store.items():
+                    store_items_subtotal = sum(
+                        float(it['unit_price']) * int(it['quantity']) for it in store_items
+                    )
+                    store_order_total = round(store_items_subtotal + per_store_shipping, 2)
+
+                    order = Order.objects.create(
+                        user=request.user,
+                        store_id=store_id,
+                        total_amount=store_order_total,
+                        shipping_cost=per_store_shipping,
+                        shipping_service=data.get('shipping_service'),
+                        shipping_address=data['shipping_address'],
+                        status=OrderStatus.PENDING,
                     )
 
-                    store_product.stock_quantity -= qty
-                    store_product.save(update_fields=['stock_quantity'])
+                    OrderPostPurchaseService.log_history(
+                        order,
+                        from_status=OrderStatus.PENDING,
+                        to_status=OrderStatus.PENDING,
+                        actor=request.user,
+                        reason="Pedido criado pelo cliente.",
+                    )
+
+                    for item in store_items:
+                        product_id = item['store_product_id']
+                        qty = item['quantity']
+                        store_product = store_products_map[product_id]
+
+                        OrderItem.objects.create(
+                            order=order,
+                            store_product=store_product,
+                            quantity=qty,
+                            unit_price=item['unit_price'],
+                        )
+
+                        store_product.stock_quantity -= qty
+                        store_product.save(update_fields=['stock_quantity'])
+
+                    created_orders.append(order)
+
+            primary_order = created_orders[0]
+            order_ids = [o.id for o in created_orders]
 
             return Response(
-                {"order_id": order.id, "status": order.status},
+                {
+                    "order_id": primary_order.id,
+                    "order_ids": order_ids,
+                    "orders": [
+                        {
+                            "id": o.id,
+                            "code": o.code,
+                            "store_id": o.store_id,
+                            "store_name": o.store.name,
+                            "total_amount": str(o.total_amount),
+                            "status": o.status,
+                        }
+                        for o in created_orders
+                    ],
+                    "status": primary_order.status,
+                },
                 status=status.HTTP_201_CREATED,
             )
 
@@ -162,18 +203,25 @@ class OrderViewSet(viewsets.ModelViewSet):
 def process_payment(request):
     """
     POST /api/v1/payments/process/
-    Processa o pagamento do pedido (PIX ou Cartão de Crédito).
+    Processa o pagamento de um ou múltiplos pedidos (Split de Carrinho) via PIX ou Cartão.
     """
     order_id = request.data.get('order_id')
+    order_ids = request.data.get('order_ids')
     payment_method = request.data.get('payment_method')
     card_number = str(request.data.get('card_number', ''))
     payment_token = str(request.data.get('payment_token', ''))
 
-    if not order_id or not payment_method:
+    targets = []
+    if order_ids and isinstance(order_ids, list):
+        targets = [int(i) for i in order_ids if str(i).isdigit()]
+    elif order_id:
+        targets = [int(order_id)]
+
+    if not targets or not payment_method:
         return Response(
             {
                 "error": (
-                    "Os parâmetros 'order_id' e 'payment_method' são"
+                    "Os parâmetros 'order_id' ou 'order_ids' e 'payment_method' são"
                     " obrigatórios."
                 )
             },
@@ -181,7 +229,12 @@ def process_payment(request):
         )
 
     try:
-        order = Order.objects.get(id=order_id, user=request.user)
+        orders = list(Order.objects.filter(id__in=targets, user=request.user))
+        if not orders:
+            return Response(
+                {"error": "Nenhum pedido encontrado para o usuário."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         if payment_method == 'CREDIT_CARD':
             if card_number.endswith('0000') or payment_token == 'tok_refused':
@@ -190,31 +243,36 @@ def process_payment(request):
                     status=status.HTTP_402_PAYMENT_REQUIRED,
                 )
 
-        old_status = order.status
-        order.status = OrderStatus.PAID
-        order.save(update_fields=['status', 'updated_at'])
+        updated_ids = []
+        with transaction.atomic():
+            for order in orders:
+                old_status = order.status
+                order.status = OrderStatus.PAID
+                order.save(update_fields=['status', 'updated_at'])
 
-        OrderPostPurchaseService.log_history(
-            order,
-            from_status=old_status,
-            to_status=OrderStatus.PAID,
-            actor=request.user,
-            reason="Pagamento aprovado.",
-        )
+                OrderPostPurchaseService.log_history(
+                    order,
+                    from_status=old_status,
+                    to_status=OrderStatus.PAID,
+                    actor=request.user,
+                    reason="Pagamento aprovado.",
+                )
+                updated_ids.append(order.id)
 
         return Response(
             {
                 "message": "Pagamento processado com sucesso",
-                "order_id": order.id,
-                "status": order.status,
+                "order_id": updated_ids[0] if updated_ids else None,
+                "order_ids": updated_ids,
+                "status": OrderStatus.PAID,
             },
             status=status.HTTP_200_OK,
         )
 
-    except Order.DoesNotExist:  # type: ignore
+    except Exception as e:
         return Response(
-            {"error": "Pedido não encontrado."},
-            status=status.HTTP_404_NOT_FOUND,
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
@@ -493,6 +551,13 @@ class CustomerCreateReturnView(APIView):
         reason = request.data.get('reason', '')
         description = request.data.get('description', '')
         items_data = request.data.get('items', [])
+        if isinstance(items_data, str):
+            try:
+                import json
+                items_data = json.loads(items_data)
+            except Exception:
+                items_data = []
+
         photos = request.FILES.getlist('photos')
 
         try:

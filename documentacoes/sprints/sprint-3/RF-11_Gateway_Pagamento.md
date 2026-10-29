@@ -23,12 +23,13 @@ Comunica-se com o backend para criação da transação, baixa de estoque atômi
 | **RF-11.2** | Aba **Cartão de Crédito**: inputs para `card_number`, `card_holder`, `expiration_date` e `cvv`. |
 | **RF-11.3** | Aba **PIX**: gera payload copia-e-cola e imagem de QR Code placeholder, com botão simulador **"Simular Pagamento PIX Aprovado"**. |
 | **RF-11.4** | **[Backend — Novo Model]** Model `Order` (`user`, `store`, `status` [`PENDING`, `PAID`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED`], `total_amount`, `shipping_cost`, `shipping_address`, `tracking_code`, `carrier`, `created_at`, `updated_at`) e `OrderItem` (`order`, `store_product`, `quantity`, `unit_price`). Criar migration. |
-| **RF-11.5** | **[Backend — Novo Endpoint]** `POST /api/v1/orders/` — valida estoque atual dos itens (`stock_quantity >= quantity`), cria `Order` e `OrderItem` transacionalmente (`atomic`), subtrai estoque e retorna `order_id` e dados de pagamento. |
-| **RF-11.6** | **[Backend — Novo Endpoint]** `POST /api/v1/payments/process/` — processa o pagamento da order (`order_id`, `payment_method`) e atualiza `Order.status = 'PAID'`. |
+| **RF-11.5** | **[Backend — Endpoint de Criação de Pedido com Split por Loja]** `POST /api/v1/orders/` — valida estoque atual de todos os itens (`stock_quantity >= quantity`). Se o carrinho contiver itens de múltiplas lojas, realiza o **split automático**, criando 1 instância de `Order` independente para cada loja (`store_id`) com seus respectivos itens (`OrderItem`), frete proporcional e endereço de entrega, de forma atômica (`transaction.atomic`). Retorna a lista de pedidos criados (`orders` / `order_ids`) e `order_id` primário para compatibilidade. |
+| **RF-11.6** | **[Backend — Endpoint de Processamento de Pagamento]** `POST /api/v1/payments/process/` — processa o pagamento unificado da compra (`order_id` ou lista `order_ids`, `payment_method`), atualizando todos os pedidos associados para o status `PAID` e registrando no histórico. |
 | **RF-11.7** | Tratamento de erro de concorrência/estoque esgotado no checkout: se o estoque zerar entre o carrinho e o `POST` de order, retornar `400` com lista de itens esgotados. |
+| **RF-11.8** | **[Checkout Multi-Loja — Split Transacional]** O cliente realiza um único pagamento via Cartão ou PIX, mas o sistema garante a segregação de 1 pedido por loja no banco de dados, permitindo que cada lojista gerencie, prepare, despache e acompanhe apenas a remessa dos seus próprios produtos. |
 
-> [!WARNING]
-> Nunca armazenar dados sensíveis de cartão de crédito (CVV ou número completo) no banco de dados da plataforma ou em logs do Django.
+> [!NOTE]
+> **Regra de Negócio de Split (Marketplace Multi-Seller):** A plataforma NOTA opera com múltiplos vendedores independentes. Cada loja despacha de uma localização diferente com seu próprio frete e etiqueta. Portanto, toda compra com produtos de lojas diferentes deve ser separada em pedidos distintos vinculados a cada loja parceira.
 
 ---
 

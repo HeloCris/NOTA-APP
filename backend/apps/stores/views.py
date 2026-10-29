@@ -74,11 +74,28 @@ class StoreDashboardView(APIView):
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
-        store = Store.objects.filter(owner=self.request.user).first()  # type: ignore[misc]
+        user = self.request.user
+        store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
+        if not store and hasattr(user, 'brands'):
+            brand = user.brands.filter(d2c_store__isnull=False).first()
+            if brand and brand.d2c_store:
+                store = brand.d2c_store
+
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
+
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+
+        rev_qs = Review.objects.filter(store=store, is_hidden=False, is_deleted=False)
+        avg_rating = rev_qs.aggregate(avg=Avg('rating'))['avg']
+        rating_val = round(float(avg_rating), 1) if avg_rating is not None else 0.0
+        reviews_count = rev_qs.count()
+
         data = {
-            "rating": 0.0, "is_verified": False,
+            "rating": rating_val,
+            "reviews_count": reviews_count,
+            "is_verified": bool(store.is_official),
             "kpis": {"revenue_month": 0, "pending_orders": 0, "stock_alerts": 0, "store_views": 0},
             "weekly_sales": [0, 0, 0, 0, 0, 0, 0],
             "recent_orders": [], "top_perfumes": [], "restock_alerts": []

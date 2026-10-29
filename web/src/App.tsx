@@ -67,7 +67,7 @@ export default function App() {
         <Route
           path="/seller/orders/:id"
           element={
-            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
               <StoreOrderDetailPage />
             </ProtectedRoute>
           }
@@ -75,7 +75,7 @@ export default function App() {
         <Route
           path="/store/orders/:id"
           element={
-            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
               <StoreOrderDetailPage />
             </ProtectedRoute>
           }

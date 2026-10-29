@@ -190,10 +190,12 @@ class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
         product_id = self.kwargs.get('product_id')
 
         qs = Review.objects.filter(  # type: ignore[misc]
-            store_id=store_id,
             is_hidden=False,
             is_deleted=False,
         ).select_related('user', 'product', 'store_product', 'order_item', 'reply')
+
+        if store_id:
+            qs = qs.filter(store_id=store_id)
 
         if product_id:
             qs = qs.filter(product_id=product_id)
@@ -251,6 +253,10 @@ class StoreReviewViewSet(viewsets.GenericViewSet):
         store = getattr(user, 'store', None)
         if not store:
             store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
+        if not store and hasattr(user, 'brands'):
+            brand = user.brands.filter(d2c_store__isnull=False).first()
+            if brand and brand.d2c_store:
+                store = brand.d2c_store
         return store
 
     def list(self, request):

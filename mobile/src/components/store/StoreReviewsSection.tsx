@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,90 +9,126 @@ import {
   Pressable,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-import { StoreReview } from '@/services/stores';
+import {
+  storesService,
+  ApiStoreReview,
+  StoreReviewsSummary,
+} from '@/services/stores';
+import { formatProductVolume } from '@/utils/productUtils';
 
 const SafeModal: React.ComponentType<any> = (Modal as any) || View;
 const SafeScrollView: React.ComponentType<any> = (ScrollView as any) || View;
 
-const DEFAULT_REVIEWS: StoreReview[] = [
-  {
-    id: '1',
-    user_name: 'Camila Albuquerque',
-    rating: 5,
-    date: 'Há 2 dias',
-    comment: 'Perfume 100% autêntico! A embalagem veio lacrada com selo de garantia, muito bem protegida e com dois decants de brinde maravilhosos. Entrega antes do prazo previsto!',
-    verified_purchase: true,
-    perfume_bought: 'Maison Noire Elixir • 100ml',
-    photos: [
-      'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1547887537-6158d64c35b3?auto=format&fit=crop&w=500&q=80',
-    ],
-  },
-  {
-    id: '2',
-    user_name: 'Lucas Prado',
-    rating: 5,
-    date: 'Há 1 semana',
-    comment: 'Fixação incrível de mais de 10 horas na pele. Atendimento impecável da loja tirando dúvidas pelo chat antes do envio. Com certeza comprarei novamente!',
-    verified_purchase: true,
-    perfume_bought: 'Sauvage Eau de Parfum • Decant 10ml',
-    photos: [
-      'https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=500&q=80',
-    ],
-  },
-  {
-    id: '3',
-    user_name: 'Mariana S.',
-    rating: 5,
-    date: 'Há 2 semanas',
-    comment: 'Chegou super rápido em São Paulo. O batch code bateu certinho no CheckFresh. Produto original, loja de extrema confiança!',
-    verified_purchase: true,
-    perfume_bought: 'Perseus Eau de Parfum • 100ml',
-    photos: [
-      'https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=500&q=80',
-    ],
-  },
-  {
-    id: '4',
-    user_name: 'Rodrigo M. F.',
-    rating: 4,
-    date: 'Há 3 semanas',
-    comment: 'Ótima projeção e aroma sofisticado. Demorou apenas um dia a mais pelos Correios, mas a loja respondeu prontamente.',
-    verified_purchase: true,
-    perfume_bought: 'Cedro Noturno • 50ml',
-  },
-];
-
 interface StoreReviewsModalProps {
   visible: boolean;
   onClose: () => void;
+  storeId?: number | string;
+  productId?: number | string;
   storeName?: string;
   rating?: number;
   reviewsCount?: number;
-  reviews?: StoreReview[];
 }
 
 export function StoreReviewsModal({
   visible,
   onClose,
+  storeId,
+  productId,
   storeName = 'Loja',
-  rating = 4.8,
-  reviewsCount = 28,
-  reviews = DEFAULT_REVIEWS,
+  rating: initialRating,
+  reviewsCount: initialReviewsCount,
 }: StoreReviewsModalProps) {
-  const [filterType, setFilterType] = useState<'all' | 'with_photos' | '5_stars'>('all');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<ApiStoreReview[]>([]);
+  const [summary, setSummary] = useState<StoreReviewsSummary | null>(null);
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [showRatingMenu, setShowRatingMenu] = useState<boolean>(false);
+  const [withPhotosOnly, setWithPhotosOnly] = useState<boolean>(false);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [showProductMenu, setShowProductMenu] = useState<boolean>(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
+  useEffect(() => {
+    let isMounted = true;
+    if (!visible || (!storeId && !productId)) {
+      return;
+    }
+
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const data = productId
+          ? await storesService.getProductReviews(productId, { storeId })
+          : await storesService.getStoreReviews(storeId!);
+        if (isMounted) {
+          setReviews(data.results || []);
+          setSummary(data.summary || null);
+        }
+      } catch {
+        if (isMounted) {
+          setReviews([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, storeId, productId]);
+
+  // Médias e totais reais (da API ou fallback inicial)
+  const currentRating = summary ? summary.average : (initialRating ?? 0);
+  const totalCount = summary ? summary.count : (initialReviewsCount ?? 0);
+
+  // Produtos únicos presentes nas avaliações para o filtro de produto
+  const uniqueProducts = Array.from(
+    new Set(reviews.map((r) => r.product_name).filter(Boolean))
+  ) as string[];
+
+  // Filtros combinados: Estrelas selecionadas, Apenas com fotos, e Perfume selecionado
   const filteredReviews = reviews.filter((r) => {
-    if (filterType === 'with_photos') return r.photos && r.photos.length > 0;
-    if (filterType === '5_stars') return r.rating === 5;
+    if (selectedRating !== null && r.rating !== selectedRating) {
+      return false;
+    }
+    if (withPhotosOnly && (!r.photos || r.photos.length === 0)) {
+      return false;
+    }
+    if (selectedProduct !== null && r.product_name !== selectedProduct) {
+      return false;
+    }
     return true;
   });
 
-  const allPhotos = reviews.flatMap((r) => r.photos || []);
+  // Todas as fotos de compradores
+  const allPhotos = reviews.flatMap((r) => (r.photos || []).map((p) => p.image));
+
+  // Formatar data legível
+  const formatDate = (isoString?: string) => {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return '';
+    }
+  };
+
+  // Cálculo da distribuição por estrelas
+  const getStarPercentage = (starNum: number) => {
+    if (!summary || summary.count === 0) return 0;
+    const starCount = (summary.distribution as any)?.[String(starNum)] || 0;
+    return Math.round((starCount / summary.count) * 100);
+  };
 
   return (
     <SafeModal visible={visible} animationType="slide" presentationStyle="fullScreen">
@@ -108,7 +144,9 @@ export function StoreReviewsModal({
             <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
           </TouchableOpacity>
           <View style={styles.modalHeaderTitleWrap}>
-            <Text style={styles.modalHeaderTitle} numberOfLines={1}>Avaliações da Loja</Text>
+            <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+              {productId ? 'Avaliações do Produto' : 'Avaliações da Loja'}
+            </Text>
             {storeName ? (
               <Text style={styles.modalHeaderSubtitle} numberOfLines={1}>{storeName}</Text>
             ) : null}
@@ -117,175 +155,444 @@ export function StoreReviewsModal({
         </View>
 
         <SafeScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      {/* Resumo de Avaliações */}
-      <View style={styles.summaryCard}>
-        <View style={styles.scoreCol}>
-          <Text style={styles.scoreText}>{rating.toFixed(1).replace('.', ',')}</Text>
-          <View style={styles.starsRow}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <MaterialIcons
-                key={star}
-                name={star <= Math.floor(rating) ? 'star' : star - 0.5 <= rating ? 'star-half' : 'star-outline'}
-                size={18}
-                color="#F59E0B"
-              />
-            ))}
-          </View>
-          <Text style={styles.totalReviewsText}>{reviewsCount} avaliações</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.breakdownCol}>
-          {[
-            { star: 5, pct: '89%' },
-            { star: 4, pct: '8%' },
-            { star: 3, pct: '2%' },
-            { star: 2, pct: '1%' },
-            { star: 1, pct: '0%' },
-          ].map((item) => (
-            <View key={item.star} style={styles.barRow}>
-              <Text style={styles.barStarText}>{item.star}★</Text>
-              <View style={styles.barBg}>
-                <View style={[styles.barFill, { width: item.pct as any }]} />
+          {/* Resumo de Avaliações */}
+          <View style={styles.summaryCard}>
+            <View style={styles.scoreCol}>
+              <Text style={styles.scoreText}>
+                {totalCount > 0 ? currentRating.toFixed(1).replace('.', ',') : '—'}
+              </Text>
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <MaterialIcons
+                    key={star}
+                    name={
+                      totalCount === 0
+                        ? 'star-outline'
+                        : star <= Math.floor(currentRating)
+                        ? 'star'
+                        : star - 0.5 <= currentRating
+                        ? 'star-half'
+                        : 'star-outline'
+                    }
+                    size={18}
+                    color="#F59E0B"
+                  />
+                ))}
               </View>
-              <Text style={styles.barPctText}>{item.pct}</Text>
+              <Text style={styles.totalReviewsText}>
+                {totalCount > 0
+                  ? `${totalCount} ${totalCount === 1 ? 'avaliação' : 'avaliações'}`
+                  : 'Sem avaliações'}
+              </Text>
             </View>
-          ))}
-        </View>
-      </View>
 
-      {/* Galeria de Fotos de Clientes */}
-      {allPhotos.length > 0 && (
-        <View style={styles.photosSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Fotos de Compradores</Text>
-            <Text style={styles.sectionSubtitle}>({allPhotos.length})</Text>
-          </View>
-          <SafeScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.photosScroll}
-          >
-            {allPhotos.map((url, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.photoThumbWrapper}
-                onPress={() => setSelectedPhoto(url)}
-                activeOpacity={0.8}
-              >
-                <Image
-                  source={{ uri: url }}
-                  style={styles.photoThumb}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
-              </TouchableOpacity>
-            ))}
-          </SafeScrollView>
-        </View>
-      )}
+            <View style={styles.divider} />
 
-      {/* Filtros de Avaliações */}
-      <View style={styles.filtersRow}>
-        <TouchableOpacity
-          style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
-          onPress={() => setFilterType('all')}
-        >
-          <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
-            Todas ({reviews.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filterType === 'with_photos' && styles.filterChipActive]}
-          onPress={() => setFilterType('with_photos')}
-        >
-          <MaterialIcons
-            name="photo-camera"
-            size={13}
-            color={filterType === 'with_photos' ? '#FFFFFF' : '#4B5563'}
-            style={{ marginRight: 4 }}
-          />
-          <Text style={[styles.filterChipText, filterType === 'with_photos' && styles.filterChipTextActive]}>
-            Com fotos ({reviews.filter((r) => r.photos?.length).length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filterType === '5_stars' && styles.filterChipActive]}
-          onPress={() => setFilterType('5_stars')}
-        >
-          <Text style={[styles.filterChipText, filterType === '5_stars' && styles.filterChipTextActive]}>
-            5 Estrelas
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Lista de Comentários */}
-      <View style={styles.reviewsList}>
-        {filteredReviews.map((rev) => (
-          <View key={rev.id} style={styles.reviewCard}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>{rev.user_name.charAt(0)}</Text>
-              </View>
-              <View style={styles.userInfoCol}>
-                <View style={styles.userNameRow}>
-                  <Text style={styles.userName}>{rev.user_name}</Text>
-                  {rev.verified_purchase && (
-                    <View style={styles.verifiedPurchaseBadge}>
-                      <MaterialIcons name="check-circle" size={12} color="#16A34A" />
-                      <Text style={styles.verifiedPurchaseText}>Compra Verificada</Text>
+            <View style={styles.breakdownCol}>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const pct = getStarPercentage(star);
+                return (
+                  <View key={star} style={styles.barRow}>
+                    <Text style={styles.barStarText}>{star}★</Text>
+                    <View style={styles.barBg}>
+                      <View style={[styles.barFill, { width: `${pct}%` }]} />
                     </View>
-                  )}
-                </View>
-                <View style={styles.starsAndDateRow}>
-                  <View style={styles.reviewStars}>
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <MaterialIcons
-                        key={s}
-                        name={s <= rev.rating ? 'star' : 'star-outline'}
-                        size={14}
-                        color="#F59E0B"
-                      />
-                    ))}
+                    <Text style={styles.barPctText}>{pct}%</Text>
                   </View>
-                  <Text style={styles.reviewDate}>{rev.date}</Text>
-                </View>
-              </View>
+                );
+              })}
             </View>
+          </View>
 
-            {rev.perfume_bought && (
-              <View style={styles.perfumeBoughtContainer}>
-                <MaterialIcons name="local-drink" size={12} color="#78716C" />
-                <Text style={styles.perfumeBoughtText}>{rev.perfume_bought}</Text>
+          {/* Galeria de Fotos de Clientes */}
+          {allPhotos.length > 0 && (
+            <View style={styles.photosSection}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Fotos de Compradores</Text>
+                <Text style={styles.sectionSubtitle}>({allPhotos.length})</Text>
               </View>
-            )}
-
-            <Text style={styles.reviewComment}>{rev.comment}</Text>
-
-            {rev.photos && rev.photos.length > 0 && (
-              <View style={styles.reviewPhotosRow}>
-                {rev.photos.map((pUrl, pIdx) => (
+              <SafeScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.photosScroll}
+              >
+                {allPhotos.map((url, idx) => (
                   <TouchableOpacity
-                    key={pIdx}
-                    onPress={() => setSelectedPhoto(pUrl)}
+                    key={idx}
+                    style={styles.photoThumbWrapper}
+                    onPress={() => setSelectedPhoto(url)}
                     activeOpacity={0.8}
                   >
                     <Image
-                      source={{ uri: pUrl }}
-                      style={styles.reviewAttachedPhoto}
+                      source={{ uri: url }}
+                      style={styles.photoThumb}
                       contentFit="cover"
                       cachePolicy="memory-disk"
                     />
                   </TouchableOpacity>
                 ))}
-              </View>
-            )}
+              </SafeScrollView>
+            </View>
+          )}
+
+          {/* Barra de Filtros: Perfumes, Estrelas e Com Fotos */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterSectionTitle}>Filtrar por:</Text>
+            <SafeScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScrollRow}
+            >
+              {/* 1. Botão: Perfumes (somente quando visualizando a loja como um todo com múltiplos perfumes) */}
+              {!productId && uniqueProducts.length > 1 && (
+                <TouchableOpacity
+                  style={[styles.filterChip, selectedProduct !== null && styles.filterChipActive]}
+                  onPress={() => setShowProductMenu(true)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="local-drink"
+                    size={13}
+                    color={selectedProduct !== null ? '#FFFFFF' : '#4B5563'}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text
+                    style={[styles.filterChipText, selectedProduct !== null && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {selectedProduct !== null ? selectedProduct : 'Perfumes'}
+                  </Text>
+                  <MaterialIcons
+                    name="arrow-drop-down"
+                    size={18}
+                    color={selectedProduct !== null ? '#FFFFFF' : '#4B5563'}
+                    style={{ marginLeft: 2 }}
+                  />
+                </TouchableOpacity>
+              )}
+
+              {/* 2. Botão: Estrelas */}
+              <TouchableOpacity
+                style={[styles.filterChip, selectedRating !== null && styles.filterChipActive]}
+                onPress={() => setShowRatingMenu(true)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="star"
+                  size={14}
+                  color={selectedRating !== null ? '#F59E0B' : '#F59E0B'}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.filterChipText, selectedRating !== null && styles.filterChipTextActive]}>
+                  {selectedRating !== null
+                    ? `${selectedRating} ${selectedRating === 1 ? 'Estrela' : 'Estrelas'}`
+                    : 'Estrelas'}
+                </Text>
+                <MaterialIcons
+                  name="arrow-drop-down"
+                  size={18}
+                  color={selectedRating !== null ? '#FFFFFF' : '#4B5563'}
+                  style={{ marginLeft: 2 }}
+                />
+              </TouchableOpacity>
+
+              {/* 3. Chip: Com Fotos */}
+              <TouchableOpacity
+                style={[styles.filterChip, withPhotosOnly && styles.filterChipActive]}
+                onPress={() => setWithPhotosOnly(!withPhotosOnly)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name="photo-camera"
+                  size={13}
+                  color={withPhotosOnly ? '#FFFFFF' : '#4B5563'}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.filterChipText, withPhotosOnly && styles.filterChipTextActive]}>
+                  Com fotos ({reviews.filter((r) => r.photos && r.photos.length > 0).length})
+                </Text>
+              </TouchableOpacity>
+            </SafeScrollView>
           </View>
-        ))}
-      </View>
+
+          {/* Indicador de carregamento */}
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#2C4659" />
+              <Text style={styles.loadingText}>Carregando avaliações...</Text>
+            </View>
+          )}
+
+          {/* Lista de Comentários ou Estado Vazio */}
+          {!loading && filteredReviews.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="star-outline" size={44} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>Nenhuma avaliação encontrada</Text>
+              <Text style={styles.emptySubtitle}>
+                {selectedRating !== null || withPhotosOnly || selectedProduct !== null
+                  ? 'Nenhuma avaliação atende aos filtros selecionados.'
+                  : 'Esta loja ainda não possui avaliações de clientes.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.reviewsList}>
+              {filteredReviews.map((rev) => (
+                <View key={rev.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.userAvatar}>
+                      <Text style={styles.userAvatarText}>
+                        {(rev.author_name || 'C').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.userInfoCol}>
+                      <View style={styles.userNameRow}>
+                        <Text style={styles.userName}>{rev.author_name}</Text>
+                        {rev.is_edited && (
+                          <View style={styles.editedBadge}>
+                            <Text style={styles.editedText}>Editada</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.starsAndDateRow}>
+                        <View style={styles.reviewStars}>
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <MaterialIcons
+                              key={s}
+                              name={s <= rev.rating ? 'star' : 'star-outline'}
+                              size={14}
+                              color="#F59E0B"
+                            />
+                          ))}
+                        </View>
+                        <Text style={styles.reviewDate}>{formatDate(rev.created_at)}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {(rev.product_name || rev.volume_ml) && (
+                    <View style={styles.perfumeBoughtContainer}>
+                      <MaterialIcons name="local-drink" size={12} color="#78716C" />
+                      <Text style={styles.perfumeBoughtText}>
+                        {rev.product_name}
+                        {rev.volume_ml ? ` • ${formatProductVolume(rev.volume_ml)}` : ''}
+                      </Text>
+                    </View>
+                  )}
+
+                  {Boolean(rev.comment) && (
+                    <Text style={styles.reviewComment}>{rev.comment}</Text>
+                  )}
+
+                  {rev.photos && rev.photos.length > 0 && (
+                    <View style={styles.reviewPhotosRow}>
+                      {rev.photos.map((p) => (
+                        <TouchableOpacity
+                          key={p.id}
+                          onPress={() => setSelectedPhoto(p.image)}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: p.image }}
+                            style={styles.reviewAttachedPhoto}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Resposta Pública da Loja (RN-09) */}
+                  {rev.reply && (
+                    <View style={styles.replyBox}>
+                      <View style={styles.replyHeader}>
+                        <MaterialIcons name="subdirectory-arrow-right" size={14} color="#2C4659" />
+                        <Text style={styles.replyStoreName}>
+                          Resposta da Loja ({rev.reply.author_name})
+                        </Text>
+                        <Text style={styles.replyDate}>{formatDate(rev.reply.created_at)}</Text>
+                      </View>
+                      <Text style={styles.replyText}>{rev.reply.text}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+      {/* Modal de Seleção de Estrelas */}
+      <SafeModal visible={showRatingMenu} transparent animationType="fade">
+        <Pressable
+          style={styles.ratingMenuOverlay}
+          onPress={() => setShowRatingMenu(false)}
+        >
+          <View style={styles.ratingMenuCard}>
+            <View style={styles.ratingMenuHeader}>
+              <Text style={styles.ratingMenuTitle}>Filtrar por estrelas</Text>
+              <TouchableOpacity
+                onPress={() => setShowRatingMenu(false)}
+                style={styles.ratingMenuCloseBtn}
+              >
+                <MaterialIcons name="close" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Opção Todas */}
+            <TouchableOpacity
+              style={[
+                styles.ratingMenuItem,
+                selectedRating === null && styles.ratingMenuItemActive,
+              ]}
+              onPress={() => {
+                setSelectedRating(null);
+                setShowRatingMenu(false);
+              }}
+            >
+              <Text
+                style={[
+                  styles.ratingMenuItemText,
+                  selectedRating === null && styles.ratingMenuItemTextActive,
+                ]}
+              >
+                Todas as notas ({reviews.length})
+              </Text>
+              {selectedRating === null && (
+                <MaterialIcons name="check" size={18} color="#2C4659" />
+              )}
+            </TouchableOpacity>
+
+            {/* Opções 5 a 1 Estrela */}
+            {[5, 4, 3, 2, 1].map((stars) => {
+              const count =
+                (summary?.distribution as any)?.[String(stars)] ??
+                reviews.filter((r) => r.rating === stars).length;
+              const isSelected = selectedRating === stars;
+              return (
+                <TouchableOpacity
+                  key={stars}
+                  style={[
+                    styles.ratingMenuItem,
+                    isSelected && styles.ratingMenuItemActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedRating(stars);
+                    setShowRatingMenu(false);
+                  }}
+                >
+                  <View style={styles.ratingMenuStarsRow}>
+                    <View style={styles.starsRowCompact}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <MaterialIcons
+                          key={s}
+                          name={s <= stars ? 'star' : 'star-outline'}
+                          size={16}
+                          color="#F59E0B"
+                        />
+                      ))}
+                    </View>
+                    <Text
+                      style={[
+                        styles.ratingMenuItemText,
+                        isSelected && styles.ratingMenuItemTextActive,
+                      ]}
+                    >
+                      {stars} {stars === 1 ? 'estrela' : 'estrelas'} ({count})
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <MaterialIcons name="check" size={18} color="#2C4659" />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Pressable>
+      </SafeModal>
+
+      {/* Modal de Seleção de Perfumes */}
+      <SafeModal visible={showProductMenu} transparent animationType="fade">
+        <Pressable
+          style={styles.ratingMenuOverlay}
+          onPress={() => setShowProductMenu(false)}
+        >
+          <View style={styles.ratingMenuCard}>
+            <View style={styles.ratingMenuHeader}>
+              <Text style={styles.ratingMenuTitle}>Filtrar por perfume</Text>
+              <TouchableOpacity
+                onPress={() => setShowProductMenu(false)}
+                style={styles.ratingMenuCloseBtn}
+              >
+                <MaterialIcons name="close" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Opção Todos os Perfumes */}
+            <TouchableOpacity
+              style={[
+                styles.ratingMenuItem,
+                selectedProduct === null && styles.ratingMenuItemActive,
+              ]}
+              onPress={() => {
+                setSelectedProduct(null);
+                setShowProductMenu(false);
+              }}
+            >
+              <Text
+                style={[
+                  styles.ratingMenuItemText,
+                  selectedProduct === null && styles.ratingMenuItemTextActive,
+                ]}
+              >
+                Todos os perfumes ({reviews.length})
+              </Text>
+              {selectedProduct === null && (
+                <MaterialIcons name="check" size={18} color="#2C4659" />
+              )}
+            </TouchableOpacity>
+
+            {/* Lista dos perfumes da loja */}
+            <SafeScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+              {uniqueProducts.map((pName) => {
+                const count = reviews.filter((r) => r.product_name === pName).length;
+                const isSelected = selectedProduct === pName;
+                return (
+                  <TouchableOpacity
+                    key={pName}
+                    style={[
+                      styles.ratingMenuItem,
+                      isSelected && styles.ratingMenuItemActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedProduct(pName);
+                      setShowProductMenu(false);
+                    }}
+                  >
+                    <View style={styles.ratingMenuStarsRow}>
+                      <MaterialIcons
+                        name="local-drink"
+                        size={15}
+                        color={isSelected ? '#2C4659' : '#6B7280'}
+                      />
+                      <Text
+                        style={[
+                          styles.ratingMenuItemText,
+                          isSelected && styles.ratingMenuItemTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {pName} ({count})
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <MaterialIcons name="check" size={18} color="#2C4659" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </SafeScrollView>
+          </View>
+        </Pressable>
+      </SafeModal>
 
       {/* Modal de Foto Ampliada */}
       <SafeModal visible={!!selectedPhoto} transparent animationType="fade">
@@ -478,6 +785,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     flexWrap: 'wrap',
   },
+  filterSection: {
+    marginBottom: 14,
+  },
+  filterSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  filtersScrollRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 10,
+  },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -491,6 +815,29 @@ const styles = StyleSheet.create({
   filterChipActive: {
     backgroundColor: '#2C4659',
     borderColor: '#2C4659',
+  },
+  productChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    maxWidth: 200,
+  },
+  productChipActive: {
+    backgroundColor: '#2C4659',
+    borderColor: '#2C4659',
+  },
+  productChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  productChipTextActive: {
+    color: '#FFFFFF',
   },
   filterChipText: {
     fontSize: 12,
@@ -631,5 +978,140 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12.5,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  editedBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  editedText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  replyBox: {
+    marginTop: 12,
+    backgroundColor: '#F8FAFC',
+    borderLeftWidth: 3,
+    borderLeftColor: '#2C4659',
+    borderRadius: 6,
+    padding: 10,
+  },
+  replyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  replyStoreName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C4659',
+  },
+  replyDate: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+  },
+  replyText: {
+    fontSize: 12.5,
+    color: '#334155',
+    lineHeight: 17,
+  },
+  ratingMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ratingMenuCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  ratingMenuHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  ratingMenuTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
+  ratingMenuCloseBtn: {
+    padding: 4,
+  },
+  ratingMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  ratingMenuItemActive: {
+    backgroundColor: '#F0F5F9',
+  },
+  ratingMenuItemText: {
+    fontSize: 13.5,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  ratingMenuItemTextActive: {
+    fontWeight: '700',
+    color: '#2C4659',
+  },
+  ratingMenuStarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  starsRowCompact: {
+    flexDirection: 'row',
+    gap: 1,
   },
 });
