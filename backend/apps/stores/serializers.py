@@ -93,11 +93,34 @@ class StoreProductPublicSerializer(serializers.ModelSerializer):
     store_city = serializers.CharField(source='store.city', read_only=True)
     store_state = serializers.CharField(source='store.state', read_only=True)
     sold_count = serializers.IntegerField(source='product.sold_count', read_only=True)
+    rating = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
 
     class Meta:
         model = StoreProduct
         fields = [
             'id', 'product_id', 'product_name', 'brand_name', 'olfactory_family',
             'price', 'promotional_price', 'volume_ml', 'image_url',
-            'store_id', 'store_name', 'is_official', 'store_city', 'store_state', 'sold_count'
+            'store_id', 'store_name', 'is_official', 'store_city', 'store_state', 'sold_count',
+            'rating', 'reviews_count'
         ]
+
+    def get_rating(self, obj):
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        avg = Review.objects.filter(
+            store_id=obj.store_id,
+            product_id=obj.product_id,
+            is_hidden=False,
+            is_deleted=False
+        ).aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else 0.0
+
+    def get_reviews_count(self, obj):
+        from apps.reviews.models import Review
+        return Review.objects.filter(
+            store_id=obj.store_id,
+            product_id=obj.product_id,
+            is_hidden=False,
+            is_deleted=False
+        ).count()

@@ -17,7 +17,8 @@ export type ReviewReply = {
 export type Review = {
   id: number;
   order_item: number;
-  user_name: string;
+  user_name?: string;
+  author_name: string;
   product_name: string;
   product_image?: string | null;
   volume_ml?: number;
@@ -112,6 +113,39 @@ export async function updateReview(
   }
   if (payload.comment !== undefined) {
     formData.append('comment', payload.comment.trim());
+  }
+
+  if (payload.photos && payload.photos.length > 0) {
+    for (let index = 0; index < payload.photos.length; index++) {
+      const photoUri = payload.photos[index];
+      // Se já for uma URL remota existente (não é um arquivo local novo), não precisa re-enviar como multipart file
+      if (typeof photoUri === 'string' && (photoUri.startsWith('http://') || photoUri.startsWith('https://'))) {
+        continue;
+      }
+      const filename = photoUri.split('/').pop() || `photo_${index}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+      if (typeof window !== 'undefined' && photoUri.startsWith('blob:')) {
+        try {
+          const res = await fetch(photoUri);
+          const blob = await res.blob();
+          formData.append('photos', blob, filename);
+        } catch {
+          formData.append('photos', {
+            uri: photoUri,
+            name: filename,
+            type,
+          } as any);
+        }
+      } else {
+        formData.append('photos', {
+          uri: photoUri,
+          name: filename,
+          type,
+        } as any);
+      }
+    }
   }
 
   const response = await api.patch(`/reviews/${id}/`, formData, {

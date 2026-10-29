@@ -192,7 +192,17 @@ export default function StoreScreen() {
                   store={store}
                   scrollY={scrollY}
                   productsCount={groupedProducts.length}
-                  onOpenReviews={() => setShowReviewsModal(true)}
+                  onOpenReviews={() => {
+                    router.push({
+                      pathname: '/store/[id]/reviews' as any,
+                      params: {
+                        id: store.id.toString(),
+                        storeName: store.name,
+                        rating: store.rating?.toString(),
+                        reviewsCount: store.reviews_count?.toString(),
+                      },
+                    });
+                  }}
                   onContactPress={() => setShowContactModal(true)}
                 />
               )}

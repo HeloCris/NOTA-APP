@@ -53,8 +53,8 @@ class ReviewListingTests(APITestCase):
             is_active=True,
         )
         self.brand = Brand.objects.create(name='Chanel')
-        self.product1 = Product.objects.create(name='Bleu de Chanel', brand=self.brand)
-        self.product2 = Product.objects.create(name='Allure Homme', brand=self.brand)
+        self.product1 = Product.objects.create(name='Bleu de Chanel', brand=self.brand, is_approved=True)
+        self.product2 = Product.objects.create(name='Allure Homme', brand=self.brand, is_approved=True)
 
         self.sp1 = StoreProduct.objects.create(
             store=self.store, product=self.product1, price=Decimal('600.00'), stock_quantity=10, volume_ml=100
@@ -168,3 +168,22 @@ class ReviewListingTests(APITestCase):
         self.assertEqual(response.data['summary']['count'], 0)
         self.assertEqual(response.data['summary']['average'], 0.0)
         self.assertEqual(len(response.data['results']), 0)
+
+    def test_store_product_public_serializer_exposes_rating_and_reviews_count(self):
+        # RF-16.7 / RN-11: Detalhe de oferta (StoreProduct) passa a expor rating e reviews_count
+        response = self.client.get(f'/api/v1/stores/{self.store.id}/products/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.data) >= 1)
+        
+        # Produto 1 tem rev1 (rating=5)
+        item1 = next((p for p in response.data if p['id'] == self.sp1.id), None)
+        self.assertIsNotNone(item1)
+        self.assertEqual(item1['rating'], 5.0)
+        self.assertEqual(item1['reviews_count'], 1)
+
+        # Produto 2 tem rev2 (rating=4)
+        item2 = next((p for p in response.data if p['id'] == self.sp2.id), None)
+        self.assertIsNotNone(item2)
+        self.assertEqual(item2['rating'], 4.0)
+        self.assertEqual(item2['reviews_count'], 1)
+

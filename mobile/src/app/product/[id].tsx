@@ -814,7 +814,22 @@ export default function ProductDetailScreen() {
               {reviews.length > 0 && (
                 <TouchableOpacity
                   style={styles.reviewsShopeeViewAllBtn}
-                  onPress={() => setShowAllReviewsModal(true)}
+                  onPress={() => {
+                    if (storeId) {
+                      router.push({
+                        pathname: '/store/[id]/product/[productId]/reviews' as any,
+                        params: {
+                          id: storeId.toString(),
+                          productId: id.toString(),
+                          storeName: selectedOffer?.store_name || 'Loja',
+                          rating: reviewsSummary?.average?.toString(),
+                          reviewsCount: reviewsSummary?.count?.toString(),
+                        },
+                      });
+                    } else {
+                      setShowAllReviewsModal(true);
+                    }
+                  }}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.reviewsShopeeViewAllText}>Ver todas</Text>
@@ -918,7 +933,22 @@ export default function ProductDetailScreen() {
                 {reviews.length > 2 && (
                   <TouchableOpacity
                     style={styles.reviewsShopeeBottomButton}
-                    onPress={() => setShowAllReviewsModal(true)}
+                    onPress={() => {
+                      if (storeId) {
+                        router.push({
+                          pathname: '/store/[id]/product/[productId]/reviews' as any,
+                          params: {
+                            id: storeId.toString(),
+                            productId: id.toString(),
+                            storeName: selectedOffer?.store_name || 'Loja',
+                            rating: reviewsSummary?.average?.toString(),
+                            reviewsCount: reviewsSummary?.count?.toString(),
+                          },
+                        });
+                      } else {
+                        setShowAllReviewsModal(true);
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.reviewsShopeeBottomButtonText}>
