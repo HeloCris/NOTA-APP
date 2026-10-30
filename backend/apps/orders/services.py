@@ -9,7 +9,6 @@ from rest_framework.exceptions import ValidationError
 from .models import (
     DeliveryConfirmedBy,
     Order,
-    OrderItem,
     OrderStatus,
     OrderStatusHistory,
     ReturnItem,
@@ -193,6 +192,15 @@ class OrderPostPurchaseService:
     @transaction.atomic
     def confirm_delivery(order: Order, user, confirmed_by: str):
         """Confirma o recebimento do pedido pelo cliente ou lojista."""
+        # Se o lojista marcou como entregue e o cliente confirma o recebimento:
+        if order.status == OrderStatus.DELIVERED and order.delivery_confirmed_by == DeliveryConfirmedBy.SELLER and confirmed_by == 'CUSTOMER':
+            order.delivery_confirmed_by = DeliveryConfirmedBy.CUSTOMER
+            order.save(update_fields=['delivery_confirmed_by', 'updated_at'])
+            OrderPostPurchaseService.log_history(
+                order, OrderStatus.DELIVERED, OrderStatus.DELIVERED, actor=user, reason='Entrega confirmada pelo cliente (após marcação da loja).'
+            )
+            return order
+
         if order.status != OrderStatus.SHIPPED:
             raise ValidationError('Apenas pedidos enviados podem ter a entrega confirmada.')
 

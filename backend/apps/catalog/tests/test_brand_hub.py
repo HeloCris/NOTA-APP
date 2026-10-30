@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from apps.catalog.models import Brand, Product
+from apps.catalog.models import Brand
 
 User = get_user_model()
 
@@ -50,4 +50,4 @@ def test_admin_approve_brand(api_client, customer_user, admin_user):
     assert brand.status == "APPROVED"
     assert brand.is_official is True
     assert customer_user.role == "BRAND_OWNER"
-    assert customer_user.is_active is True
+    assert customer_user.is_active

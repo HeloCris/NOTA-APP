@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/useAuth";
 import logoIcon from "../assets/logo-icon.png";
@@ -10,17 +11,36 @@ import { BrandSettingsTab } from "../components/brand/BrandSettingsTab";
 import { storeService } from "../services/storeService";
 import { brandService } from "../services/brandService";
 import { OrdersTab } from "../components/seller/OrdersTab";
+import { StoreReviewsView } from "../components/seller/StoreReviewsView";
 import type { Store } from "../types/store";
 import type { Brand } from "../types/catalog";
 
-type TabType = "dashboard" | "catalog" | "inventory" | "orders" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "inventory" | "orders" | "reviews" | "metrics" | "messages" | "settings";
+
+const VALID_TABS: TabType[] = ["dashboard", "catalog", "inventory", "orders", "reviews", "metrics", "messages", "settings"];
 
 export function BrandHomePage() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab") as TabType | null;
+
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "dashboard"
+  );
   const [brand, setBrand] = useState<Brand | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const changeTab = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   const fetchBrandAndStore = async () => {
     try {
@@ -51,7 +71,7 @@ export function BrandHomePage() {
     const isActive = activeTab === id;
     return (
       <button
-        onClick={() => setActiveTab(id)}
+        onClick={() => changeTab(id)}
         className={`flex items-center justify-center gap-[12px] px-3 py-3 rounded-lg text-[15px] font-semibold transition-colors w-full ${isActive ? "bg-[#E9EDF0] text-[#354B5E]" : "text-[#5A6067] hover:bg-[#EFEBDD] hover:text-[#23282D]"
           }`}
       >
@@ -150,7 +170,7 @@ export function BrandHomePage() {
               {store?.vacation_mode ? 'Loja de Férias' : storeActive ? 'Loja Ativa' : 'Loja Inativa'}
             </div>
 
-            <button onClick={() => setActiveTab('catalog')} className="font-jakarta font-bold text-[14px] rounded-full px-6 py-[13px] border-2 border-transparent inline-flex items-center gap-2.5 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors">
+            <button onClick={() => changeTab('catalog')} className="font-jakarta font-bold text-[14px] rounded-full px-6 py-[13px] border-2 border-transparent inline-flex items-center gap-2.5 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors">
               <svg className="w-[18px] h-[18px]"><use href="#ic-plus" /></svg>
               Novo Perfume
             </button>
@@ -162,7 +182,9 @@ export function BrandHomePage() {
             <BrandSettingsTab brand={brand} store={store} onStoreUpdated={fetchBrandAndStore} />
           ) : (
             <>
-              {activeTab === "dashboard" && <DashboardTab store={store} />}
+              {activeTab === "dashboard" && (
+                <DashboardTab store={store} onOpenReviews={() => changeTab("reviews")} />
+              )}
               {activeTab === "catalog" && <BrandPortfolioTab />}
               {activeTab === "inventory" && (
                 store ? (
@@ -177,7 +199,7 @@ export function BrandHomePage() {
                       Para precificar perfumes, adicionar volumetrias (como decants de 5ml, 10ml, 15ml ou frascos 50ml/100ml) e vender direto para os clientes NŌTA com o selo oficial, ative sua loja.
                     </p>
                     <button
-                      onClick={() => setActiveTab("settings")}
+                      onClick={() => changeTab("settings")}
                       className="font-jakarta font-bold text-[14px] rounded-full px-6 py-3 bg-[#354B5E] text-white hover:bg-[#263847] transition-colors"
                     >
                       Ir para Configurações e Ativar Loja
@@ -186,6 +208,9 @@ export function BrandHomePage() {
                 )
               )}
               {activeTab === "orders" && <OrdersTab />}
+              {activeTab === "reviews" && (
+                <StoreReviewsView store={store} onBack={() => changeTab("dashboard")} />
+              )}
 
               {/* Placeholders for Metrics and Messages */}
               {(activeTab === "metrics" || activeTab === "messages") && (

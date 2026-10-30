@@ -1,8 +1,14 @@
+from typing import TYPE_CHECKING, ClassVar
+
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 
 from .managers import CustomUserManager
+
+if TYPE_CHECKING:
+    from apps.stores.models import Store
+    from django.db.models import Manager
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
@@ -56,12 +62,19 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         blank=True,
     )
 
-    objects = CustomUserManager()
+    objects: ClassVar[CustomUserManager] = CustomUserManager()  # type: ignore[assignment]
+
+    id: int
+    # Related names declarados em outros apps (apenas para tipagem)
+    if TYPE_CHECKING:
+        brands: "Manager"
+        stores: "Manager[Store]"
+        addresses: "Manager[UserAddress]"
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name"]
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         db_table = "users"
         ordering = ["id"]
 

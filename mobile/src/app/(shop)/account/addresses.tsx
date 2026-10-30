@@ -6,13 +6,13 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
-  StatusBar,
   useWindowDimensions,
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
@@ -148,7 +148,7 @@ export default function SavedAddressesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* --- HEADER --- */}
         <View style={styles.header}>

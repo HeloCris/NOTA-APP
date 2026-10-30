@@ -27,22 +27,136 @@ class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(
         source='store_product.product.name', read_only=True
     )
+    volume_ml = serializers.IntegerField(
+        source='store_product.volume_ml', read_only=True
+    )
+    store_id = serializers.IntegerField(
+        source='store_product.store_id', read_only=True
+    )
+    store_name = serializers.CharField(
+        source='store_product.store.name', read_only=True
+    )
+    product_image = serializers.SerializerMethodField()
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     # Removido source='total_price' redundante
     total_price = serializers.DecimalField(
         max_digits=10, decimal_places=2, read_only=True
     )
+    can_review = serializers.SerializerMethodField()
+    review_id = serializers.SerializerMethodField()
+    can_edit_review = serializers.SerializerMethodField()
+    review_reply = serializers.SerializerMethodField()
+    available_return_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = [
             'id',
             'store_product',
+            'store_id',
+            'store_name',
             'product_name',
+            'volume_ml',
+            'product_image',
             'quantity',
+            'available_return_quantity',
             'unit_price',
             'total_price',
+            'can_review',
+            'review_id',
+            'can_edit_review',
+            'review_reply',
         ]
+
+    def get_available_return_quantity(self, obj):
+        from apps.orders.models import ReturnItem, ReturnStatus
+        from django.db.models import Sum
+
+        returned_qty = ReturnItem.objects.filter(
+            return_request__order=obj.order,
+            order_item=obj,
+            return_request__status__in=[
+                ReturnStatus.REQUESTED,
+                ReturnStatus.APPROVED,
+                ReturnStatus.RECEIVED,
+                ReturnStatus.REFUNDED,
+            ],
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        return max(0, obj.quantity - returned_qty)
+
+    def get_product_image(self, obj):
+        try:
+            product = getattr(obj.store_product, 'product', None)
+            if not product:
+                return None
+            if hasattr(product, 'photos'):
+                primary_photo = product.photos.filter(is_primary=True).first() or product.photos.first()
+                if primary_photo and hasattr(primary_photo, 'image') and primary_photo.image:
+                    return primary_photo.image.url
+            if getattr(product, 'image_url', None):
+                return product.image_url
+        except Exception:
+            pass
+        return None
+
+    def get_review_id(self, obj):
+        review = getattr(obj, 'review', None)
+        if review and not review.is_deleted:
+            return review.id
+        return None
+
+    def get_can_review(self, obj):
+        from apps.orders.models import OrderStatus, ReturnRequest, ReturnStatus
+        from django.utils import timezone
+
+        order = obj.order
+        if order.status != OrderStatus.DELIVERED or not order.delivered_at:
+            return False
+
+        if (timezone.now() - order.delivered_at).days > 30:
+            return False
+
+        # RN-02: Se já avaliou (inclusive se deletou), não pode avaliar novamente
+        if hasattr(obj, 'review'):
+            return False
+
+        # RN-04: Devolução em andamento ou aprovada não recusada
+        has_return = ReturnRequest.objects.filter(
+            order=order, items__order_item=obj
+        ).exclude(status=ReturnStatus.REJECTED).exists()
+        if not has_return:
+            has_return = ReturnRequest.objects.filter(
+                order=order
+            ).exclude(status=ReturnStatus.REJECTED).exists()
+
+        return not has_return
+
+    def get_can_edit_review(self, obj):
+        from django.utils import timezone
+        review = getattr(obj, 'review', None)
+        if not review or review.is_deleted:
+            return False
+        if review.edited_at is not None:
+            return False
+        order = obj.order
+        if not order.delivered_at or (timezone.now() - order.delivered_at).days > 30:
+            return False
+        return True
+
+    def get_review_reply(self, obj):
+        review = getattr(obj, 'review', None)
+        if not review or review.is_deleted:
+            return None
+        reply = getattr(review, 'reply', None)
+        if not reply:
+            return None
+        return {
+            'id': reply.id,
+            'text': reply.text,
+            'author_name': reply.author.first_name or reply.author.email or 'Loja',
+            'created_at': reply.created_at.isoformat() if reply.created_at else None,
+        }
 
 
 class OrderStatusHistorySerializer(serializers.ModelSerializer):
@@ -114,6 +228,7 @@ class ReturnRequestSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     code = serializers.CharField(read_only=True)
+    store_name = serializers.CharField(source='store.name', read_only=True)
 
     class Meta:
         model = Order
@@ -122,6 +237,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'code',
             'user',
             'store',
+            'store_name',
             'status',
             'total_amount',
             'shipping_cost',
@@ -159,6 +275,7 @@ CustomerOrderSerializer = OrderSerializer
 class CustomerOrderDetailSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     code = serializers.CharField(read_only=True)
+    store_name = serializers.CharField(source='store.name', read_only=True)
     timeline = serializers.SerializerMethodField()
     status_history = OrderStatusHistorySerializer(many=True, read_only=True)
     return_requests = ReturnRequestSerializer(many=True, read_only=True)
@@ -168,6 +285,8 @@ class CustomerOrderDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'code',
+            'store',
+            'store_name',
             'status',
             'total_amount',
             'shipping_cost',

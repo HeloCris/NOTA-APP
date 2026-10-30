@@ -20,7 +20,8 @@ class StoreProductListCreateView(generics.ListCreateAPIView):
         if not store_id and self.request and hasattr(self.request, "user") and self.request.user.is_authenticated:
             user = self.request.user
             if hasattr(user, "stores") and user.stores.exists():
-                store_id = user.stores.first().id
+                first_store = user.stores.first()
+                store_id = first_store.id if first_store else None
             elif hasattr(user, "brands") and user.brands.exists():
                 brand = user.brands.first()
                 if brand and brand.d2c_store_id:

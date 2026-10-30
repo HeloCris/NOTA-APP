@@ -1,25 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
+  Alert,
+  Platform,
   useWindowDimensions,
   ActivityIndicator,
   Modal,
   TextInput,
-  Alert,
-  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart } from '@/context/CartContext';
 import { storesService, ShippingQuoteResponse } from '@/services/stores';
+import { formatProductVolume } from '@/utils/productUtils';
 import {
   UserAddress,
   getSavedAddresses,
@@ -42,21 +43,11 @@ export default function CheckoutShippingScreen() {
 
   const { items: cartItems, subtotal } = useCart();
 
-  const getValidStoreProductId = (c: any) => {
-    if (c.storeProductId && [4, 5, 12, 13, 14, 15, 16].includes(Number(c.storeProductId))) {
-      return Number(c.storeProductId);
-    }
-    if (c.productId === 7) return 14;
-    if (c.productId === 8) return 15;
-    if (c.productId === 3) return 16;
-    return 16; // Perseus (Store ID 2)
-  };
-
   const items = cartItems.length > 0
     ? cartItems.map((c) => ({
         ...c,
-        storeProductId: getValidStoreProductId(c),
-        storeId: c.storeId || (getValidStoreProductId(c) === 16 || getValidStoreProductId(c) === 15 ? 2 : 1),
+        storeProductId: Number(c.storeProductId || (c.productId === 7 ? 14 : c.productId === 8 ? 12 : 4)),
+        storeId: c.storeId || 1,
       }))
     : [
         {
@@ -74,6 +65,32 @@ export default function CheckoutShippingScreen() {
       ];
 
   const primaryStoreId = items[0]?.storeId || 2;
+
+  // Agrupa os itens por loja
+  const storeGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        storeName: string;
+        storeIsOfficial?: boolean;
+        items: typeof items;
+      }
+    >();
+
+    items.forEach((item) => {
+      const key = item.storeName || item.brandName || 'Loja Parceira';
+      if (!map.has(key)) {
+        map.set(key, {
+          storeName: key,
+          storeIsOfficial: item.storeIsOfficial,
+          items: [],
+        });
+      }
+      map.get(key)!.items.push(item);
+    });
+
+    return Array.from(map.values());
+  }, [items]);
 
   // Endereços
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
@@ -273,13 +290,15 @@ export default function CheckoutShippingScreen() {
     const selectedAddr = savedAddresses.find((a) => a.id === selectedAddressId) || savedAddresses[0];
 
     const payloadItems = items.map((i) => ({
-      store_product_id: Number(i.storeProductId || 16),
+      store_product_id: Number(i.storeProductId),
+      store_id: i.storeId,
+      store_name: i.storeName || i.brandName,
       quantity: i.quantity,
       unit_price: Number(i.price).toFixed(2),
     }));
 
     router.push({
-      pathname: '/(shop)/checkout/payment' as any,
+      pathname: '/checkout/payment' as any,
       params: {
         store_id: String(primaryStoreId),
         total_amount: total.toFixed(2),
@@ -293,7 +312,7 @@ export default function CheckoutShippingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -548,33 +567,40 @@ export default function CheckoutShippingScreen() {
           </View>
 
           <View style={styles.card}>
-            <View style={styles.storeHeader}>
-              <Ionicons name="storefront-outline" size={16} color="#1C252E" />
-              <Text style={styles.storeName}>
-                {items[0]?.brandName || 'Decants & Co. Perfumaria'}
-              </Text>
-              <Ionicons name="checkmark-circle" size={15} color="#1B8754" />
-            </View>
-
-            {items.map((item, idx) => (
-              <View key={idx} style={styles.itemRow}>
-                <View style={styles.imageBox}>
-                  {item.imageUrl ? (
-                    <Image source={{ uri: item.imageUrl }} style={styles.itemImage} contentFit="contain" />
-                  ) : (
-                    <Ionicons name="flask-outline" size={22} color="#A8A29E" />
+            {storeGroups.map((group, groupIdx) => (
+              <View
+                key={group.storeName}
+                style={groupIdx > 0 ? { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F5F2EB' } : undefined}
+              >
+                <View style={styles.storeHeader}>
+                  <Ionicons name="storefront-outline" size={16} color="#1C252E" />
+                  <Text style={styles.storeName}>{group.storeName}</Text>
+                  {group.storeIsOfficial && (
+                    <Ionicons name="checkmark-circle" size={15} color="#1B8754" />
                   )}
                 </View>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemVolumeTag}>
-                    {item.volume ? item.volume.toUpperCase() : 'DECANT • 10 ML'}
-                  </Text>
-                  <Text style={styles.itemName}>{item.productName}</Text>
-                  <Text style={styles.itemQty}>Qtd: {item.quantity}</Text>
-                </View>
-                <Text style={styles.itemPrice}>
-                  R$ {formatBRL(item.price * item.quantity)}
-                </Text>
+
+                {group.items.map((item, idx) => (
+                  <View key={idx} style={[styles.itemRow, idx > 0 && { marginTop: 10 }]}>
+                    <View style={styles.imageBox}>
+                      {item.imageUrl ? (
+                        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} contentFit="contain" />
+                      ) : (
+                        <Ionicons name="flask-outline" size={22} color="#A8A29E" />
+                      )}
+                    </View>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemVolumeTag}>
+                        {(item.volume || formatProductVolume(item.volumeMl)).toUpperCase()}
+                      </Text>
+                      <Text style={styles.itemName}>{item.productName}</Text>
+                      <Text style={styles.itemQty}>Qtd: {item.quantity}</Text>
+                    </View>
+                    <Text style={styles.itemPrice}>
+                      R$ {formatBRL(item.price * item.quantity)}
+                    </Text>
+                  </View>
+                ))}
               </View>
             ))}
           </View>

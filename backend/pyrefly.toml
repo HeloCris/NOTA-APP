@@ -1,0 +1,17 @@
+# Configuração do Pyrefly para o backend Django.
+# O Pyrefly não entende a "mágica" do Django (Model.objects, DoesNotExist,
+# atributos de ModelAdmin/AppConfig, tipos dinâmicos de fields), gerando falsos positivos.
+project-includes = ["apps", "config"]
+python-interpreter-path = "C:/Users/letic/AppData/Local/Programs/Python/Python313/python.exe"
+
+[errors]
+bad-override = false
+missing-attribute = false
+bad-index = false
+bad-argument-type = false
+unsupported-operation = false
+not-iterable = false
+bad-specialization = false
+bad-assignment = false
+bad-return = false
+attribute-assign-on-never = false

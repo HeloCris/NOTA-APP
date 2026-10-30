@@ -37,10 +37,11 @@ class StoreListView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        store = serializer.save(owner=self.request.user)
-        if self.request.user.role == "CUSTOMER":
-            self.request.user.role = "SELLER"
-            self.request.user.save(update_fields=["role"])
+        serializer.save(owner=self.request.user)
+        user = self.request.user
+        if user.role == "CUSTOMER":  # type: ignore[union-attr]
+            user.role = "SELLER"  # type: ignore[union-attr]
+            user.save(update_fields=["role"])  # type: ignore[call-arg]
 
 
 class StoreDetailView(generics.RetrieveAPIView):
@@ -55,7 +56,7 @@ class StoreMeView(generics.RetrieveUpdateAPIView):
     http_method_names = ["get", "patch", "head", "options"]
 
     def get_object(self) -> Store:
-        store = Store.objects.filter(owner=self.request.user).first()
+        store = Store.objects.filter(owner=self.request.user).first()  # type: ignore[misc]
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
         return store
@@ -73,11 +74,28 @@ class StoreDashboardView(APIView):
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
-        store = Store.objects.filter(owner=self.request.user).first()
+        user = self.request.user
+        store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
+        if not store and hasattr(user, 'brands'):
+            brand = user.brands.filter(d2c_store__isnull=False).first()
+            if brand and brand.d2c_store:
+                store = brand.d2c_store
+
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
+
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+
+        rev_qs = Review.objects.filter(store=store, is_hidden=False, is_deleted=False)
+        avg_rating = rev_qs.aggregate(avg=Avg('rating'))['avg']
+        rating_val = round(float(avg_rating), 1) if avg_rating is not None else 0.0
+        reviews_count = rev_qs.count()
+
         data = {
-            "rating": 0.0, "is_verified": False,
+            "rating": rating_val,
+            "reviews_count": reviews_count,
+            "is_verified": bool(store.is_official),
             "kpis": {"revenue_month": 0, "pending_orders": 0, "stock_alerts": 0, "store_views": 0},
             "weekly_sales": [0, 0, 0, 0, 0, 0, 0],
             "recent_orders": [], "top_perfumes": [], "restock_alerts": []

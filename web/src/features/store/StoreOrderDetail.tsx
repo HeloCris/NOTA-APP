@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/useAuth';
 import {
   storeOrderService,
   type StoreOrder,
@@ -9,6 +10,8 @@ import {
 
 export const StoreOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [order, setOrder] = useState<StoreOrder | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
@@ -28,6 +31,7 @@ export const StoreOrderDetailPage: React.FC = () => {
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
   const [selectedReturnId, setSelectedReturnId] = useState<number | null>(null);
   const [isResellable, setIsResellable] = useState<boolean>(true);
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   const loadOrder = async () => {
     if (!id) return;
@@ -151,6 +155,23 @@ export const StoreOrderDetailPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Botão de Voltar ao Hub do Lojista */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            if (user?.role === 'BRAND_OWNER') {
+              navigate('/brand?tab=orders');
+            } else {
+              navigate('/seller?tab=orders');
+            }
+          }}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#354B5E] hover:text-[#263847] hover:underline"
+        >
+          ← Voltar para Pedidos
+        </button>
+      </div>
+
       {/* Cabeçalho */}
       <div className="flex justify-between items-center border-b pb-4">
         <div>
@@ -216,6 +237,37 @@ export const StoreOrderDetailPage: React.FC = () => {
                   </p>
                 ))}
               </div>
+
+              {/* Fotos enviadas pelo cliente */}
+              {ret.photos && ret.photos.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-xs font-semibold text-gray-700">
+                    Fotos anexadas pelo cliente ({ret.photos.length}) — clique para ampliar:
+                  </p>
+                  <div className="flex gap-2.5 flex-wrap">
+                    {ret.photos.map((photo, pIdx) => {
+                      const photoUrl = photo.image.startsWith('http')
+                        ? photo.image
+                        : `http://127.0.0.1:8000${photo.image}`;
+                      return (
+                        <button
+                          key={photo.id || pIdx}
+                          type="button"
+                          onClick={() => setPreviewPhoto(photoUrl)}
+                          className="group relative block w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-200 hover:border-orange-500 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-zoom-in"
+                        >
+                          <img
+                            src={photoUrl}
+                            alt={`Foto da devolução ${pIdx + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Botões de Ação para o Lojista */}
               <div className="flex justify-end gap-2 pt-1">
@@ -637,6 +689,33 @@ export const StoreOrderDetailPage: React.FC = () => {
                 Confirmar Recebimento
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup para Visualização de Foto em Tela Maior (Lightbox) */}
+      {previewPhoto && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center p-4 z-50 animate-in fade-in duration-200"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewPhoto(null)}
+              className="absolute top-4 right-4 z-10 w-9 h-9 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-colors shadow-md"
+              title="Fechar"
+            >
+              ✕
+            </button>
+            <img
+              src={previewPhoto}
+              alt="Foto ampliada da devolução"
+              className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

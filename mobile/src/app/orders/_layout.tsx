@@ -10,7 +10,8 @@ export default function OrdersLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="[id]" />
+      <Stack.Screen name="[id]/index" />
+      <Stack.Screen name="[id]/return" />
     </Stack>
   );
 }

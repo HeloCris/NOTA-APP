@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
   useWindowDimensions,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
@@ -21,6 +21,8 @@ export default function OrderSuccessScreen() {
   const containerWidth = Math.min(windowWidth, 460);
 
   const orderId = (params.order_id as string) || '48213';
+  const orderCount = Number(params.order_count) || 1;
+  const orderCodes = (params.order_codes as string) || '';
   const totalAmount = (params.total_amount as string) || '27,92';
   const shippingService = (params.shipping_service as string) || 'SEDEX';
 
@@ -41,12 +43,12 @@ export default function OrderSuccessScreen() {
   };
 
   const handleTrackOrder = () => {
-    router.replace('/(shop)/orders' as any);
+    router.replace('/orders' as any);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* Header com botão fechar (X) e título Confirmação */}
         <View style={styles.header}>
@@ -77,17 +79,23 @@ export default function OrderSuccessScreen() {
           </View>
 
           {/* Título & Mensagem */}
-          <Text style={styles.mainTitle}>Pedido confirmado</Text>
+          <Text style={styles.mainTitle}>
+            {orderCount > 1 ? 'Pedidos confirmados!' : 'Pedido confirmado'}
+          </Text>
           <Text style={styles.mainSubtitle}>
-            Enviamos os detalhes para o seu e-mail. A loja já foi avisada.
+            {orderCount > 1
+              ? `Seu pagamento foi aprovado! Criamos ${orderCount} pedidos separados (um para cada loja parceira).`
+              : 'Enviamos os detalhes para o seu e-mail. A loja já foi avisada.'}
           </Text>
 
           {/* Card Detalhes do Pedido */}
           <View style={styles.card}>
             {/* Linha Pedido */}
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Pedido</Text>
-              <Text style={styles.orderNumberText}>#NOTA-{orderId}</Text>
+              <Text style={styles.infoLabel}>{orderCount > 1 ? 'Pedidos' : 'Pedido'}</Text>
+              <Text style={styles.orderNumberText}>
+                {orderCodes ? orderCodes : `#NOTA-${orderId}`}
+              </Text>
             </View>
 
             <View style={styles.divider} />

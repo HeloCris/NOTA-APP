@@ -58,6 +58,7 @@ export interface StoreUpdatePayload {
 
 export interface DashboardData {
     rating: number;
+    reviews_count?: number;
     is_verified: boolean;
     kpis: {
         revenue_month: number;

@@ -6,14 +6,14 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
-  StatusBar,
   useWindowDimensions,
   ActivityIndicator,
   Modal,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
@@ -331,7 +331,7 @@ export default function ProtoRF10Checkout() {
     }));
 
     router.push({
-      pathname: '/(shop)/checkout/payment' as any,
+      pathname: '/checkout/payment' as any,
       params: {
         store_id: String(primaryStoreId),
         total_amount: total.toFixed(2),
@@ -353,7 +353,7 @@ export default function ProtoRF10Checkout() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* --- HEADER COM BOTÃO VOLTAR --- */}
         <View style={styles.header}>

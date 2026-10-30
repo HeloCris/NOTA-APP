@@ -1,9 +1,9 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import URLPattern, URLResolver, include, path
 
-urlpatterns = [
+urlpatterns: list[URLPattern | URLResolver] = [
     path("admin/", admin.site.urls),
     path("api/v1/auth/", include("apps.users.urls")),
     path("api/v1/stores/", include("apps.stores.urls")),
@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/v1/", include("apps.inventory.urls")),
     path("api/v1/showcase/", include("apps.showcase.urls")),
     path("api/v1/", include("apps.orders.urls")),
+    path("api/v1/", include("apps.reviews.urls")),
 ]
 
 if settings.DEBUG:

@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -237,8 +238,8 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
   };
 
   const handleCvvChange = (text: string) => {
-    // Padronizar para exatamente até 3 números
-    const cleaned = text.replace(/\D/g, '').slice(0, 3);
+    // Permite 3 ou 4 dígitos (compatível com Visa/Master e Amex)
+    const cleaned = text.replace(/\D/g, '').slice(0, 4);
     setCvv(cleaned);
     if (errors.cvv) {
       setErrors((prev) => ({ ...prev, cvv: undefined }));
@@ -261,7 +262,16 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
     }
   };
 
-  // Validação cuidadosa campo por campo
+  const handleFillTestData = () => {
+    setCardNumber('4532 1234 5678 1234');
+    setCardHolder('JOAO DA SILVA');
+    setExpirationDate('12/28');
+    setCvv('321');
+    setCpf('123.456.789-09');
+    setErrors({});
+  };
+
+  // Validação cuidadosa campo por campo com retorno estruturado
   const validateForm = () => {
     const newErrors: typeof errors = {};
     const rawNumber = cardNumber.replace(/\D/g, '');
@@ -270,15 +280,15 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
     if (!rawNumber) {
       newErrors.cardNumber = 'Informe o número do cartão impresso na frente.';
     } else if (rawNumber.length < 13 || rawNumber.length > 16) {
-      newErrors.cardNumber = 'Número de cartão incompleto (deve ter 16 dígitos).';
+      newErrors.cardNumber = 'Número de cartão incompleto (deve ter entre 13 e 16 dígitos).';
     }
 
     // Validação do Nome do Titular
     const trimmedHolder = cardHolder.trim();
     if (!trimmedHolder) {
       newErrors.cardHolder = 'Informe o nome completo impresso no cartão.';
-    } else if (trimmedHolder.split(/\s+/).length < 2) {
-      newErrors.cardHolder = 'Digite o nome e sobrenome como constam no cartão.';
+    } else if (trimmedHolder.length < 2) {
+      newErrors.cardHolder = 'Digite o nome do titular como consta no cartão.';
     }
 
     // Validação da Validade MM/AA
@@ -290,37 +300,45 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
     } else {
       const month = parseInt(rawExpiry.slice(0, 2), 10);
       const year = parseInt(rawExpiry.slice(2, 4), 10);
-      const currentYear = new Date().getFullYear() % 100;
-      const currentMonth = new Date().getMonth() + 1;
 
       if (month < 1 || month > 12) {
         newErrors.expirationDate = 'Mês inválido (01 a 12).';
-      } else if (year < currentYear || (year === currentYear && month < currentMonth)) {
-        newErrors.expirationDate = 'Cartão expirado.';
+      } else if (year < 24 || year > 60) {
+        newErrors.expirationDate = 'Ano de validade inválido.';
       }
     }
 
-    // Validação do CVV (estritamente 3 dígitos)
+    // Validação do CVV (3 ou 4 dígitos)
     if (!cvv) {
       newErrors.cvv = 'Informe o CVV.';
-    } else if (cvv.length !== 3) {
-      newErrors.cvv = 'O CVV deve ter 3 dígitos.';
+    } else if (cvv.length < 3 || cvv.length > 4) {
+      newErrors.cvv = 'O CVV deve ter 3 ou 4 dígitos.';
     }
 
-    // Validação do CPF do Titular
+    // Validação do CPF do Titular (opcional para simulação de pagamento, mas validado se preenchido)
     const rawCpf = cpf.replace(/\D/g, '');
-    if (!rawCpf) {
-      newErrors.cpf = 'Informe o CPF do titular para emissão de nota.';
-    } else if (rawCpf.length !== 11) {
+    if (rawCpf && rawCpf.length !== 11) {
       newErrors.cpf = 'CPF incompleto (deve conter 11 dígitos).';
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return {
+      isValid: Object.keys(newErrors).length === 0,
+      errors: newErrors,
+    };
   };
 
   const handleSubmit = () => {
-    if (!validateForm()) {
+    const { isValid, errors: validationErrors } = validateForm();
+    if (!isValid) {
+      const firstErrorMsg =
+        validationErrors.cardNumber ||
+        validationErrors.cardHolder ||
+        validationErrors.expirationDate ||
+        validationErrors.cvv ||
+        validationErrors.cpf ||
+        'Por favor, preencha corretamente os dados do cartão.';
+      Alert.alert('Dados Incompletos', firstErrorMsg);
       return;
     }
 
@@ -333,6 +351,7 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
       expiration_date: expirationDate,
       card_brand: brand.name,
       save_card: saveCard,
+      cpf: cpf.replace(/\D/g, ''),
     });
   };
 
@@ -444,7 +463,7 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
             onChangeText={handleCvvChange}
             keyboardType="numeric"
             secureTextEntry
-            maxLength={3}
+            maxLength={4}
             autoComplete="off"
             autoCorrect={false}
             spellCheck={false}
@@ -460,7 +479,7 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
 
       {/* 4. CPF do titular */}
       <View style={styles.inputWrapper}>
-        <Text style={styles.label}>CPF do titular</Text>
+        <Text style={styles.label}>CPF do titular (opcional)</Text>
         <TextInput
           style={[styles.input, errors.cpf ? styles.inputError : null]}
           placeholder="000.000.000-00"
@@ -504,6 +523,16 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
         />
       </View>
 
+      {/* Botão de Preencher Dados de Teste */}
+      <TouchableOpacity
+        style={styles.testCardButton}
+        onPress={handleFillTestData}
+        activeOpacity={0.75}
+      >
+        <Feather name="zap" size={14} color="#1D4ED8" />
+        <Text style={styles.testCardText}>Preencher dados de teste</Text>
+      </TouchableOpacity>
+
       {/* Selo de segurança */}
       <View style={styles.securityRow}>
         <Feather name="lock" size={13} color="#6B7280" />
@@ -517,8 +546,14 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
         disabled={isLoading}
         activeOpacity={0.88}
       >
-        <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-        <Text style={styles.payButtonText}>Pagar R$ {totalFormatted}</Text>
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.payButtonText}>Pagar R$ {totalFormatted}</Text>
+          </>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -714,5 +749,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#DC2626',
     fontWeight: '500',
+  },
+  testCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginBottom: 14,
+    alignSelf: 'center',
+  },
+  testCardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1D4ED8',
   },
 });

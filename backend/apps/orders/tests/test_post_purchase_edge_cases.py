@@ -4,7 +4,6 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
-import json
 
 from apps.catalog.models import Brand, Product
 from apps.inventory.models import StoreProduct

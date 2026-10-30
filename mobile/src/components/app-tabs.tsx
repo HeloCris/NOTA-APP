@@ -42,7 +42,7 @@ export default function AppTabs() {
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
               size={22}
-              color={color}
+              color={(color as string) ?? '#2C4659'}
             />
           ),
         }}
@@ -56,7 +56,7 @@ export default function AppTabs() {
             <Ionicons
               name={focused ? 'search' : 'search-outline'}
               size={22}
-              color={color}
+              color={(color as string) ?? '#2C4659'}
             />
           ),
         }}
@@ -78,7 +78,7 @@ export default function AppTabs() {
             borderRadius: 8,
           },
           tabBarIcon: ({ color }) => (
-            <Feather name="shopping-bag" size={21} color={color} />
+            <Feather name="shopping-bag" size={21} color={(color as string) ?? '#2C4659'} />
           ),
         }}
       />
@@ -91,31 +91,9 @@ export default function AppTabs() {
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
               size={22}
-              color={color}
+              color={(color as string) ?? '#2C4659'}
             />
           ),
-        }}
-      />
-
-      {/* Rotas Ocultas da Barra Inferior */}
-      <Tabs.Screen
-        name="orders"
-        options={{
-          href: null,
-        }}
-      />
-
-      <Tabs.Screen
-        name="store/[id]"
-        options={{
-          href: null,
-        }}
-      />
-
-      <Tabs.Screen
-        name="checkout"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

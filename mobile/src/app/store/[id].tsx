@@ -5,13 +5,13 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  StatusBar,
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -155,18 +155,20 @@ export default function StoreScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar style="light" />
       <View style={styles.content}>
-        <Pressable
+        <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Voltar"
+          accessibilityLabel="Voltar para busca"
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           onPress={() => {
             router.navigate('/(shop)/explore' as never);
           }}
           style={styles.floatingBackButton}
         >
           <MaterialIcons name="arrow-back" size={20} color="#1C252E" />
-        </Pressable>
+        </TouchableOpacity>
 
         <Animated.FlatList
           data={groupedProducts}
@@ -190,7 +192,17 @@ export default function StoreScreen() {
                   store={store}
                   scrollY={scrollY}
                   productsCount={groupedProducts.length}
-                  onOpenReviews={() => setShowReviewsModal(true)}
+                  onOpenReviews={() => {
+                    router.push({
+                      pathname: '/store/[id]/reviews' as any,
+                      params: {
+                        id: store.id.toString(),
+                        storeName: store.name,
+                        rating: store.rating?.toString(),
+                        reviewsCount: store.reviews_count?.toString(),
+                      },
+                    });
+                  }}
                   onContactPress={() => setShowContactModal(true)}
                 />
               )}
@@ -273,6 +285,7 @@ export default function StoreScreen() {
         <StoreReviewsModal
           visible={showReviewsModal}
           onClose={() => setShowReviewsModal(false)}
+          storeId={store?.id}
           storeName={store?.name}
           rating={store?.rating}
           reviewsCount={store?.reviews_count}
@@ -319,7 +332,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Platform.OS === 'ios' ? 48 : 36,
     left: 16,
-    zIndex: 100,
+    zIndex: 9999,
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -330,7 +343,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 10,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
   },
   listContent: {
     paddingBottom: 40,
