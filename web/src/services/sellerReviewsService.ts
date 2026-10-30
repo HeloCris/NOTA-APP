@@ -58,7 +58,7 @@ export interface ReviewFilterParams {
 
 export const sellerReviewsService = {
   getStoreReviews: async (params?: ReviewFilterParams): Promise<StoreReviewsResponse> => {
-    const queryParams: Record<string, any> = {};
+    const queryParams: Record<string, string | number> = {};
     if (params?.product) queryParams.product = params.product;
     if (params?.rating) queryParams.rating = params.rating;
     if (params?.with_photos) queryParams.with_photos = 'true';

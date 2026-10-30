@@ -35,28 +35,35 @@ export function StoreReviewsView({ store, onBack }: StoreReviewsViewProps) {
   const [replyText, setReplyText] = useState<string>('');
   const [isSubmittingReply, setIsSubmittingReply] = useState<boolean>(false);
 
-  // Carregar avaliações
-  const loadReviews = async () => {
-    setIsLoading(true);
-    try {
-      const data = await sellerReviewsService.getStoreReviews({
+  useEffect(() => {
+    let isMounted = true;
+
+    sellerReviewsService
+      .getStoreReviews({
         rating: selectedRating ?? undefined,
         product: selectedProduct ?? undefined,
         with_photos: withPhotosOnly || undefined,
         unanswered: unansweredOnly || undefined,
+      })
+      .then((data) => {
+        if (!isMounted) return;
+        setReviews(data.results || []);
+        setSummary(data.summary || null);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('Erro ao carregar avaliações do lojista:', err);
+        toast.error('Não foi possível carregar as avaliações.');
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       });
-      setReviews(data.results || []);
-      setSummary(data.summary || null);
-    } catch (err) {
-      console.error('Erro ao carregar avaliações do lojista:', err);
-      toast.error('Não foi possível carregar as avaliações.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    loadReviews();
+    return () => {
+      isMounted = false;
+    };
   }, [selectedRating, selectedProduct, withPhotosOnly, unansweredOnly]);
 
   // Perfumes únicos encontrados nas avaliações para popular o filtro
