@@ -121,6 +121,11 @@ class Store(models.Model):
         verbose_name="Modo Férias",
     )
 
+    views_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Visualizações da loja",
+    )
+
     # Configurações de Frete Regional (RF-10)
     shipping_local_pac = models.DecimalField(
         max_digits=10,

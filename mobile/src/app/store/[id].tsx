@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Animated,
   Modal,
@@ -36,6 +36,7 @@ export default function StoreScreen() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showReviewsModal, setShowReviewsModal] = useState<boolean>(false);
   const [showContactModal, setShowContactModal] = useState<boolean>(false);
+  const viewRegistered = useRef(false);
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
@@ -99,6 +100,10 @@ export default function StoreScreen() {
           olfactory_family: selectedFamily || undefined,
         }),
       ]);
+      if (!viewRegistered.current) {
+        viewRegistered.current = true;
+        void storesService.registerView(storeData.id);
+      }
       setStore(storeData);
       setProducts(productsData);
     } catch (error) {

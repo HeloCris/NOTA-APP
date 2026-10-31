@@ -161,6 +161,10 @@ export const storesService = {
     return response.data;
   },
 
+  registerView: async (id: number | string): Promise<void> => {
+    await api.post(`/stores/${id}/view/`);
+  },
+
   getStoreProducts: async (id: number | string, params?: StoreProductsParams): Promise<StoreProduct[]> => {
     const response = await api.get(`/stores/${id}/products/`, { params });
     return response.data;
