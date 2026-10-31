@@ -73,7 +73,10 @@ def build_dashboard(store, period: str = "7d") -> dict:
         recent_orders.append({
             "id": order.code,
             "date": timezone.localtime(order.created_at).strftime("%d/%m/%Y"),
-            "client": order.user.get_full_name() or order.user.email,
+            "client": (
+                getattr(order.user, "get_full_name", lambda: "")()
+                or order.user.email
+            ),
             "frag": product.name if product else "Pedido",
             "vol": f"{first_item.store_product.volume_ml}ml" if first_item else "",
             "val": f"R$ {order.total_amount:.2f}",

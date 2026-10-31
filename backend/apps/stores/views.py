@@ -128,8 +128,16 @@ class StoreProductListView(generics.ListAPIView):
             store=store,
             product__is_approved=True,
             is_available=True,
-            stock_quantity__gt=0
         ).select_related('store', 'product', 'product__brand')
+        requested_ids = self.request.query_params.get("store_product_ids")
+        if requested_ids:
+            try:
+                ids = [int(value) for value in requested_ids.split(",") if value.strip()]
+            except ValueError:
+                ids = []
+            queryset = queryset.filter(id__in=ids)
+        else:
+            queryset = queryset.filter(stock_quantity__gt=0)
 
         search = self.request.query_params.get('search', None)
         family = self.request.query_params.get('olfactory_family', None)

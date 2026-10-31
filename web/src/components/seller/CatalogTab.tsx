@@ -53,6 +53,24 @@ export function CatalogTab({ store }: CatalogTabProps) {
         return () => window.clearTimeout(timer);
     }, [fetchItems]);
 
+    useEffect(() => {
+        const refreshOnFocus = () => {
+            if (document.visibilityState === "visible") {
+                void fetchItems();
+            }
+        };
+        document.addEventListener("visibilitychange", refreshOnFocus);
+        const interval = window.setInterval(() => {
+            if (document.visibilityState === "visible") {
+                void fetchItems();
+            }
+        }, 30000);
+        return () => {
+            document.removeEventListener("visibilitychange", refreshOnFocus);
+            window.clearInterval(interval);
+        };
+    }, [fetchItems]);
+
     const handleToggleAvailability = (item: StoreProduct) => {
         const next = !item.is_available;
         setItems((prev) =>

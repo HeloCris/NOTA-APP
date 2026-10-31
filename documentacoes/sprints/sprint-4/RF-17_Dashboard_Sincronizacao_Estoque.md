@@ -93,15 +93,27 @@ Implementa a sincronização e consistência em tempo real do estoque entre comp
 - `src/features/showcase/StoreShowcasePage.tsx` — **[MODIFY]** registro da visualização da vitrine.
 
 **Mobile:**
+- `src/context/CartContext.tsx` — **[MODIFY]** suporte a ajuste explícito de quantidade.
+- `src/utils/cartStock.ts` — **[NEW]** regra determinística de estoque do carrinho.
+- `__tests__/CartStockValidation.test.ts` — **[NEW]** testes de indisponibilidade e ajuste de quantidade.
 - `src/app/store/[id].tsx` — **[MODIFY]** disparo de visualização da loja.
+- `src/app/(shop)/cart.tsx` — **[MODIFY]** validação ao abrir o carrinho, ajuste, aviso e bloqueio do checkout.
 - `src/services/stores.ts` — **[MODIFY]** serviço para registrar visualização.
+
+**Testes RF-17:**
+- `apps/stores/tests/test_dashboard.py` — **[NEW]** KPIs financeiros, estoque, visualizações e período.
+- `apps/stores/tests/test_store_views.py` — **[NEW]** incremento público de visualizações.
+- `apps/inventory/tests/test_stock_sync.py` — **[NEW]** restauração atômica do estoque.
+- `web/src/components/seller/DashboardTab.test.tsx` — **[NEW]** KPIs, período e remoção de Top Perfumes.
 
 ### Implementação entregue
 
 - Dashboard e sincronização de estoque implementados nesta feature.
 - O contador de visualizações é incrementado de forma atômica no backend e limitado a uma vez por sessão na vitrine web/mobile.
 - A baixa de estoque na criação do pedido já usa transação atômica; cancelamentos e devoluções usam bloqueio de linha ao restaurar estoque.
-- Build web, `manage.py check` e os testes de lojas/estoque foram validados.
+- O carrinho mobile consulta o estoque atual ao receber foco, zera o subtotal de itens indisponíveis, ajusta quantidades excedentes e bloqueia o checkout enquanto houver indisponibilidade.
+- A tabela web de estoque é revalidada ao retornar à aba e a cada 30 segundos enquanto a página está visível.
+- Testes RF-17 de backend (3), teste RF-17 web (1) e build web foram validados. O teste mobile está criado, mas requer a instalação das dependências mobile (`jest-expo`) para execução.
 
 ---
 

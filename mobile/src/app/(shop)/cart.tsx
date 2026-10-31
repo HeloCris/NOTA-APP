@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,15 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCart, CartItem } from '@/context/CartContext';
+import { storesService } from '@/services/stores';
+import { getCartStockState } from '@/utils/cartStock';
 
 interface StoreGroup {
   storeId: number;
@@ -31,7 +34,76 @@ export default function CartScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 480);
 
-  const { items, updateQuantity, removeItem, clearCart, totalItemsCount, subtotal } = useCart();
+  const { items, updateQuantity, setQuantity, removeItem, clearCart, totalItemsCount, subtotal } = useCart();
+  const itemsRef = useRef(items);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stockByItem, setStockByItem] = useState<Record<string, number>>({});
+  const [isCheckingStock, setIsCheckingStock] = useState(false);
+  const [stockCheckFailed, setStockCheckFailed] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  const validateStock = useCallback(async () => {
+    const currentItems = itemsRef.current;
+    const groups = new Map<number, CartItem[]>();
+    currentItems.forEach((item) => {
+      if (item.storeId && item.storeProductId) {
+        groups.set(item.storeId, [...(groups.get(item.storeId) || []), item]);
+      }
+    });
+    if (!groups.size) {
+      setStockCheckFailed(false);
+      return;
+    }
+    setIsCheckingStock(true);
+    setStockCheckFailed(false);
+    try {
+      const results = await Promise.all([...groups.entries()].map(async ([storeId, group]) => {
+        const products = await storesService.getStoreProducts(storeId, {
+          store_product_ids: group.map((item) => item.storeProductId).join(","),
+        });
+        return group.map((item) => [
+          item.id,
+          products.find((product) => product.id === item.storeProductId)?.stock_quantity ?? 0,
+        ] as const);
+      }));
+      const nextStock = Object.fromEntries(results.flat());
+      setStockByItem(nextStock);
+      currentItems.forEach((item) => {
+        const available = nextStock[item.id];
+        const stockState = getCartStockState(item, available);
+        if (stockState.adjustedQuantity !== null) {
+          setQuantity(item.id, stockState.adjustedQuantity);
+          showToast(`A quantidade de ${item.productName} foi ajustada para ${available} devido ao estoque disponível.`);
+        }
+      });
+    } catch (error) {
+      console.error("Erro ao validar estoque do carrinho:", error);
+      setStockCheckFailed(true);
+    } finally {
+      setIsCheckingStock(false);
+    }
+  }, [setQuantity, showToast]);
+
+  const cartSignature = items.map((item) => `${item.id}:${item.quantity}`).join("|");
+  useFocusEffect(useCallback(() => {
+    void validateStock();
+  }, [validateStock]));
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void validateStock();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [cartSignature, validateStock]);
 
   const formatBRL = (val: number) => {
     return val.toLocaleString('pt-BR', {
@@ -59,14 +131,27 @@ export default function CartScreen() {
       }
       const group = groupsMap.get(storeKey)!;
       group.items.push(item);
-      group.subtotal += item.price * item.quantity;
+      const available = stockByItem[item.id];
+      group.subtotal += available === 0 ? 0 : item.price * item.quantity;
     });
 
     return Array.from(groupsMap.values());
-  }, [items]);
+  }, [items, stockByItem]);
+
+  const hasUnavailableItems = items.some((item) => getCartStockState(item, stockByItem[item.id]).unavailable);
+  const checkoutBlocked = isCheckingStock || stockCheckFailed || hasUnavailableItems;
 
   const handleCheckout = () => {
     if (items.length === 0) return;
+    if (checkoutBlocked) {
+      Alert.alert(
+        stockCheckFailed ? 'Não foi possível verificar o estoque' : 'Estoque indisponível',
+        stockCheckFailed
+          ? 'Tente novamente antes de finalizar a compra.'
+          : 'Remova os itens fora de estoque para continuar.',
+      );
+      return;
+    }
     router.push('/checkout/bag' as any);
   };
 
@@ -165,6 +250,11 @@ export default function CartScreen() {
                             itemIdx !== group.items.length - 1 && styles.productItemDivider,
                           ]}
                         >
+                          {stockByItem[item.id] === 0 ? (
+                            <View style={styles.unavailableBadge}>
+                              <Text style={styles.unavailableText}>Indisponível / Fora de estoque</Text>
+                            </View>
+                          ) : null}
                           {/* Imagem do Produto */}
                           <View style={styles.bottleBox}>
                             {item.imageUrl ? (
@@ -223,8 +313,8 @@ export default function CartScreen() {
 
                           {/* Preço e Remover */}
                           <View style={styles.priceCol}>
-                            <Text style={styles.priceText}>
-                              R$ {formatBRL(item.price * item.quantity)}
+                            <Text style={[styles.priceText, stockByItem[item.id] === 0 && styles.unavailablePrice]}>
+                              R$ {formatBRL(stockByItem[item.id] === 0 ? 0 : item.price * item.quantity)}
                             </Text>
                             <TouchableOpacity
                               onPress={() => removeItem(item.id)}
@@ -274,17 +364,24 @@ export default function CartScreen() {
 
               {/* --- BOTÃO FINALIZAR COMPRA --- */}
               <TouchableOpacity
-                style={styles.checkoutBtn}
+                style={[styles.checkoutBtn, checkoutBlocked && styles.checkoutBtnDisabled]}
                 activeOpacity={0.88}
                 onPress={handleCheckout}
               >
-                <Text style={styles.checkoutBtnText}>Finalizar Compra</Text>
+                <Text style={styles.checkoutBtnText}>
+                  {isCheckingStock ? 'Verificando estoque...' : stockCheckFailed ? 'Tente verificar novamente' : hasUnavailableItems ? 'Remova itens indisponíveis' : 'Finalizar Compra'}
+                </Text>
               </TouchableOpacity>
             </>
           )}
 
           <View style={{ height: 32 }} />
         </ScrollView>
+        {toastMessage ? (
+          <View style={styles.toast}>
+            <Text style={styles.toastText}>{toastMessage}</Text>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -644,5 +741,41 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15.5,
     fontWeight: '700',
+  },
+  checkoutBtnDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  unavailableBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 2,
+    backgroundColor: '#FCE7F3',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  unavailableText: {
+    color: '#9D174D',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  unavailablePrice: {
+    color: '#9CA3AF',
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#263847',
+    borderRadius: 10,
+    padding: 12,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

@@ -15,6 +15,7 @@ export interface StoreProduct {
   store_city?: string;
   store_state?: string;
   sold_count?: number;
+  stock_quantity?: number;
 }
 
 export interface StoreReview {
@@ -102,6 +103,7 @@ export interface Store {
 export interface StoreProductsParams {
   search?: string;
   olfactory_family?: string;
+  store_product_ids?: string;
 }
 
 export interface ProductBrand {
