@@ -10,6 +10,7 @@ interface DashboardTabProps {
 export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
     const [data, setData] = useState<DashboardData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [period, setPeriod] = useState<"7d" | "30d">("7d");
 
     const storeName = store?.name || "Sua Loja";
     const initial = storeName.charAt(0).toUpperCase();
@@ -18,7 +19,7 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const dashboardData = await storeService.getDashboardData();
+                const dashboardData = await storeService.getDashboardData(period);
                 setData(dashboardData);
             } catch (err) {
                 console.error("Erro ao carregar dados do dashboard", err);
@@ -30,7 +31,11 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
         if (store) {
             fetchData();
         }
-    }, [store]);
+    }, [store, period]);
+
+    const money = (value: number) => value.toLocaleString("pt-BR", {
+        style: "currency", currency: "BRL", minimumFractionDigits: 2,
+    });
 
     if (isLoading || !data) {
         return (
@@ -98,10 +103,10 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[18px] mb-[22px]">
                 {[
-                    { icon: "#ic-chart", trend: "0%", up: true, val: `R$ ${(data.kpis.revenue_month / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, lbl: "Faturamento (mês)", foot: "vs. mês anterior" },
-                    { icon: "#ic-box", trend: "0%", up: true, val: data.kpis.pending_orders.toString(), lbl: "Pedidos Pendentes", foot: "vs. semana anterior" },
+                    { icon: "#ic-chart", trend: "", up: true, val: money(data.kpis.net_revenue), lbl: "Faturamento líquido", foot: `Bruto ${money(data.kpis.gross_revenue)}` },
+                    { icon: "#ic-box", trend: "", up: true, val: data.kpis.pending_orders.toString(), lbl: "Pedidos Pendentes", foot: "No período selecionado" },
                     { icon: "#ic-box", trend: "Atenção", alert: true, val: data.kpis.stock_alerts.toString(), lbl: "Alertas de Estoque", foot: "Itens abaixo do mínimo" },
-                    { icon: "#ic-eye-kpi", trend: "0%", up: true, val: data.kpis.store_views.toString(), lbl: "Visualizações (loja)", foot: "vs. mês anterior" },
+                    { icon: "#ic-eye-kpi", trend: "", up: true, val: data.kpis.store_views.toString(), lbl: "Visualizações (loja)", foot: "Total da vitrine" },
                 ].map((kpi, i) => (
                     <div key={i} className="bg-white border border-[#EFEBDD] rounded-[18px] p-5 relative overflow-hidden shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
                         <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${kpi.alert ? 'from-[#A85A38]' : 'from-[#354B5E]'} to-transparent`}></div>
@@ -110,7 +115,7 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                                 <svg className="w-[19px] h-[19px]"><use href={kpi.icon} /></svg>
                             </div>
                             <div className={`text-[11px] font-extrabold px-2 py-[3px] rounded-full flex items-center gap-[3px] ${kpi.alert ? 'bg-[#FBEEE7] text-[#A24726]' : kpi.up ? 'bg-[#EDF0E7] text-[#454F3A]' : 'bg-[#FBEEE7] text-[#A24726]'}`}>
-                                {!kpi.alert && <svg className="w-2.5 h-2.5"><use href={kpi.up ? "#ic-arrow-up" : "#ic-arrow-down"} /></svg>}
+                                {!kpi.alert && kpi.trend && <svg className="w-2.5 h-2.5"><use href={kpi.up ? "#ic-arrow-up" : "#ic-arrow-down"} /></svg>}
                                 {kpi.trend}
                             </div>
                         </div>
@@ -120,19 +125,36 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                     </div>
                 ))}
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-[18px] mb-[22px]">
+                <div className="bg-white border border-[#EFEBDD] rounded-[18px] p-5">
+                    <div className="text-[11px] uppercase tracking-wide text-[#93927F] font-bold">Ticket médio</div>
+                    <div className="font-jakarta text-[22px] font-extrabold text-[#23282D] mt-2">{money(data.kpis.average_ticket)}</div>
+                </div>
+                <div className="bg-white border border-[#EFEBDD] rounded-[18px] p-5">
+                    <div className="text-[11px] uppercase tracking-wide text-[#93927F] font-bold">Cancelamentos e devoluções</div>
+                    <div className="font-jakarta text-[18px] font-extrabold text-[#23282D] mt-2">{data.kpis.cancellation_rate}% cancelados · {data.kpis.return_rate}% devolvidos</div>
+                </div>
+                <div className="bg-white border border-[#EFEBDD] rounded-[18px] p-5">
+                    <div className="text-[11px] uppercase tracking-wide text-[#93927F] font-bold">Valor em estoque</div>
+                    <div className="font-jakarta text-[22px] font-extrabold text-[#23282D] mt-2">{money(data.kpis.stock_value)}</div>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px] gap-[22px] items-start">
                 <div className="space-y-[22px]">
                     <div className="bg-white border border-[#EFEBDD] rounded-[20px] shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
                         <div className="flex items-center justify-between p-[20px_22px_4px]">
-                            <h3 className="text-[16.5px] font-extrabold m-0 text-[#23282D]">Vendas da Semana</h3>
+                            <h3 className="text-[16.5px] font-extrabold m-0 text-[#23282D]">Faturamento por dia</h3>
                             <div className="flex gap-1 bg-[#F5F3E9] border border-[#E6E1D2] rounded-full p-[3px]">
-                                <span className="text-[11px] font-bold px-[11px] py-[5px] rounded-full bg-white text-[#23282D] shadow-[0_1px_3px_rgba(35,40,45,0.06)] cursor-pointer">7 dias</span>
-                                <span className="text-[11px] font-bold px-[11px] py-[5px] rounded-full text-[#5A6067] cursor-pointer">30 dias</span>
+                                {(["7d", "30d"] as const).map((value) => (
+                                    <button key={value} onClick={() => setPeriod(value)} className={`text-[11px] font-bold px-[11px] py-[5px] rounded-full ${period === value ? "bg-white text-[#23282D] shadow-[0_1px_3px_rgba(35,40,45,0.06)]" : "text-[#5A6067]"}`}>
+                                        {value === "7d" ? "7 dias" : "30 dias"}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                         <div className="p-[6px_22px_18px]">
-                            {data.weekly_sales.reduce((a, b) => a + b, 0) === 0 ? (
+                            {data.chart.values.reduce((a, b) => a + b, 0) === 0 ? (
                                 <div className="h-[200px] flex items-center justify-center text-[13px] text-[#93927F] border-2 border-dashed border-[#E6E1D2] rounded-xl m-2">
                                     Nenhuma venda registrada nesta semana.
                                 </div>
@@ -142,15 +164,9 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                                     <g stroke="#F0EEE5" strokeWidth="1">
                                         <line x1="0" y1="15" x2="700" y2="15" /><line x1="0" y1="65" x2="700" y2="65" /><line x1="0" y1="115" x2="700" y2="115" /><line x1="0" y1="155" x2="700" y2="155" />
                                     </g>
-                                    {/* Exemplo estático (como placeholder se houvesse vendas) */}
-                                    <path d="M0,140 C40,130 60,105 100,110 C140,115 160,75 200,70 C240,65 260,120 300,115 C340,110 360,55 400,50 C440,45 460,85 500,80 C540,75 560,35 600,30 L700,20 L700,200 L0,200 Z" fill="url(#chartFill)" />
-                                    <path d="M0,140 C40,130 60,105 100,110 C140,115 160,75 200,70 C240,65 260,120 300,115 C340,110 360,55 400,50 C440,45 460,85 500,80 C540,75 560,35 600,30 L700,20" fill="none" stroke="#354B5E" strokeWidth="2.5" strokeLinecap="round" />
-                                    <g fill="#354B5E">
-                                        <circle cx="0" cy="140" r="3.5" /><circle cx="100" cy="110" r="3.5" /><circle cx="200" cy="70" r="3.5" /><circle cx="300" cy="115" r="3.5" /><circle cx="400" cy="50" r="3.5" /><circle cx="500" cy="80" r="3.5" /><circle cx="600" cy="30" r="4" stroke="#fff" strokeWidth="2" />
-                                    </g>
+                                    <polyline points={data.chart.values.map((value, index) => `${index * (700 / Math.max(data.chart.values.length - 1, 1))},${185 - Math.min(value / Math.max(...data.chart.values, 1), 1) * 160}`).join(" ")} fill="none" stroke="#354B5E" strokeWidth="2.5" strokeLinecap="round" />
                                     <g className="font-inter text-[11px]" fill="#93927F">
-                                        <text x="0" y="192">Seg</text><text x="98" y="192">Ter</text><text x="196" y="192">Qua</text>
-                                        <text x="296" y="192">Qui</text><text x="396" y="192">Sex</text><text x="496" y="192">Sáb</text><text x="600" y="192">Dom</text>
+                                        {data.chart.labels.filter((_, i) => i % Math.ceil(data.chart.labels.length / 7) === 0).map((label, i) => <text key={label} x={i * 100} y="192">{label}</text>)}
                                     </g>
                                 </svg>
                             )}
@@ -184,7 +200,7 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                                                 <td className="p-[14px_22px] align-middle font-semibold text-[13px]">{row.client}</td>
                                                 <td className="p-[14px_22px] align-middle"><div className="font-semibold text-[13px]">{row.frag}</div><div className="text-[11px] text-[#93927F]">{row.vol}</div></td>
                                                 <td className="p-[14px_22px] align-middle text-[13px]">{row.val}</td>
-                                                <td className="p-[14px_22px] align-middle"><span className={`text-[11px] font-bold px-[11px] py-[5px] rounded-full inline-block ${row.stClass}`}>{row.st}</span></td>
+                                                <td className="p-[14px_22px] align-middle"><span className="text-[11px] font-bold px-[11px] py-[5px] rounded-full inline-block bg-[#E9EDF0] text-[#354B5E]">{row.status}</span></td>
                                                 <td className="p-[14px_22px] align-middle text-right"><button className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white inline-flex items-center justify-center text-[#5A6067] hover:border-[#23282D] transition-colors"><svg className="w-[17px] h-[17px]"><use href="#ic-dots" /></svg></button></td>
                                             </tr>
                                         ))}
@@ -196,24 +212,6 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                 </div>
 
                 <div className="bg-white border border-[#EFEBDD] rounded-[20px] shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
-                    <div className="p-[18px_22px_20px] border-b border-[#EFEBDD]">
-                        <h3 className="text-[15px] font-extrabold pb-3 text-[#23282D] m-0">Top Perfumes</h3>
-                        {data.top_perfumes.length === 0 ? (
-                            <div className="py-6 text-center text-[12.5px] text-[#5A6067]">Nenhum dado de vendas ainda.</div>
-                        ) : (
-                            data.top_perfumes.map((p, i) => (
-                                <div key={i} className="flex items-center gap-3 py-2.5">
-                                    <div className="w-8 h-[56px] flex items-center justify-center flex-shrink-0"><svg className="h-[48px] w-auto"><use href={p.icon} /></svg></div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-[12.5px] font-bold whitespace-nowrap overflow-hidden text-ellipsis">{p.name}</div>
-                                        <div className="text-[10.5px] text-[#93927F] mb-1.5">{p.brand}</div>
-                                        <div className="h-[5px] rounded-full bg-[#EFEBDD] overflow-hidden"><div className="h-full bg-gradient-to-r from-[#263847] to-[#354B5E] rounded-full" style={{ width: p.pct }}></div></div>
-                                    </div>
-                                    <div className="text-[12px] font-extrabold text-[#23282D] w-[34px] text-right flex-shrink-0">{p.val}</div>
-                                </div>
-                            ))
-                        )}
-                    </div>
                     <div className="p-[18px_22px_20px]">
                         <h3 className="text-[15px] font-extrabold pb-3 text-[#23282D] m-0">Alerta de Reposição</h3>
                         {data.restock_alerts.length === 0 ? (
@@ -221,10 +219,10 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                         ) : (
                             data.restock_alerts.map((p, i) => (
                                 <div key={i} className="flex items-center gap-3 py-2.5">
-                                    <div className="w-[28px] h-[48px] flex items-center justify-center flex-shrink-0"><svg className="h-[42px] w-auto"><use href={p.icon} /></svg></div>
+                                    <div className="w-[28px] h-[48px] flex items-center justify-center flex-shrink-0 text-[#A24726]"><svg className="h-[24px] w-auto"><use href="#ic-box" /></svg></div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-[12.5px] font-bold">{p.name}</div>
-                                        <div className="text-[11px] text-[#A24726] font-bold">{p.qty}</div>
+                                        <div className="text-[11px] text-[#A24726] font-bold">{p.qty} unidades</div>
                                     </div>
                                     <button className="text-[11px] font-bold text-[#7E4228] whitespace-nowrap border border-[#A85A38] px-2.5 py-1 rounded-full hover:bg-[#F5E7DE] transition-colors">Repor</button>
                                 </div>

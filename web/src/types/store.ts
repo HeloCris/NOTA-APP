@@ -27,6 +27,7 @@ export interface Store {
     is_ready_to_sell?: boolean;
     owner_id: number;
     is_official?: boolean;
+    views_count?: number;
     created_at?: string;
     updated_at?: string;
 }
@@ -60,13 +61,21 @@ export interface DashboardData {
     rating: number;
     reviews_count?: number;
     is_verified: boolean;
+    period: "7d" | "30d";
     kpis: {
-        revenue_month: number;
+        gross_revenue: number;
+        net_revenue: number;
+        commission: number;
+        refunds: number;
+        average_ticket: number;
         pending_orders: number;
         stock_alerts: number;
+        stock_value: number;
         store_views: number;
+        cancellation_rate: number;
+        return_rate: number;
     };
-    weekly_sales: number[];
+    chart: { labels: string[]; values: number[] };
     recent_orders: {
         id: string;
         date: string;
@@ -74,19 +83,11 @@ export interface DashboardData {
         frag: string;
         vol: string;
         val: string;
-        st: string;
-        stClass: string;
-    }[];
-    top_perfumes: {
-        icon: string;
-        name: string;
-        brand: string;
-        pct: string;
-        val: string;
+        status: string;
     }[];
     restock_alerts: {
-        icon: string;
+        id: number;
         name: string;
-        qty: string;
+        qty: number;
     }[];
 }

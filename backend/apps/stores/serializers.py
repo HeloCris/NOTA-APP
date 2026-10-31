@@ -102,7 +102,7 @@ class StoreProductPublicSerializer(serializers.ModelSerializer):
             'id', 'product_id', 'product_name', 'brand_name', 'olfactory_family',
             'price', 'promotional_price', 'volume_ml', 'image_url',
             'store_id', 'store_name', 'is_official', 'store_city', 'store_state', 'sold_count',
-            'rating', 'reviews_count'
+            'stock_quantity', 'rating', 'reviews_count'
         ]
 
     def get_rating(self, obj):

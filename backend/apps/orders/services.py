@@ -6,6 +6,8 @@ from django.db import models, transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.inventory.models import StoreProduct
+
 from .models import (
     DeliveryConfirmedBy,
     Order,
@@ -34,8 +36,10 @@ class OrderPostPurchaseService:
     def restore_stock(order_items):
         """Restaura o estoque no StoreProduct dos itens do pedido."""
         for item in order_items:
-            store_prod = getattr(item, 'store_product', None)
-            if store_prod:
+            store_prod = (
+                StoreProduct.objects.select_for_update().filter(pk=item.store_product_id).first()
+            )
+            if store_prod is not None:
                 store_prod.stock_quantity += item.quantity
                 store_prod.save(update_fields=['stock_quantity'])
 
@@ -334,6 +338,11 @@ class OrderPostPurchaseService:
     @transaction.atomic
     def process_return_receipt(return_req: ReturnRequest, store_user, resellable: bool):
         """Processa o recebimento físico da devolução e faz a re-estocagem se o item for reutilizável."""
+        return_req = (
+            ReturnRequest.objects.select_for_update()
+            .select_related("order")
+            .get(pk=return_req.pk)
+        )
         if return_req.status not in [ReturnStatus.APPROVED, ReturnStatus.REQUESTED]:
             raise ValidationError('Solicitação de devolução precisa estar aprovada para recebimento.')
 
@@ -343,8 +352,12 @@ class OrderPostPurchaseService:
 
         if resellable:
             for r_item in return_req.items.all():
-                store_prod = getattr(r_item.order_item, 'store_product', None)
-                if store_prod:
+                store_prod = (
+                    StoreProduct.objects.select_for_update()
+                    .filter(pk=r_item.order_item.store_product_id)
+                    .first()
+                )
+                if store_prod is not None:
                     store_prod.stock_quantity += r_item.quantity
                     store_prod.save(update_fields=['stock_quantity'])
 

@@ -1,5 +1,5 @@
 import re
-from django.db.models import Q
+from django.db.models import Q, F
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import NotFound
@@ -50,6 +50,19 @@ class StoreDetailView(generics.RetrieveAPIView):
     queryset = Store.objects.filter(is_active=True)
 
 
+class StoreViewIncrementView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk, *args, **kwargs):
+        updated = Store.objects.filter(pk=pk, is_active=True).update(
+            views_count=F("views_count") + 1
+        )
+        if not updated:
+            raise NotFound("Loja não encontrada.")
+        views = Store.objects.values_list("views_count", flat=True).get(pk=pk)
+        return Response({"views_count": views}, status=status.HTTP_200_OK)
+
+
 class StoreMeView(generics.RetrieveUpdateAPIView):
     serializer_class = StoreOwnerSerializer
     permission_classes = [IsStoreOwner]
@@ -86,6 +99,7 @@ class StoreDashboardView(APIView):
 
         from apps.reviews.models import Review
         from django.db.models import Avg
+        from .services.dashboard_service import build_dashboard
 
         rev_qs = Review.objects.filter(store=store, is_hidden=False, is_deleted=False)
         avg_rating = rev_qs.aggregate(avg=Avg('rating'))['avg']
@@ -96,9 +110,7 @@ class StoreDashboardView(APIView):
             "rating": rating_val,
             "reviews_count": reviews_count,
             "is_verified": bool(store.is_official),
-            "kpis": {"revenue_month": 0, "pending_orders": 0, "stock_alerts": 0, "store_views": 0},
-            "weekly_sales": [0, 0, 0, 0, 0, 0, 0],
-            "recent_orders": [], "top_perfumes": [], "restock_alerts": []
+            **build_dashboard(store, request.query_params.get("period", "7d")),
         }
         return Response(data)
 
@@ -116,8 +128,16 @@ class StoreProductListView(generics.ListAPIView):
             store=store,
             product__is_approved=True,
             is_available=True,
-            stock_quantity__gt=0
         ).select_related('store', 'product', 'product__brand')
+        requested_ids = self.request.query_params.get("store_product_ids")
+        if requested_ids:
+            try:
+                ids = [int(value) for value in requested_ids.split(",") if value.strip()]
+            except ValueError:
+                ids = []
+            queryset = queryset.filter(id__in=ids)
+        else:
+            queryset = queryset.filter(stock_quantity__gt=0)
 
         search = self.request.query_params.get('search', None)
         family = self.request.query_params.get('olfactory_family', None)
