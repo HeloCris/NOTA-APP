@@ -227,3 +227,51 @@ def test_create_coupon_notifies_followers(api_client, seller_a, store_a, custome
     assert notif is not None
     assert "SEGUIDOR15" in notif.message
     assert store_a.name in notif.message
+
+
+@pytest.mark.django_db
+def test_coupon_used_count_consumption_and_refund_on_cancel(api_client, customer, store_a):
+    from apps.orders.models import Order, OrderStatus
+    from apps.orders.services import OrderPostPurchaseService
+
+    # 1. Cria cupom ativo
+    coupon = StoreCoupon.objects.create(
+        store=store_a,
+        code="PROMO10",
+        discount_type="FIXED_VALUE",
+        discount_value=Decimal("10.00"),
+        usage_limit=5,
+        used_count=0,
+        is_active=True,
+    )
+
+    # 2. Cria pedido com o cupom vinculado
+    order = Order.objects.create(
+        user=customer,
+        store=store_a,
+        total_amount=Decimal("90.00"),
+        shipping_cost=Decimal("10.00"),
+        shipping_address={"street": "Rua 1", "number": "100"},
+        status=OrderStatus.PENDING,
+        coupon=coupon,
+        discount_amount=Decimal("10.00"),
+    )
+
+    # 3. Processa pagamento do pedido (RN-04)
+    api_client.force_authenticate(user=customer)
+    pay_res = api_client.post("/api/v1/payments/process/", {
+        "order_id": order.id,
+        "payment_method": "CREDIT_CARD",
+        "card_number": "4532123456781234",
+    }, format="json")
+    assert pay_res.status_code == 200
+
+    coupon.refresh_from_db()
+    assert coupon.used_count == 1  # Incrementado atomicamente ao pagar
+
+    # 4. Cancelamento antes do envio (RN-04)
+    order.refresh_from_db()
+    OrderPostPurchaseService.cancel_by_customer(order, customer, reason="Desisti da compra")
+
+    coupon.refresh_from_db()
+    assert coupon.used_count == 0  # Uso estornado com sucesso
