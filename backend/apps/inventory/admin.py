@@ -5,7 +5,7 @@ from .models import StoreProduct
 
 @admin.register(StoreProduct)
 class StoreProductAdmin(admin.ModelAdmin):
-    list_display = [
+    list_display = (
         "id",
         "store",
         "product",
@@ -14,6 +14,6 @@ class StoreProductAdmin(admin.ModelAdmin):
         "promotional_price",
         "stock_quantity",
         "is_available",
-    ]
-    list_filter = ["is_available", "store"]
-    search_fields = ["product__name", "store__name"]
+    )
+    list_filter = ("is_available", "store")
+    search_fields = ("product__name", "store__name")

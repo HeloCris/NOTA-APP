@@ -102,6 +102,10 @@ jest.mock('@/services/stores', () => ({
   },
 }));
 
+jest.mock('@/services/communication', () => ({
+  startConversation: jest.fn(),
+}));
+
 jest.mock('@/constants/theme', () => ({
   Spacing: { one: 4, two: 8, three: 16, four: 24, six: 64 },
 }));
@@ -176,7 +180,7 @@ jest.mock('@/components/common/SkeletonLoader', () => {
   };
 });
 
-const { default: StoreScreen, StoreEmptyState } = require('@/app/(shop)/store/[id]');
+const { default: StoreScreen, StoreEmptyState } = require('@/app/store/[id]');
 const SkeletonLoader = require('@/components/common/SkeletonLoader').SkeletonLoader;
 
 describe('StorePage - RF-08', () => {

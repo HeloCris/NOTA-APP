@@ -167,19 +167,7 @@ export function StoreHero({
           )}
         </View>
 
-        {/* Link discreto para abrir avaliações */}
-        {onOpenReviews && (
-          <TouchableOpacity
-            style={styles.reviewsLinkButton}
-            onPress={onOpenReviews}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Ver avaliações da loja"
-          >
-            <Text style={styles.reviewsLinkText}>Ver avaliações da loja</Text>
-            <MaterialIcons name="chevron-right" size={17} color="#2C4659" />
-          </TouchableOpacity>
-        )}
+        {/* Linha de Estatísticas: Avaliação, Perfumes e Cidade */}
 
         {/* Botões de Ação: Seguir e Falar com a loja */}
         <View style={styles.actionsRow}>

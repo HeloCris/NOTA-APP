@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from django.contrib.auth.base_user import BaseUserManager
 
+if TYPE_CHECKING:
+    from .models import CustomUser
 
-class CustomUserManager(BaseUserManager):
+
+class CustomUserManager(BaseUserManager["CustomUser"]):
     use_in_migrations = True
 
     def create_user(

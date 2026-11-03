@@ -407,3 +407,60 @@ class TestShipStoreOrder:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+@pytest.mark.django_db
+class TestCustomerOrderTracking:
+    def test_owner_retrieves_detail_with_timeline_and_tracking(
+        self, api_client, customer, store_a
+    ):
+        order = _make_order(
+            customer,
+            store_a,
+            status_value="SHIPPED",
+            carrier="Correios",
+            tracking_code="BR123456789X",
+        )
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.get(f"/api/v1/orders/{order.id}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["tracking_code"] == "BR123456789X"
+        assert response.data["carrier"] == "Correios"
+        assert response.data["timeline"][3]["status"] == "SHIPPED"
+        assert response.data["timeline"][3]["current"] is True
+        assert response.data["timeline"][4]["completed"] is False
+        assert response.data["timeline"][1]["date"] is None
+        assert response.data["timeline"][3]["date"]
+
+    def test_customer_cannot_modify_order_through_customer_endpoint(
+        self, api_client, customer, store_a
+    ):
+        order = _make_order(customer, store_a, status_value="SHIPPED")
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.patch(
+            f"/api/v1/orders/{order.id}/",
+            {"status": "DELIVERED"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+        order.refresh_from_db()
+        assert order.status == "SHIPPED"
+
+    def test_customer_cannot_retrieve_another_customers_order(
+        self, api_client, customer, store_a
+    ):
+        other_customer = CustomUser.objects.create_user(
+            email="outro.cliente@nota.com",
+            first_name="Outro",
+            last_name="Cliente",
+            password="senha_segura_123",
+            role=CustomUser.Roles.CUSTOMER,
+        )
+        order = _make_order(other_customer, store_a, status_value="SHIPPED")
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.get(f"/api/v1/orders/{order.id}/")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND

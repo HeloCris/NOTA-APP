@@ -6,13 +6,14 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
-  StatusBar,
   useWindowDimensions,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
@@ -41,18 +42,28 @@ export default function ProtoRF10Checkout() {
 
   // Usa itens reais do carrinho ou fallback se acessado diretamente
   const items = cartItems.length > 0
-    ? cartItems.map((c) => ({
-        id: c.id,
-        brand: c.storeName || c.brandName,
-        name: c.productName,
-        volume: c.volume,
-        quantity: c.quantity,
-        price: c.price,
-        storeId: c.storeId,
-      }))
+    ? cartItems.map((c) => {
+        // Mapeia productId para o ID do StoreProduct caso o item antigo esteja no carrinho sem storeProductId
+        let fallbackSpId = 13;
+        if (c.productId === 7) fallbackSpId = 14;
+        else if (c.productId === 8) fallbackSpId = 15;
+        else if (c.productId === 3) fallbackSpId = 16;
+
+        return {
+          id: c.id,
+          storeProductId: c.storeProductId || fallbackSpId,
+          brand: c.storeName || c.brandName,
+          name: c.productName,
+          volume: c.volume,
+          quantity: c.quantity,
+          price: c.price,
+          storeId: c.storeId || 1,
+        };
+      })
     : [
         {
           id: '1',
+          storeProductId: 13,
           brand: 'YVES SAINT LAURENT',
           name: 'Libre EDP',
           volume: '50ml',
@@ -81,6 +92,57 @@ export default function ProtoRF10Checkout() {
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResponse | null>(null);
+
+  // --- Modalidade de Frete Dinâmica conectada à loja (RF-10.4) ---
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [selectedShipping, setSelectedShipping] = useState<'express' | 'standard'>('express');
+
+  const subtotal = items.reduce((acc, i) => acc + i.price * i.quantity, 0);
+  const currentShippingCost =
+    shippingOptions.find((opt) => opt.id === selectedShipping)?.price || 0;
+  const total = subtotal + currentShippingCost;
+
+  const formatBRL = (val: number) => {
+    return val.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
+    setIsLoadingShipping(true);
+    try {
+      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
+        postal_code: cleanCep,
+        cart_subtotal: subtotal,
+        state: uf,
+      });
+      void shippingQuote; // placeholder to prevent unused warning if needed or set quote
+      setShippingQuote(quote);
+
+      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
+      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
+
+      setShippingOptions([
+        {
+          id: 'express',
+          title: 'SEDEX (Expresso)',
+          estimate: `${sedexMethod?.total_delivery_days_min || 1}–${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
+          price: sedexMethod?.price ?? 12.92,
+        },
+        {
+          id: 'standard',
+          title: 'PAC (Econômico)',
+          estimate: `${pacMethod?.total_delivery_days_min || 3}–${pacMethod?.total_delivery_days_max || 5} dias úteis`,
+          price: pacMethod?.price ?? 13.0,
+        },
+      ]);
+    } catch (quoteErr) {
+      console.error('Erro ao buscar cotação de frete:', quoteErr);
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
 
   // Carrega a lista de endereços e define o padrão (se houver)
   const loadAddresses = async () => {
@@ -117,7 +179,43 @@ export default function ProtoRF10Checkout() {
   };
 
   React.useEffect(() => {
-    loadAddresses();
+    let isMounted = true;
+    (async () => {
+      try {
+        const list = await getSavedAddresses();
+        if (!isMounted) return;
+        setSavedAddresses(list);
+        if (list.length > 0) {
+          const def = list.find((a) => a.isDefault) || list[0];
+          setSelectedAddress(def);
+          setIsEditingNewAddress(false);
+
+          setCep(def.cep || '');
+          setStreet(def.street || '');
+          setNumber(def.number || '');
+          setComplement(def.complement || '');
+          setNeighborhood(def.neighborhood || '');
+          setCity(def.city || '');
+          setStateUf(def.stateUf || '');
+
+          if (def.cep) {
+            const raw = def.cep.replace(/\D/g, '');
+            if (raw.length === 8) {
+              fetchShippingForCep(raw, def.stateUf || 'GO');
+            }
+          }
+        } else {
+          setSelectedAddress(null);
+          setIsEditingNewAddress(true);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar endereços salvos:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Selecionar um endereço existente da lista
@@ -158,56 +256,6 @@ export default function ProtoRF10Checkout() {
     setShippingOptions([]);
   };
 
-  // --- Modalidade de Frete Dinâmica conectada à loja (RF-10.4) ---
-  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
-  const [selectedShipping, setSelectedShipping] = useState<'express' | 'standard'>('express');
-
-  const subtotal = items.reduce((acc, i) => acc + i.price * i.quantity, 0);
-  const currentShippingCost =
-    shippingOptions.find((opt) => opt.id === selectedShipping)?.price || 0;
-  const total = subtotal + currentShippingCost;
-
-  const formatBRL = (val: number) => {
-    return val.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
-
-  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
-    setIsLoadingShipping(true);
-    try {
-      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
-        postal_code: cleanCep,
-        cart_subtotal: subtotal,
-        state: uf,
-      });
-      setShippingQuote(quote);
-
-      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
-      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
-
-      setShippingOptions([
-        {
-          id: 'express',
-          title: 'SEDEX (Expresso)',
-          estimate: `${sedexMethod?.total_delivery_days_min || 1}–${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
-          price: sedexMethod?.price ?? 12.92,
-        },
-        {
-          id: 'standard',
-          title: 'PAC (Econômico)',
-          estimate: `${pacMethod?.total_delivery_days_min || 3}–${pacMethod?.total_delivery_days_max || 5} dias úteis`,
-          price: pacMethod?.price ?? 13.0,
-        },
-      ]);
-    } catch (quoteErr) {
-      console.error('Erro ao buscar cotação de frete:', quoteErr);
-    } finally {
-      setIsLoadingShipping(false);
-    }
-  };
-
   const handleCepSearch = async (text: string) => {
     const raw = text.replace(/\D/g, '');
     let formatted = raw;
@@ -240,20 +288,25 @@ export default function ProtoRF10Checkout() {
 
   const isFormValid =
     (selectedAddress !== null && !isEditingNewAddress) ||
-    (cep.length >= 8 &&
+    ((cep.replace(/\D/g, '').length >= 8 || selectedAddress !== null) &&
       street.trim().length > 0 &&
-      number.trim().length > 0 &&
-      neighborhood.trim().length > 0 &&
-      city.trim().length > 0 &&
-      stateUf.trim().length > 0);
+      number.trim().length > 0);
 
   const handleGoToPayment = async () => {
-    if (!isFormValid) return;
+    if (!isFormValid) {
+      Alert.alert(
+        'Endereço Incompleto',
+        'Por favor, preencha o CEP, Rua e Número para calcular a entrega e prosseguir.'
+      );
+      return;
+    }
+
+    let addressToUse: any = selectedAddress;
 
     // Se estiver preenchendo um novo endereço, salva em Meus Endereços
     if (isEditingNewAddress) {
       try {
-        await addOrUpdateAddress({
+        const newAddr = {
           tag: newTag || 'Principal',
           street: street.trim(),
           number: number.trim(),
@@ -263,18 +316,44 @@ export default function ProtoRF10Checkout() {
           stateUf: stateUf.trim().toUpperCase(),
           cep: cep.trim(),
           isDefault: savedAddresses.length === 0,
-        });
+        };
+        await addOrUpdateAddress(newAddr);
+        addressToUse = newAddr;
       } catch (err) {
         console.error('Erro ao salvar endereço em Meus Endereços:', err);
       }
     }
 
-    router.push('/rf11-pagamento' as any);
+    const payloadItems = items.map((i) => ({
+      store_product_id: Number(i.storeProductId),
+      quantity: i.quantity,
+      unit_price: Number(i.price).toFixed(2),
+    }));
+
+    router.push({
+      pathname: '/checkout/payment' as any,
+      params: {
+        store_id: String(primaryStoreId),
+        total_amount: total.toFixed(2),
+        shipping_cost: String(currentShippingCost.toFixed(2)),
+        shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
+        address: JSON.stringify(addressToUse || {
+          street: street.trim(),
+          number: number.trim(),
+          complement: complement.trim(),
+          neighborhood: neighborhood.trim(),
+          city: city.trim(),
+          stateUf: stateUf.trim().toUpperCase(),
+          cep: cep.trim(),
+        }),
+        cartItems: JSON.stringify(payloadItems),
+      },
+    });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         {/* --- HEADER COM BOTÃO VOLTAR --- */}
         <View style={styles.header}>
@@ -593,7 +672,6 @@ export default function ProtoRF10Checkout() {
             ]}
             activeOpacity={0.88}
             onPress={handleGoToPayment}
-            disabled={!isFormValid}
           >
             <Text style={styles.payButtonText}>Ir para o pagamento</Text>
           </TouchableOpacity>

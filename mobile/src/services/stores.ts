@@ -15,6 +15,7 @@ export interface StoreProduct {
   store_city?: string;
   store_state?: string;
   sold_count?: number;
+  stock_quantity?: number;
 }
 
 export interface StoreReview {
@@ -26,6 +27,55 @@ export interface StoreReview {
   verified_purchase: boolean;
   perfume_bought?: string;
   photos?: string[];
+}
+
+export interface ReviewPhotoItem {
+  id: number;
+  image: string;
+  created_at: string;
+}
+
+export interface ReviewReplyItem {
+  id: number;
+  text: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiStoreReview {
+  id: number;
+  order_item: number;
+  rating: number;
+  comment: string;
+  photos: ReviewPhotoItem[];
+  reply?: ReviewReplyItem | null;
+  author_name: string;
+  product_name: string;
+  product_image?: string | null;
+  volume_ml?: number | null;
+  order_id?: number | null;
+  edited_at?: string | null;
+  is_edited: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreReviewsSummary {
+  count: number;
+  average: number;
+  distribution: {
+    '1': number;
+    '2': number;
+    '3': number;
+    '4': number;
+    '5': number;
+  };
+}
+
+export interface StoreReviewsResponse {
+  summary: StoreReviewsSummary;
+  results: ApiStoreReview[];
 }
 
 export interface Store {
@@ -53,6 +103,7 @@ export interface Store {
 export interface StoreProductsParams {
   search?: string;
   olfactory_family?: string;
+  store_product_ids?: string;
 }
 
 export interface ProductBrand {
@@ -62,6 +113,7 @@ export interface ProductBrand {
 
 export interface ProductStoreOffer {
   id: number;
+  store_product_id?: number;
   store_id: number;
   store_name: string;
   store_slug: string;
@@ -111,6 +163,10 @@ export const storesService = {
     return response.data;
   },
 
+  registerView: async (id: number | string): Promise<void> => {
+    await api.post(`/stores/${id}/view/`);
+  },
+
   getStoreProducts: async (id: number | string, params?: StoreProductsParams): Promise<StoreProduct[]> => {
     const response = await api.get(`/stores/${id}/products/`, { params });
     return response.data;
@@ -136,6 +192,46 @@ export const storesService = {
     payload: { postal_code: string; cart_subtotal?: number; state?: string }
   ): Promise<ShippingQuoteResponse> => {
     const response = await api.post(`/stores/${storeId}/shipping-quote/`, payload);
+    return response.data;
+  },
+
+  getStoreReviews: async (
+    storeId: number | string,
+    params?: {
+      product?: number | string;
+      rating?: number | string;
+      with_photos?: boolean;
+      ordering?: string;
+    }
+  ): Promise<StoreReviewsResponse> => {
+    const response = await api.get(`/stores/${storeId}/reviews/`, {
+      params: {
+        ...params,
+        with_photos: params?.with_photos ? 'true' : undefined,
+      },
+    });
+    return response.data;
+  },
+
+  getProductReviews: async (
+    productId: number | string,
+    params?: {
+      storeId?: number | string;
+      rating?: number | string;
+      with_photos?: boolean;
+      ordering?: string;
+    }
+  ): Promise<StoreReviewsResponse> => {
+    const url = params?.storeId
+      ? `/stores/${params.storeId}/products/${productId}/reviews/`
+      : `/products/${productId}/reviews/`;
+    const response = await api.get(url, {
+      params: {
+        rating: params?.rating,
+        with_photos: params?.with_photos ? 'true' : undefined,
+        ordering: params?.ordering,
+      },
+    });
     return response.data;
   },
 };

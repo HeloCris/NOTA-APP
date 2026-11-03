@@ -1,5 +1,5 @@
 import re
-from django.db.models import Q
+from django.db.models import Q, F
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import NotFound
@@ -37,10 +37,11 @@ class StoreListView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        store = serializer.save(owner=self.request.user)
-        if self.request.user.role == "CUSTOMER":
-            self.request.user.role = "SELLER"
-            self.request.user.save(update_fields=["role"])
+        serializer.save(owner=self.request.user)
+        user = self.request.user
+        if user.role == "CUSTOMER":  # type: ignore[union-attr]
+            user.role = "SELLER"  # type: ignore[union-attr]
+            user.save(update_fields=["role"])  # type: ignore[call-arg]
 
 
 class StoreDetailView(generics.RetrieveAPIView):
@@ -49,13 +50,26 @@ class StoreDetailView(generics.RetrieveAPIView):
     queryset = Store.objects.filter(is_active=True)
 
 
+class StoreViewIncrementView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk, *args, **kwargs):
+        updated = Store.objects.filter(pk=pk, is_active=True).update(
+            views_count=F("views_count") + 1
+        )
+        if not updated:
+            raise NotFound("Loja não encontrada.")
+        views = Store.objects.values_list("views_count", flat=True).get(pk=pk)
+        return Response({"views_count": views}, status=status.HTTP_200_OK)
+
+
 class StoreMeView(generics.RetrieveUpdateAPIView):
     serializer_class = StoreOwnerSerializer
     permission_classes = [IsStoreOwner]
     http_method_names = ["get", "patch", "head", "options"]
 
     def get_object(self) -> Store:
-        store = Store.objects.filter(owner=self.request.user).first()
+        store = Store.objects.filter(owner=self.request.user).first()  # type: ignore[misc]
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
         return store
@@ -73,14 +87,30 @@ class StoreDashboardView(APIView):
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
-        store = Store.objects.filter(owner=self.request.user).first()
+        user = self.request.user
+        store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
+        if not store and hasattr(user, 'brands'):
+            brand = user.brands.filter(d2c_store__isnull=False).first()
+            if brand and brand.d2c_store:
+                store = brand.d2c_store
+
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
+
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        from .services.dashboard_service import build_dashboard
+
+        rev_qs = Review.objects.filter(store=store, is_hidden=False, is_deleted=False)
+        avg_rating = rev_qs.aggregate(avg=Avg('rating'))['avg']
+        rating_val = round(float(avg_rating), 1) if avg_rating is not None else 0.0
+        reviews_count = rev_qs.count()
+
         data = {
-            "rating": 0.0, "is_verified": False,
-            "kpis": {"revenue_month": 0, "pending_orders": 0, "stock_alerts": 0, "store_views": 0},
-            "weekly_sales": [0, 0, 0, 0, 0, 0, 0],
-            "recent_orders": [], "top_perfumes": [], "restock_alerts": []
+            "rating": rating_val,
+            "reviews_count": reviews_count,
+            "is_verified": bool(store.is_official),
+            **build_dashboard(store, request.query_params.get("period", "7d")),
         }
         return Response(data)
 
@@ -98,8 +128,16 @@ class StoreProductListView(generics.ListAPIView):
             store=store,
             product__is_approved=True,
             is_available=True,
-            stock_quantity__gt=0
         ).select_related('store', 'product', 'product__brand')
+        requested_ids = self.request.query_params.get("store_product_ids")
+        if requested_ids:
+            try:
+                ids = [int(value) for value in requested_ids.split(",") if value.strip()]
+            except ValueError:
+                ids = []
+            queryset = queryset.filter(id__in=ids)
+        else:
+            queryset = queryset.filter(stock_quantity__gt=0)
 
         search = self.request.query_params.get('search', None)
         family = self.request.query_params.get('olfactory_family', None)

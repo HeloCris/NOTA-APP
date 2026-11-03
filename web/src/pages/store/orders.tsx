@@ -6,24 +6,29 @@ import { ShippingModal } from "../../features/store/ShippingModal";
 import {
   storeOrderService,
   type StoreOrder,
-  type StoreOrderStatus,
 } from "../../services/storeOrderService";
 
 type FilterKey =
   | "ALL"
   | "PAID"
   | "PROCESSING"
+  | "CANCEL_REQUESTED"
   | "SHIPPED"
+  | "DELIVERY_DISPUTED"
   | "DELIVERED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REFUNDED";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "ALL", label: "Todos" },
   { key: "PAID", label: "Pagos" },
   { key: "PROCESSING", label: "Em Separação" },
+  { key: "CANCEL_REQUESTED", label: "Cancelamento Solicitado" },
   { key: "SHIPPED", label: "Enviados" },
+  { key: "DELIVERY_DISPUTED", label: "Contestados" },
   { key: "DELIVERED", label: "Entregues" },
   { key: "CANCELLED", label: "Cancelados" },
+  { key: "REFUNDED", label: "Reembolsados" },
 ];
 
 export function StoreOrdersPage() {
@@ -32,9 +37,7 @@ export function StoreOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<FilterKey>("ALL");
-  const [processingId, setProcessingId] = useState<number | null>(
-    null,
-  );
+  const [processingId, setProcessingId] = useState<number | null>(null);
   const [shippingOrder, setShippingOrder] = useState<StoreOrder | null>(null);
   const [shippingId, setShippingId] = useState<number | null>(null);
 
@@ -45,9 +48,7 @@ export function StoreOrdersPage() {
       const data = await storeOrderService.getOrders();
       setOrders(data);
     } catch {
-      setError(
-        "Não foi possível carregar os pedidos. Tente novamente.",
-      );
+      setError("Não foi possível carregar os pedidos. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -58,9 +59,7 @@ export function StoreOrdersPage() {
       .getOrders()
       .then((data) => setOrders(data))
       .catch(() =>
-        setError(
-          "Não foi possível carregar os pedidos. Tente novamente.",
-        ),
+        setError("Não foi possível carregar os pedidos. Tente novamente.")
       )
       .finally(() => setLoading(false));
   }, []);
@@ -70,25 +69,26 @@ export function StoreOrdersPage() {
       ALL: orders.length,
       PAID: 0,
       PROCESSING: 0,
+      CANCEL_REQUESTED: 0,
       SHIPPED: 0,
+      DELIVERY_DISPUTED: 0,
       DELIVERED: 0,
       CANCELLED: 0,
+      REFUNDED: 0,
     };
     for (const order of orders) {
       if (order.status in map) {
-        map[order.status as Exclude<StoreOrderStatus, "PENDING">] += 1;
+        map[order.status as FilterKey] += 1;
       }
     }
     return map;
   }, [orders]);
 
   const pendingDispatchCount = orders.filter(
-    (order) =>
-      order.status === "PAID" || order.status === "PROCESSING",
+    (order) => order.status === "PAID" || order.status === "PROCESSING"
   ).length;
-  const delayedCount = orders.filter(
-    (order) => order.is_delayed,
-  ).length;
+
+  const delayedCount = orders.filter((order) => order.is_delayed).length;
 
   const visibleOrders =
     filter === "ALL"
@@ -98,23 +98,16 @@ export function StoreOrdersPage() {
   const handleProcess = async (order: StoreOrder) => {
     setProcessingId(order.id);
     try {
-      const updated =
-        await storeOrderService.updateOrderStatus(
-          order.id,
-          "PROCESSING",
-        );
+      const updated = await storeOrderService.updateOrderStatus(
+        order.id,
+        "PROCESSING"
+      );
       setOrders((current) =>
-        current.map((item) =>
-          item.id === updated.id ? updated : item,
-        ),
+        current.map((item) => (item.id === updated.id ? updated : item))
       );
-      toast.success(
-        `Pedido #${order.id} movido para Em Separação.`,
-      );
+      toast.success(`Pedido #${order.id} movido para Em Separação.`);
     } catch {
-      toast.error(
-        "Não foi possível atualizar o status do pedido.",
-      );
+      toast.error("Não foi possível atualizar o status do pedido.");
     } finally {
       setProcessingId(null);
     }
@@ -129,7 +122,7 @@ export function StoreOrdersPage() {
         tracking_code: trackingCode,
       });
       setOrders((current) =>
-        current.map((item) => item.id === updated.id ? updated : item),
+        current.map((item) => (item.id === updated.id ? updated : item))
       );
       setShippingOrder(null);
       toast.success(`Pedido #${updated.id} despachado com sucesso.`);
@@ -199,16 +192,12 @@ export function StoreOrdersPage() {
             <div className="flex items-center justify-between">
               <p
                 className={`text-[11px] font-bold uppercase tracking-[0.07em] mb-2 ${
-                  delayedCount > 0
-                    ? "text-[#BA1A1A]"
-                    : "text-[#93927F]"
+                  delayedCount > 0 ? "text-[#BA1A1A]" : "text-[#93927F]"
                 }`}
               >
                 SLA em atraso
               </p>
-              {delayedCount > 0 && (
-                <span className="text-[14px]">⚠️</span>
-              )}
+              {delayedCount > 0 && <span className="text-[14px]">⚠️</span>}
             </div>
             <p
               className={`font-jakarta text-[30px] font-extrabold leading-none ${
@@ -244,7 +233,7 @@ export function StoreOrdersPage() {
                   : "text-[#5A6067] hover:bg-[#F5F3E9]"
               }`}
             >
-              {item.label} ({counts[item.key]})
+              {item.label} ({counts[item.key] ?? 0})
             </button>
           ))}
         </div>
@@ -295,6 +284,7 @@ export function StoreOrdersPage() {
           </div>
         )}
       </main>
+
       {shippingOrder && (
         <ShippingModal
           order={shippingOrder}

@@ -68,8 +68,47 @@ Acompanhamento do ciclo de vida de uma compra no marketplace com múltiplos vend
     *   Cada lojista recebe apenas a notificação e a etiqueta referente ao seu próprio pacote.
 
 4.  **Em Separação e Embalagem:** Cada lojista prepara a embalagem segura com plástico bolha e caixa rígida (requisito para perfumes de vidro e decants).
-5.  **Enviado (Postagem Correios/Transportadora):** Cada lojista despacha seu pacote e insere o seu respectivo **Código de Rastreamento** (`tracking_code`). O cliente acompanha os rastreios de forma separada no App para cada loja.
-6.  **Entregue:** A transportadora confirma a entrega no endereço do cliente ou o lojista atualiza o status. Status final: **Entregue**.
+5.  **Enviado (Postagem Correios/Transportadora):** Cada lojista despacha seu pacote e insere o seu respectivo **Código de Rastreamento** (`tracking_code`) e a **transportadora** (`carrier`). O cliente acompanha os rastreios de forma separada no App para cada loja, por meio do botão de copiar o código e do link **"Rastrear no site da transportadora"**.
+    *   **Limitação:** não há integração com APIs de rastreio (localização em tempo real não é exibida). A plataforma não recebe automaticamente o evento de entrega da transportadora.
+6.  **Entregue:** Como não há integração com a transportadora, o pedido só passa para **Entregue** (`DELIVERED`) por um destes caminhos:
+    *   **Cliente confirma** ("Recebi meu pedido") — caminho principal.
+    *   **Lojista marca como entregue** — o cliente pode **contestar em até 7 dias** ("Não recebi").
+    *   **Sistema auto-confirma** 30 dias após o despacho (`shipped_at`), caso ninguém tenha agido.
+
+## 3.1 Fluxo Pós-Compra (RF-15)
+
+Regras detalhadas em [RF-15](../sprints/sprint-4/RF-15_Gestao_Pos_Compra.md).
+
+1.  **Cancelamento pelo Cliente:**
+    *   `PENDING` / `PAID`: cancelamento direto, estorno simulado imediato e estoque devolvido.
+    *   `PROCESSING`: vira **solicitação** (`CANCEL_REQUESTED`); o lojista aprova ou recusa (com motivo). Sem resposta em **48h**, é aprovada automaticamente.
+    *   A partir de `SHIPPED`: não é possível cancelar — apenas devolução após a entrega.
+2.  **Cancelamento pelo Lojista:** permitido em `PAID` / `PROCESSING`, com motivo obrigatório. O cliente é notificado e estornado. O estoque é devolvido, exceto quando o motivo for "Sem estoque".
+3.  **Alteração de Endereço:** o cliente pode trocar o endereço até `PROCESSING`, **somente para endereço da mesma cidade/UF** (o frete não é recalculado). O lojista vê o aviso "Endereço alterado".
+4.  **Contestação de Entrega (`DELIVERY_DISPUTED`):** o lojista conversa com o cliente pelo chat e resolve marcando **"Reenviado"** (volta a `SHIPPED`, com novo rastreio opcional) ou **"Reembolsar"** (`REFUNDED`).
+5.  **Devolução (parcial ou total):**
+    *   Solicitada pelo cliente em até **7 dias após a entrega**, escolhendo itens e quantidades, com motivo obrigatório e até 3 fotos.
+    *   Fluxo: `REQUESTED` → `APPROVED` / `REJECTED` → `RECEIVED` → `REFUNDED`. Sem resposta do lojista em **48h**, é aprovada automaticamente.
+    *   No recebimento, o lojista informa se o produto está **em condições de revenda**; se sim, o estoque é devolvido.
+    *   O frete da devolução fica fora do sistema — apenas o fluxo é registrado (rastreio de volta opcional).
+6.  **Motivos pré-definidos (cliente):** Desisti da compra · Comprei errado · Endereço errado · Produto avariado · Produto diferente do anunciado · Outro.
+7.  **Histórico:** toda transição é registrada (`OrderStatusHistory`) e exibida na timeline do pedido para cliente e lojista.
+
+## 3.2 Fluxo de Avaliações (RF-16)
+
+Regras detalhadas em [RF-16](../sprints/sprint-4/RF-16_Avaliacoes.md).
+
+1.  **Quem e quando:** o cliente avalia **cada item** de um pedido `DELIVERED`, em até **30 dias** após a entrega. Itens com devolução não recusada não podem ser avaliados.
+2.  **Conteúdo:** nota de 1 a 5 (obrigatória), comentário (opcional) e até **3 fotos** (câmera ou galeria).
+3.  **Edição e exclusão:** o cliente pode editar **uma única vez** (tag "Editada") e excluir a qualquer momento — após excluir, não pode avaliar o mesmo item novamente.
+4.  **Devolução posterior:** se o item avaliado tiver devolução aprovada, a avaliação é **ocultada automaticamente**.
+5.  **Resposta da loja:** o lojista / Loja Oficial pode responder publicamente (1 resposta editável por avaliação).
+6.  **Notas exibidas:**
+    *   **Loja:** média de todas as avaliações visíveis dos seus itens.
+    *   **Perfume na loja:** média das avaliações visíveis daquele perfume naquela loja, somando todas as volumetrias (frascos e decants).
+7.  **Autor:** exibido como primeiro nome + inicial do sobrenome ("Maria S."). Não há selo de "Compra verificada".
+8.  **Visualização:** filtros por perfume, nota e "só com fotos" (+ "sem resposta" no painel web); ordenação por mais recentes, mais antigas, maior nota e menor nota.
+9.  **Fora do escopo:** moderação e denúncia de avaliações.
 
 ## 4. Fluxo de Brand Onboarding e Ativação D2C
 

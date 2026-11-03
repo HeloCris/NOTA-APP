@@ -26,7 +26,8 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 class ProductStoreOfferSerializer(serializers.Serializer):
-    id = serializers.IntegerField(source='store.id')
+    id = serializers.IntegerField()  # ID do StoreProduct no inventário
+    store_product_id = serializers.IntegerField(source='id')
     store_id = serializers.IntegerField(source='store.id')
     store_name = serializers.CharField(source='store.name')
     store_slug = serializers.CharField(source='store.slug')

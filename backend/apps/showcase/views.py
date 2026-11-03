@@ -17,7 +17,7 @@ class PublicProductQuerysetMixin:
             store__is_active=True,
             product__is_approved=True,
         ).select_related("store", "product__brand")
-        params = self.request.query_params
+        params = getattr(self, "request").query_params
 
         if params.get("brand"):
             brand = params["brand"]

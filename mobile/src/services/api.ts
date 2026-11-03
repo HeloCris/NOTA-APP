@@ -1,4 +1,4 @@
-import { create, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
 import { getToken, saveToken, deleteToken } from '../utils/storage';
 
@@ -14,12 +14,12 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
-export const api = create({
+export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-const refreshClient = create({
+const refreshClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -87,7 +87,18 @@ async function handleUnauthorized(error: AxiosError) {
     return Promise.reject(error);
   }
 
-  if (!(await getToken(REFRESH_TOKEN_KEY))) {
+  // Evita tentar dar refresh se a própria requisição de refresh falhou com 401
+  if (originalRequest.url?.includes('/auth/token/refresh/')) {
+    await deleteToken(ACCESS_TOKEN_KEY);
+    await deleteToken(REFRESH_TOKEN_KEY);
+    notifyRefreshFailure();
+    return Promise.reject(error);
+  }
+
+  const refreshToken = await getToken(REFRESH_TOKEN_KEY);
+  if (!refreshToken) {
+    await deleteToken(ACCESS_TOKEN_KEY);
+    notifyRefreshFailure();
     return Promise.reject(error);
   }
 

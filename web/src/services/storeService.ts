@@ -17,8 +17,12 @@ export const storeService = {
     return response.data;
   },
 
-  getDashboardData: async (): Promise<DashboardData> => {
-    const response = await apiClient.get<DashboardData>('/stores/me/dashboard/');
+  getDashboardData: async (period: '7d' | '30d' = '7d'): Promise<DashboardData> => {
+    const response = await apiClient.get<DashboardData>('/stores/me/dashboard/', { params: { period } });
     return response.data;
-  }
+  },
+
+  registerView: async (storeId: number): Promise<void> => {
+    await apiClient.post(`/stores/${storeId}/view/`);
+  },
 };

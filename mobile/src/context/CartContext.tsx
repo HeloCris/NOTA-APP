@@ -11,6 +11,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   imageUrl?: string;
+  storeProductId?: number;
   storeId?: number;
   storeName?: string;
   storeIsOfficial?: boolean;
@@ -22,6 +23,7 @@ interface CartContextData {
   items: CartItem[];
   addItem: (item: Omit<CartItem, 'quantity' | 'id'> & { quantity?: number }) => void;
   updateQuantity: (id: string, delta: number) => void;
+  setQuantity: (id: string, quantity: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
   totalItemsCount: number;
@@ -32,7 +34,8 @@ interface CartContextData {
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
-const CART_STORAGE_KEY = '@app_cart_items';
+// Ajustado para remover o caractere '@' e evitar erros com SecureStore no Expo
+const CART_STORAGE_KEY = 'app_cart_items';
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -77,7 +80,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updated[existingIndex] = {
             ...updated[existingIndex],
             quantity: updated[existingIndex].quantity + addQty,
-            price: item.price, // atualiza com o preço mais recente
+            price: item.price,
           };
           return updated;
         }
@@ -107,6 +110,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, []);
 
+  const setQuantity = useCallback((id: string, quantity: number) => {
+    setItems((prev) =>
+      prev
+        .map((item) => item.id === id
+          ? (quantity > 0 ? { ...item, quantity } : null)
+          : item)
+        .filter(Boolean) as CartItem[],
+    );
+  }, []);
+
   const removeItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
@@ -126,6 +139,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         items,
         addItem,
         updateQuantity,
+        setQuantity,
         removeItem,
         clearCart,
         totalItemsCount,

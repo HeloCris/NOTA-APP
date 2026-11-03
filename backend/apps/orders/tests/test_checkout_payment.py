@@ -2,23 +2,10 @@ import pytest
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from apps.stores.models import Store
+from apps.catalog.models import Product
 from apps.inventory.models import StoreProduct
 from apps.orders.models import Order
-
-Product = None
-
-# Tenta importar a model de Produto de catalog, products ou inventory
-try:
-    from apps.catalog.models import Product
-except ImportError:
-    try:
-        from apps.products.models import Product
-    except ImportError:
-        try:
-            from apps.inventory.models import Product
-        except ImportError:
-            pass
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -41,13 +28,13 @@ class TestCheckoutPayment:
 
         # 3. Criação da Marca e do Produto catálogo base
         self.product_base = None
-        if Product:
-            product_kwargs = {"name": "Produto Teste"}
+        if Product:  # type: ignore[truthy-function]
+            product_kwargs: dict[str, object] = {"name": "Produto Teste"}
             
             try:
                 brand_field = Product._meta.get_field('brand')
                 BrandModel = brand_field.remote_field.model
-                brand_instance = BrandModel.objects.create(name="Marca Teste")
+                brand_instance = BrandModel.objects.create(name="Marca Teste")  # type: ignore[attr-defined]
                 product_kwargs["brand"] = brand_instance
             except Exception:
                 pass
