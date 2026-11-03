@@ -1,7 +1,7 @@
 import logging
 from decimal import Decimal
 from django.utils import timezone
-from .models import StoreCoupon
+from apps.stores.models import StoreCoupon
 
 logger = logging.getLogger(__name__)
 

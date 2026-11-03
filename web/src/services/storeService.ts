@@ -54,6 +54,5 @@ export const storeService = {
   registerView: async (storeId: number): Promise<void> => {
     await apiClient.post(`/stores/${storeId}/view/`);
   },
-  },
 };
 

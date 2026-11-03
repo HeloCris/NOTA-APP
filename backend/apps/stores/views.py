@@ -349,7 +349,6 @@ class StoreShippingQuoteView(APIView):
             "qualifies_for_free_shipping": free_shipping,
             "methods": methods,
         }, status=status.HTTP_200_OK)
-<<<<<<< HEAD
 
 
 class CustomerFollowingStoresListView(generics.ListAPIView):
