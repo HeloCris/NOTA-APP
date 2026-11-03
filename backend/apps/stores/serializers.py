@@ -20,6 +20,7 @@ class StorePublicSerializer(serializers.ModelSerializer):
             "shipping_local_pac", "shipping_local_sedex",
             "shipping_pac_price", "shipping_sedex_price",
             "shipping_handling_days", "free_shipping_threshold",
+            "max_installments", "free_interest_installments", "min_installment_amount",
             "has_complete_address", "has_shipping_configured", "is_ready_to_sell",
         ]
 
@@ -60,6 +61,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             "shipping_local_pac", "shipping_local_sedex",
             "shipping_pac_price", "shipping_sedex_price",
             "shipping_handling_days", "free_shipping_threshold",
+            "max_installments", "free_interest_installments", "min_installment_amount",
             "has_complete_address", "has_shipping_configured", "is_ready_to_sell",
             "is_official", "created_at", "updated_at",
         ]

@@ -202,3 +202,28 @@ def test_validate_coupon_below_min_amount(api_client, store_a):
     assert response.status_code == 400
     assert response.data["valid"] is False
     assert "mínimo" in response.data["error"].lower()
+
+
+@pytest.mark.django_db
+def test_create_coupon_notifies_followers(api_client, seller_a, store_a, customer):
+    from apps.stores.models import StoreFollower
+    from apps.communication.models import Notification
+
+    # Cliente segue a loja A
+    StoreFollower.objects.create(store=store_a, user=customer)
+
+    api_client.force_authenticate(user=seller_a)
+    payload = {
+        "code": "SEGUIDOR15",
+        "discount_type": "PERCENTAGE",
+        "discount_value": "15.00",
+        "min_purchase_amount": "50.00",
+    }
+    response = api_client.post("/api/v1/store/coupons/", payload, format="json")
+    assert response.status_code == 201
+
+    # Verifica se notificação foi gerada para o seguidor
+    notif = Notification.objects.filter(user=customer).first()
+    assert notif is not None
+    assert "SEGUIDOR15" in notif.message
+    assert store_a.name in notif.message

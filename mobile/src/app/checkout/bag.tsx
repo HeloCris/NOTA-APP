@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart, CartItem } from '@/context/CartContext';
 import { CheckoutStepper } from '@/components/checkout/CheckoutStepper';
+import { CouponInput } from '@/components/checkout/CouponInput';
+import { CouponValidationResponse } from '@/services/stores';
 import { formatProductVolume } from '@/utils/productUtils';
 
 export default function CheckoutBagScreen() {
@@ -23,6 +25,7 @@ export default function CheckoutBagScreen() {
   const containerWidth = Math.min(windowWidth, 460);
 
   const { items, updateQuantity, removeItem, subtotal, totalItemsCount } = useCart();
+  const [appliedCoupons, setAppliedCoupons] = useState<Record<number, CouponValidationResponse>>({});
 
   const formatBRL = (val: number) => {
     return val.toLocaleString('pt-BR', {
@@ -33,12 +36,13 @@ export default function CheckoutBagScreen() {
 
   // Agrupa os itens por loja
   const storeGroups = useMemo(() => {
-    const map = new Map<string, { storeName: string; storeIsOfficial?: boolean; items: CartItem[]; subtotal: number }>();
+    const map = new Map<string, { storeId: number; storeName: string; storeIsOfficial?: boolean; items: CartItem[]; subtotal: number }>();
 
     items.forEach((item) => {
       const key = item.storeName || item.brandName || 'Loja Parceira';
       if (!map.has(key)) {
         map.set(key, {
+          storeId: item.storeId || 1,
           storeName: key,
           storeIsOfficial: item.storeIsOfficial,
           items: [],
@@ -53,8 +57,22 @@ export default function CheckoutBagScreen() {
     return Array.from(map.values());
   }, [items]);
 
+  const totalCouponDiscount = useMemo(() => {
+    return Object.values(appliedCoupons).reduce(
+      (acc, c) => acc + (c?.valid ? Number(c.applied_discount || 0) : 0),
+      0
+    );
+  }, [appliedCoupons]);
+
+  const finalTotal = Math.max(0, subtotal - totalCouponDiscount);
+
   const handleContinue = () => {
-    router.push('/checkout/shipping' as any);
+    router.push({
+      pathname: '/checkout/shipping' as any,
+      params: {
+        discount_amount: totalCouponDiscount > 0 ? String(totalCouponDiscount.toFixed(2)) : undefined,
+      },
+    });
   };
 
   return (
@@ -154,14 +172,27 @@ export default function CheckoutBagScreen() {
                   </Text>
                 </View>
               ))}
+
+              {/* Cupom da loja (RF-19 / RN-01) */}
+              <View style={styles.storeCouponContainer}>
+                <CouponInput
+                  storeId={group.storeId}
+                  storeName={group.storeName}
+                  subtotal={group.subtotal}
+                  onCouponApplied={(res) => {
+                    setAppliedCoupons((prev) => {
+                      if (!res) {
+                        const copy = { ...prev };
+                        delete copy[group.storeId];
+                        return copy;
+                      }
+                      return { ...prev, [group.storeId]: res };
+                    });
+                  }}
+                />
+              </View>
             </View>
           ))}
-
-          {/* Botão tracejado Adicionar cupom */}
-          <TouchableOpacity style={styles.couponButton} activeOpacity={0.7}>
-            <Feather name="tag" size={16} color="#1E2B37" />
-            <Text style={styles.couponButtonText}>Adicionar cupom</Text>
-          </TouchableOpacity>
 
           {/* Card Resumo */}
           <View style={styles.summaryCard}>
@@ -172,6 +203,15 @@ export default function CheckoutBagScreen() {
               <Text style={styles.summaryValue}>R$ {formatBRL(subtotal)}</Text>
             </View>
 
+            {totalCouponDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#2E7D32' }]}>Desconto de cupom</Text>
+                <Text style={[styles.summaryValue, { color: '#2E7D32', fontWeight: '700' }]}>
+                  -R$ {formatBRL(totalCouponDiscount)}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Frete</Text>
               <Text style={styles.summaryMuted}>Calculado na próxima etapa</Text>
@@ -181,7 +221,7 @@ export default function CheckoutBagScreen() {
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>R$ {formatBRL(subtotal)}</Text>
+              <Text style={styles.totalValue}>R$ {formatBRL(finalTotal)}</Text>
             </View>
           </View>
 
@@ -362,6 +402,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1C252E',
     marginTop: 16,
+  },
+  storeCouponContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F0E6',
   },
   couponButton: {
     flexDirection: 'row',

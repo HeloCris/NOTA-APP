@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def notify_store_followers_new_coupon(coupon: StoreCoupon):
     """
     Dispara notificação para todos os clientes que seguem a loja (RF-18 / RN-09).
-    Mantido desacoplado para integração suave com a central de mensageria da Sprint 4.
+    Integrado com a central de mensageria da Sprint 4 (apps.communication).
     """
     store = coupon.store
     followers = store.followers.select_related("user")
@@ -18,15 +18,31 @@ def notify_store_followers_new_coupon(coupon: StoreCoupon):
         if coupon.discount_type == StoreCoupon.DISCOUNT_TYPE_PERCENTAGE
         else f"R$ {coupon.discount_value:.2f}"
     )
+    title = f"Novo cupom em {store.name}!"
     message = (
         f"A loja {store.name} acabou de lançar o cupom {coupon.code} "
         f"de {discount_display} OFF! Aproveite."
     )
 
+    try:
+        from apps.communication.services import notify_user
+    except ImportError:
+        notify_user = None
+
     count = 0
     for follower in followers:
-        # Ponto de injeção para o RF-18 (Notification.objects.create ou PushService)
-        logger.info(f"[NOTIFICAÇÃO RF-18 STUB] Para: {follower.user.email} | Mensagem: {message}")
+        if notify_user and follower.user:
+            try:
+                notify_user(
+                    user=follower.user,
+                    title=title,
+                    message=message,
+                    type_="NEW_ORDER",
+                    target_url=f"/store/{store.id}",
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao disparar notificação de cupom para {follower.user_id}: {e}")
+        logger.info(f"[NOTIFICAÇÃO RF-18/RF-19] Para: {follower.user.email} | Mensagem: {message}")
         count += 1
 
     return count
