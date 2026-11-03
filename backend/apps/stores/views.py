@@ -1,4 +1,5 @@
 import re
+from django.db import models
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
@@ -9,13 +10,21 @@ from rest_framework.response import Response
 # pyrefly: ignore [missing-import]
 from apps.core.permissions import IsStoreOwner
 
-from .models import Store, StoreFollower
+from .models import Store, StoreFollower, StoreCoupon
 from apps.inventory.models import StoreProduct
 from .serializers import (
     StoreOwnerSerializer, 
     StorePublicSerializer, 
-    StoreProductPublicSerializer
+    StoreProductPublicSerializer,
+    StoreCouponSerializer,
+    StoreInstallmentsSettingsSerializer,
+    FollowingStoreSerializer,
 )
+from .services import (
+    notify_store_followers_new_coupon,
+    validate_and_calculate_coupon_discount,
+)
+
 
 
 class StoreListView(generics.ListCreateAPIView):
@@ -125,13 +134,20 @@ class StoreFollowToggleView(APIView):
 
         if not created:
             follower.delete()
+            Store.objects.filter(pk=store.pk, followers_count__gt=0).update(
+                followers_count=models.F("followers_count") - 1
+            )
             is_following = False
         else:
+            Store.objects.filter(pk=store.pk).update(
+                followers_count=models.F("followers_count") + 1
+            )
             is_following = True
 
+        store.refresh_from_db()
         return Response({
             "is_following": is_following,
-            "followers_count": store.followers.count()
+            "followers_count": store.followers_count
         }, status=status.HTTP_200_OK)
 
 
@@ -295,3 +311,118 @@ class StoreShippingQuoteView(APIView):
             "qualifies_for_free_shipping": free_shipping,
             "methods": methods,
         }, status=status.HTTP_200_OK)
+
+
+class CustomerFollowingStoresListView(generics.ListAPIView):
+    """
+    Lista todas as lojas seguidas pelo cliente autenticado (RF-19.4 / RN-08).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = FollowingStoreSerializer
+
+    def get_queryset(self):
+        return StoreFollower.objects.filter(
+            user=self.request.user,
+            store__is_active=True,
+        ).select_related("store").order_by("-created_at")
+
+
+class StoreCouponListCreateView(generics.ListCreateAPIView):
+    """
+    Lista e cria cupons para a loja do lojista autenticado (RF-19.3 / RN-02).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+    serializer_class = StoreCouponSerializer
+
+    def get_queryset(self):
+        return StoreCoupon.objects.filter(store__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        store = get_object_or_404(Store, owner=self.request.user, is_active=True)
+        code = serializer.validated_data.get("code", "").upper().strip()
+
+        # Validação de unicidade para a loja (RN-02 / CA-03)
+        if StoreCoupon.objects.filter(store=store, code=code).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"code": "Já existe um cupom com este código na sua loja."})
+
+        coupon = serializer.save(store=store, code=code)
+
+        # Dispara notificação para seguidores (RF-18 / RN-09)
+        if coupon.is_active:
+            notify_store_followers_new_coupon(coupon)
+
+
+class StoreCouponDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Visualiza, edita e ativa/desativa cupons da própria loja (RF-19.3 / CA-03).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+    serializer_class = StoreCouponSerializer
+
+    def get_queryset(self):
+        return StoreCoupon.objects.filter(store__owner=self.request.user)
+
+    def perform_update(self, serializer):
+        old_active = self.get_object().is_active
+        coupon = serializer.save()
+        # Se foi reativado, pode notificar seguidores se ainda não expirou
+        if not old_active and coupon.is_active:
+            notify_store_followers_new_coupon(coupon)
+
+
+class StoreInstallmentsSettingsView(APIView):
+    """
+    Consulta e atualiza configurações de parcelamento da loja (RF-19.3 / RN-05).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+
+    def get(self, request, *args, **kwargs):
+        store = get_object_or_404(Store, owner=request.user)
+        serializer = StoreInstallmentsSettingsSerializer(store)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        store = get_object_or_404(Store, owner=request.user)
+        serializer = StoreInstallmentsSettingsSerializer(store, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ValidateCouponView(APIView):
+    """
+    Validação de cupom no checkout por loja (RF-19.4 / RN-01, RN-03 / CA-01, CA-02).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        store_id = request.data.get("store_id")
+        code = request.data.get("code")
+        subtotal = request.data.get("subtotal")
+
+        if not store_id or not code or subtotal is None:
+            return Response(
+                {"error": "Parâmetros obrigatórios: store_id, code e subtotal."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from decimal import Decimal
+            subtotal_dec = Decimal(str(subtotal))
+        except Exception:
+            return Response(
+                {"error": "Subtotal inválido."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result = validate_and_calculate_coupon_discount(
+            store_id=int(store_id),
+            code=str(code),
+            subtotal=subtotal_dec,
+        )
+
+        if not result["valid"]:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)

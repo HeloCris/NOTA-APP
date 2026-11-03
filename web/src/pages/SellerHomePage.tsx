@@ -7,10 +7,11 @@ import { DashboardTab } from "../components/seller/DashboardTab";
 import { CatalogTab } from "../components/seller/CatalogTab";
 import { SettingsTab } from "../components/seller/SettingsTab";
 import { OrdersTab } from "../components/seller/OrdersTab";
+import { StoreCoupons } from "../features/store/StoreCoupons";
 import { storeService } from "../services/storeService";
 import type { Store } from "../types/store";
 
-type TabType = "dashboard" | "catalog" | "orders" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "orders" | "coupons" | "metrics" | "messages" | "settings";
 
 export function SellerHomePage() {
   const { user, logout } = useAuth();
@@ -77,6 +78,7 @@ export function SellerHomePage() {
           <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
           <NavLink id="orders" icon="#ic-box" label="Pedidos" />
+          <NavLink id="coupons" icon="#ic-coupon" label="Cupons" />
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />
@@ -196,6 +198,7 @@ export function SellerHomePage() {
               {activeTab === "dashboard" && <DashboardTab store={store} />}
               {activeTab === "catalog" && <CatalogTab store={store} />}
               {activeTab === "orders" && <OrdersTab />}
+              {activeTab === "coupons" && <StoreCoupons />}
 
               {(activeTab === "metrics" || activeTab === "messages") && (
                 <div className="animate-in fade-in duration-300">

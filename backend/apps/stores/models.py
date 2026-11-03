@@ -167,6 +167,26 @@ class Store(models.Model):
         verbose_name="Valor Mínimo para Frete Grátis (R$)",
     )
 
+    # Ferramentas Comerciais e Fidelização (RF-19)
+    max_installments = models.PositiveSmallIntegerField(
+        default=6,
+        verbose_name="Máximo de Parcelas Aceitas",
+    )
+    free_interest_installments = models.PositiveSmallIntegerField(
+        default=3,
+        verbose_name="Parcelas sem Juros Assumidas pela Loja",
+    )
+    min_installment_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=30.00,
+        verbose_name="Valor Mínimo de Cada Parcela (R$)",
+    )
+    followers_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Total de Seguidores",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -251,3 +271,89 @@ class StoreFollower(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} segue {self.store.name}"
+
+
+class StoreCoupon(models.Model):
+    DISCOUNT_TYPE_PERCENTAGE = "PERCENTAGE"
+    DISCOUNT_TYPE_FIXED = "FIXED_VALUE"
+    DISCOUNT_TYPE_CHOICES = [
+        (DISCOUNT_TYPE_PERCENTAGE, "Porcentagem"),
+        (DISCOUNT_TYPE_FIXED, "Valor Fixo"),
+    ]
+
+    store = models.ForeignKey(
+        Store,
+        on_delete=models.CASCADE,
+        related_name="coupons",
+        verbose_name="Loja",
+    )
+    code = models.CharField(
+        max_length=30,
+        verbose_name="Código do Cupom",
+    )
+    discount_type = models.CharField(
+        max_length=20,
+        choices=DISCOUNT_TYPE_CHOICES,
+        default=DISCOUNT_TYPE_PERCENTAGE,
+        verbose_name="Tipo de Desconto",
+    )
+    discount_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Valor do Desconto",
+    )
+    min_purchase_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Valor Mínimo da Compra (R$)",
+    )
+    usage_limit = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Limite Global de Usos",
+    )
+    used_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Quantidade de Usos Realizados",
+    )
+    valid_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Válido Até",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Cupom Ativo",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Criado em",
+    )
+
+    objects = models.Manager()
+
+    class Meta:
+        db_table = "store_coupons"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "code"],
+                name="store_coupon_code_uniq",
+            )
+        ]
+        verbose_name = "Cupom da Loja"
+        verbose_name_plural = "Cupons da Loja"
+
+    def clean(self):
+        if self.code:
+            self.code = self.code.upper().strip()
+
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.upper().strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.store.name})"
+

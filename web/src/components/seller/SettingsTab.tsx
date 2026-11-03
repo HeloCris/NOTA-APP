@@ -26,6 +26,9 @@ const storeSchema = z.object({
     shipping_sedex_price: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
     shipping_handling_days: z.coerce.number().min(0, "O prazo não pode ser negativo.").optional(),
     free_shipping_threshold: z.coerce.number().min(0, "O valor deve ser positivo.").nullable().optional(),
+    max_installments: z.coerce.number().min(1, "Mínimo 1 parcela").max(12, "Máximo 12 parcelas").optional(),
+    free_interest_installments: z.coerce.number().min(1, "Mínimo 1").max(12, "Máximo 12").optional(),
+    min_installment_amount: z.coerce.number().min(1, "O valor mínimo deve ser positivo").optional(),
 });
 
 type StoreFormInput = z.input<typeof storeSchema>;
@@ -99,6 +102,9 @@ export function SettingsTab({ store, onStoreUpdated }: SettingsTabProps) {
             shipping_sedex_price: null,
             shipping_handling_days: 1,
             free_shipping_threshold: null,
+            max_installments: 6,
+            free_interest_installments: 3,
+            min_installment_amount: 30.00,
         }
     });
 
@@ -151,6 +157,9 @@ export function SettingsTab({ store, onStoreUpdated }: SettingsTabProps) {
                 shipping_sedex_price: store.shipping_sedex_price ?? null,
                 shipping_handling_days: store.shipping_handling_days ?? 1,
                 free_shipping_threshold: store.free_shipping_threshold ?? null,
+                max_installments: store.max_installments ?? 6,
+                free_interest_installments: store.free_interest_installments ?? 3,
+                min_installment_amount: store.min_installment_amount ?? 30.00,
             });
             if (store.logo_url) setLogoStr(store.logo_url);
             if (store.cover_url) setCoverStr(store.cover_url);
@@ -566,6 +575,55 @@ export function SettingsTab({ store, onStoreUpdated }: SettingsTabProps) {
                             </div>
                         );
                     })()}
+
+                    {/* Condições de Parcelamento no Cartão (RF-19) */}
+                    <div className="border-t border-[#EFEBDD] pt-5 pb-5">
+                        <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-[14px] font-bold text-[#23282D]">Condições de Parcelamento no Cartão</h4>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#E9EDF0] text-[#354B5E]">RF-19</span>
+                        </div>
+                        <p className="text-[12.5px] text-[#5A6067] mb-4">
+                            Configure as opções de parcelamento oferecidas aos clientes no checkout para os pedidos da sua loja.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[12px] font-bold text-[#23282D]">Máximo de Parcelas</label>
+                                <select
+                                    {...register("max_installments")}
+                                    className="px-3 py-2 rounded-xl border border-[#E6E1D2] text-[13px] bg-white focus:outline-none focus:border-[#354B5E]"
+                                >
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                                        <option key={num} value={num}>{num}x</option>
+                                    ))}
+                                </select>
+                                <span className="text-[10.5px] text-[#8C939D]">Limite aceito pela loja</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[12px] font-bold text-[#23282D]">Parcelas Sem Juros</label>
+                                <select
+                                    {...register("free_interest_installments")}
+                                    className="px-3 py-2 rounded-xl border border-[#E6E1D2] text-[13px] bg-white focus:outline-none focus:border-[#354B5E]"
+                                >
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                                        <option key={num} value={num}>{num}x sem juros</option>
+                                    ))}
+                                </select>
+                                <span className="text-[10.5px] text-[#8C939D]">Assumidas pela loja</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[12px] font-bold text-[#23282D]">Parcela Mínima (R$)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="1"
+                                    {...register("min_installment_amount")}
+                                    placeholder="30.00"
+                                    className="px-3 py-2 rounded-xl border border-[#E6E1D2] text-[13px] focus:outline-none focus:border-[#354B5E]"
+                                />
+                                <span className="text-[10.5px] text-[#8C939D]">Valor mínimo por parcela</span>
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="border-t border-[#EFEBDD] pt-5 pb-2 mb-2">
                         <div className="flex items-center justify-between gap-4">

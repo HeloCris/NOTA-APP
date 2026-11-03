@@ -61,6 +61,12 @@ export default function AccountScreen() {
       onPress: () => router.push('/(shop)/account/payment-methods' as any),
     },
     {
+      id: 'following',
+      label: 'Lojas que Sigo',
+      icon: <Ionicons name="heart-outline" size={20} color="#4A6072" />,
+      onPress: () => router.push('/(shop)/account/following' as any),
+    },
+    {
       id: 'settings',
       label: 'Configurações',
       icon: (
