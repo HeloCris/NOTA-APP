@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.orders",
     "apps.showcase",
+    "apps.reviews",
+    "apps.communication",
 ]
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # Tem que ser o primeiro ou estar bem no topo!

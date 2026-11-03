@@ -6,10 +6,11 @@ from django.db import models, transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.inventory.models import StoreProduct
+
 from .models import (
     DeliveryConfirmedBy,
     Order,
-    OrderItem,
     OrderStatus,
     OrderStatusHistory,
     ReturnItem,
@@ -35,8 +36,10 @@ class OrderPostPurchaseService:
     def restore_stock(order_items):
         """Restaura o estoque no StoreProduct dos itens do pedido."""
         for item in order_items:
-            store_prod = getattr(item, 'store_product', None)
-            if store_prod:
+            store_prod = (
+                StoreProduct.objects.select_for_update().filter(pk=item.store_product_id).first()
+            )
+            if store_prod is not None:
                 store_prod.stock_quantity += item.quantity
                 store_prod.save(update_fields=['stock_quantity'])
 
@@ -59,10 +62,16 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.CANCELLED, actor=user, reason=reason
             )
+            try:
+                from apps.communication.services import notify_store
+                if order.store:
+                    notify_store(order.store, "Pedido cancelado", f"Pedido #{order.number or order.id} foi cancelado pelo cliente.", "ORDER_UPDATE", f"/store/orders/{order.id}")
+            except Exception:
+                pass
             return order
 
-        # 2. Solicitação de cancelamento em PROCESSING ou SHIPPED
-        elif old_status in [OrderStatus.PROCESSING, OrderStatus.SHIPPED]:
+        # 2. Solicitação de cancelamento em PROCESSING
+        elif old_status == OrderStatus.PROCESSING:
             order.status = OrderStatus.CANCEL_REQUESTED
             order.cancel_reason = reason
             order.cancel_requested_at = timezone.now()
@@ -71,10 +80,18 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.CANCEL_REQUESTED, actor=user, reason=reason
             )
+            try:
+                from apps.communication.services import notify_store
+                if order.store:
+                    notify_store(order.store, "Solicitação de cancelamento", f"Cliente solicitou cancelamento do pedido #{order.number or order.id}.", "CANCEL_REQUEST", f"/store/orders/{order.id}")
+            except Exception:
+                pass
             return order
-
+        elif old_status == OrderStatus.SHIPPED:
+            raise ValidationError('Não é possível solicitar cancelamento para um pedido no status atual.')
         else:
             raise ValidationError('Não é possível solicitar cancelamento para um pedido no status atual.')
+
 
     @staticmethod
     @transaction.atomic
@@ -98,6 +115,12 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.CANCELLED, actor=store_user, reason='Cancelamento aprovado pelo lojista.'
             )
+            try:
+                from apps.communication.services import notify_user
+                if order.customer:
+                    notify_user(order.customer, "Cancelamento aprovado", f"Pedido #{order.number or order.id} foi cancelado.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+            except Exception:
+                pass
         else:
             if not reason:
                 raise ValidationError({'reason': 'Motivo obrigatório para recusar o cancelamento.'})
@@ -106,8 +129,15 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, fallback_status, actor=store_user, reason=f'Cancelamento recusado: {reason}'
             )
+            try:
+                from apps.communication.services import notify_user
+                if order.customer:
+                    notify_user(order.customer, "Cancelamento recusado", f"Pedido #{order.number or order.id}: cancelamento recusado.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+            except Exception:
+                pass
 
         return order
+
 
     @staticmethod
     @transaction.atomic
@@ -130,6 +160,12 @@ class OrderPostPurchaseService:
         OrderPostPurchaseService.log_history(
             order, old_status, OrderStatus.CANCELLED, actor=store_user, reason=reason
         )
+        try:
+            from apps.communication.services import notify_user
+            if order.customer:
+                notify_user(order.customer, "Pedido cancelado pela loja", f"Pedido #{order.number or order.id} foi cancelado.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+        except Exception:
+            pass
         return order
 
     @staticmethod
@@ -193,6 +229,15 @@ class OrderPostPurchaseService:
     @transaction.atomic
     def confirm_delivery(order: Order, user, confirmed_by: str):
         """Confirma o recebimento do pedido pelo cliente ou lojista."""
+        # Se o lojista marcou como entregue e o cliente confirma o recebimento:
+        if order.status == OrderStatus.DELIVERED and order.delivery_confirmed_by == DeliveryConfirmedBy.SELLER and confirmed_by == 'CUSTOMER':
+            order.delivery_confirmed_by = DeliveryConfirmedBy.CUSTOMER
+            order.save(update_fields=['delivery_confirmed_by', 'updated_at'])
+            OrderPostPurchaseService.log_history(
+                order, OrderStatus.DELIVERED, OrderStatus.DELIVERED, actor=user, reason='Entrega confirmada pelo cliente (após marcação da loja).'
+            )
+            return order
+
         if order.status != OrderStatus.SHIPPED:
             raise ValidationError('Apenas pedidos enviados podem ter a entrega confirmada.')
 
@@ -205,7 +250,17 @@ class OrderPostPurchaseService:
         OrderPostPurchaseService.log_history(
             order, old_status, OrderStatus.DELIVERED, actor=user, reason=f'Entrega confirmada por {confirmed_by}'
         )
+        try:
+            from apps.communication.services import notify_user, notify_store
+            if confirmed_by == 'CUSTOMER' and order.customer:
+                notify_user(order.customer, "Pedido entregue", f"Pedido #{order.number or order.id} marcado como entregue.", "ORDER_DELIVERED", f"/(shop)/orders/{order.id}")
+            elif confirmed_by == 'SELLER':
+                if order.customer:
+                    notify_user(order.customer, "Pedido entregue", f"Pedido #{order.number or order.id} marcado como entregue pela loja.", "ORDER_DELIVERED", f"/(shop)/orders/{order.id}")
+        except Exception:
+            pass
         return order
+
 
     @staticmethod
     @transaction.atomic
@@ -227,6 +282,12 @@ class OrderPostPurchaseService:
         OrderPostPurchaseService.log_history(
             order, old_status, OrderStatus.DELIVERY_DISPUTED, actor=customer_user, reason=reason or 'Não recebi meu pedido'
         )
+        try:
+            from apps.communication.services import notify_store
+            if order.store:
+                notify_store(order.store, "Contestação de entrega", f"Cliente contestou entrega do pedido #{order.number or order.id}.", "RETURN_REQUEST", f"/store/orders/{order.id}")
+        except Exception:
+            pass
         return order
 
     @staticmethod
@@ -248,6 +309,12 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.SHIPPED, actor=store_user, reason='Pedido reenviado pelo lojista.'
             )
+            try:
+                from apps.communication.services import notify_user
+                if order.customer:
+                    notify_user(order.customer, "Pedido reenviado", f"Contestação resolvida - pedido #{order.number or order.id} reenviado.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+            except Exception:
+                pass
 
         elif action == 'refund':
             order.status = OrderStatus.REFUNDED
@@ -256,6 +323,12 @@ class OrderPostPurchaseService:
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.REFUNDED, actor=store_user, reason='Reembolso aprovado pelo lojista após contestação.'
             )
+            try:
+                from apps.communication.services import notify_user
+                if order.customer:
+                    notify_user(order.customer, "Reembolso processado", f"Pedido #{order.number or order.id} reembolsado.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+            except Exception:
+                pass
         else:
             raise ValidationError('Ação inválida para resolução da contestação.')
 
@@ -320,12 +393,25 @@ class OrderPostPurchaseService:
         for photo in photos:
             return_req.photos.create(image=photo)
 
+        try:
+            from apps.communication.services import notify_store
+            if order.store:
+                notify_store(order.store, "Solicitação de devolução", f"Cliente solicitou devolução do pedido #{order.number or order.id}.", "RETURN_REQUEST", f"/store/orders/{order.id}")
+        except Exception:
+            pass
+
         return return_req
+
 
     @staticmethod
     @transaction.atomic
     def process_return_receipt(return_req: ReturnRequest, store_user, resellable: bool):
         """Processa o recebimento físico da devolução e faz a re-estocagem se o item for reutilizável."""
+        return_req = (
+            ReturnRequest.objects.select_for_update()
+            .select_related("order")
+            .get(pk=return_req.pk)
+        )
         if return_req.status not in [ReturnStatus.APPROVED, ReturnStatus.REQUESTED]:
             raise ValidationError('Solicitação de devolução precisa estar aprovada para recebimento.')
 
@@ -335,8 +421,12 @@ class OrderPostPurchaseService:
 
         if resellable:
             for r_item in return_req.items.all():
-                store_prod = getattr(r_item.order_item, 'store_product', None)
-                if store_prod:
+                store_prod = (
+                    StoreProduct.objects.select_for_update()
+                    .filter(pk=r_item.order_item.store_product_id)
+                    .first()
+                )
+                if store_prod is not None:
                     store_prod.stock_quantity += r_item.quantity
                     store_prod.save(update_fields=['stock_quantity'])
 
@@ -352,4 +442,10 @@ class OrderPostPurchaseService:
             actor=store_user,
             reason=f'Devolução #{return_req.id} processada. Re-estocado: {resellable}. Reembolso de R${return_req.refund_amount}'
         )
+        try:
+            from apps.communication.services import notify_user
+            if order.customer:
+                notify_user(order.customer, "Devolução finalizada", f"Pedido #{order.number or order.id} reembolsado após devolução.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+        except Exception:
+            pass
         return return_req

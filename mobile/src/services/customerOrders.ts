@@ -32,9 +32,23 @@ export type OrderTimelineStep = {
 export type CustomerOrderItem = {
   id: number;
   product_name: string;
+  volume_ml?: number;
+  store_id?: number;
+  store_name?: string;
+  product_image?: string | null;
   quantity: number;
+  available_return_quantity?: number;
   unit_price: string;
   total_price?: string;
+  can_review?: boolean;
+  review_id?: number | null;
+  can_edit_review?: boolean;
+  review_reply?: {
+    id: number;
+    text: string;
+    author_name: string;
+    created_at?: string;
+  } | null;
 };
 
 export type OrderStatusHistoryItem = {
@@ -92,6 +106,8 @@ export type CustomerOrderAddress = {
 export type CustomerOrder = {
   id: number;
   code?: string;
+  store?: number;
+  store_name?: string;
   status: CustomerOrderStatus;
   total_amount: string;
   shipping_cost: string;

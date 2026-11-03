@@ -105,8 +105,7 @@ class BrandRegisterView(generics.CreateAPIView):
         serializer.save(owner=self.request.user, status=Brand.BrandStatus.PENDING)
 
 from django.db import transaction
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist
 
 class BrandOnboardingView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -204,7 +203,7 @@ class BrandMeView(generics.RetrieveUpdateAPIView):
     serializer_class = BrandSerializer
 
     def get_object(self):
-        return self.request.user.brands.first()
+        return self.request.user.brands.first()  # type: ignore[union-attr]
 
 
 class BrandProductViewSet(viewsets.ModelViewSet):
@@ -212,13 +211,13 @@ class BrandProductViewSet(viewsets.ModelViewSet):
     serializer_class = BrandProductSerializer
 
     def get_queryset(self):
-        brand = self.request.user.brands.first()
+        brand = self.request.user.brands.first()  # type: ignore[union-attr]
         if not brand:
             return Product.objects.none()
         return Product.objects.filter(brand=brand)
 
     def perform_create(self, serializer):
-        brand = self.request.user.brands.first()
+        brand = self.request.user.brands.first()  # type: ignore[union-attr]
         serializer.save(brand=brand, is_approved=True)
 
     def perform_destroy(self, instance):

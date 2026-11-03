@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { OlfactoryFilterChips } from "./OlfactoryFilterChips";
 import { ProductCard } from "./ProductCard";
 import { showcaseService } from "../../services/showcaseService";
+import { storeService } from "../../services/storeService";
 import type { ShowcaseStore } from "../../types/showcase";
 
 export function StoreShowcasePage() {
@@ -16,7 +17,17 @@ export function StoreShowcasePage() {
   useEffect(() => {
     let active = true;
     showcaseService.getStore(slug, { family, search: search || undefined })
-      .then((data) => { if (active) { setStore(data); setError(false); } })
+      .then((data) => {
+        if (active) {
+          setStore(data);
+          setError(false);
+          const viewKey = `store-viewed:${slug}`;
+          if (family === "" && search === "" && sessionStorage.getItem(viewKey) !== "1") {
+            sessionStorage.setItem(viewKey, "1");
+            void storeService.registerView(data.id);
+          }
+        }
+      })
       .catch(() => { if (active) setError(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };

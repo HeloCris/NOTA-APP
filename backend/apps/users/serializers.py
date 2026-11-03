@@ -1,8 +1,7 @@
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import CustomUser, UserAddress
-from .token_serializer import CustomTokenObtainPairSerializer
+from .token_serializer import CustomTokenObtainPairSerializer  # noqa: F401  (re-exportado)
 
 
 class RegisterSerializer(serializers.ModelSerializer):

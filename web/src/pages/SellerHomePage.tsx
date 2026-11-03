@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/useAuth";
 import logoIcon from "../assets/logo-icon.png";
@@ -8,15 +9,36 @@ import { CatalogTab } from "../components/seller/CatalogTab";
 import { SettingsTab } from "../components/seller/SettingsTab";
 import { OrdersTab } from "../components/seller/OrdersTab";
 import { StoreCoupons } from "../features/store/StoreCoupons";
+import { StoreReviewsView } from "../components/seller/StoreReviewsView";
+import { NotificationBell } from "../components/common/NotificationBell";
+import { StoreMessages } from "../features/store/StoreMessages";
 import { storeService } from "../services/storeService";
 import type { Store } from "../types/store";
 
-type TabType = "dashboard" | "catalog" | "orders" | "coupons" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "orders" | "coupons" | "reviews" | "metrics" | "messages" | "settings";
+
+const VALID_TABS: TabType[] = ["dashboard", "catalog", "orders", "coupons", "reviews", "metrics", "messages", "settings"];
 
 export function SellerHomePage() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab") as TabType | null;
+
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "dashboard"
+  );
   const [store, setStore] = useState<Store | null>(null);
+
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const changeTab = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   const fetchStore = async () => {
     try {
@@ -39,7 +61,7 @@ export function SellerHomePage() {
     const isActive = activeTab === id;
     return (
       <button
-        onClick={() => setActiveTab(id)}
+        onClick={() => changeTab(id)}
         className={`flex items-center justify-center gap-[12px] px-3 py-3 rounded-lg text-[15px] font-semibold transition-colors w-full cursor-pointer ${
           isActive
             ? "bg-[#E9EDF0] text-[#354B5E]"
@@ -126,14 +148,7 @@ export function SellerHomePage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="relative w-[46px] h-[46px] rounded-full border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067]">
-              <svg className="w-[22px] h-[22px]">
-                <use href="#ic-bell" />
-              </svg>
-              <span className="absolute -top-[2px] -right-[2px] w-[18px] h-[18px] rounded-full bg-[#A85A38] text-white text-[9px] font-extrabold flex items-center justify-center border-2 border-white">
-                3
-              </span>
-            </button>
+            <NotificationBell />
 
             {store && (
               <div
@@ -159,7 +174,7 @@ export function SellerHomePage() {
             )}
 
             <button
-              onClick={() => setActiveTab("catalog")}
+              onClick={() => changeTab("catalog")}
               className="font-jakarta font-bold text-[14px] rounded-full px-6 py-[13px] border-2 border-transparent inline-flex items-center gap-2.5 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors cursor-pointer"
             >
               <svg className="w-[18px] h-[18px]">
@@ -187,7 +202,7 @@ export function SellerHomePage() {
                 Para acessar o dashboard, gerenciar produtos e visualizar métricas, você precisa configurar o perfil da sua loja pela primeira vez.
               </p>
               <button
-                onClick={() => setActiveTab("settings")}
+                onClick={() => changeTab("settings")}
                 className="font-jakarta font-bold text-[14px] rounded-full px-8 py-3.5 bg-[#354B5E] text-white hover:bg-[#263847] transition-colors shadow-sm cursor-pointer"
               >
                 Configurar Minha Loja
@@ -195,17 +210,24 @@ export function SellerHomePage() {
             </div>
           ) : (
             <>
-              {activeTab === "dashboard" && <DashboardTab store={store} />}
+              {activeTab === "dashboard" && (
+                <DashboardTab store={store} onOpenReviews={() => changeTab("reviews")} />
+              )}
               {activeTab === "catalog" && <CatalogTab store={store} />}
               {activeTab === "orders" && <OrdersTab />}
               {activeTab === "coupons" && <StoreCoupons />}
+              {activeTab === "reviews" && (
+                <StoreReviewsView store={store} onBack={() => changeTab("dashboard")} />
+              )}
 
-              {(activeTab === "metrics" || activeTab === "messages") && (
+              {activeTab === "messages" && <StoreMessages />}
+
+              {activeTab === "metrics" && (
                 <div className="animate-in fade-in duration-300">
                   <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
                     <div>
                       <h1 className="text-[27px] font-extrabold text-[#263847] mb-1 tracking-[-0.01em]">
-                        {activeTab === "metrics" ? "Métricas" : "Mensagens"}
+                        Métricas
                       </h1>
                       <p className="text-[13px] text-[#5A6067] m-0">
                         Em construção. Funcionalidades avançadas chegando em breve.
@@ -215,7 +237,7 @@ export function SellerHomePage() {
                   <div className="bg-white border border-dashed border-[#E6E1D2] rounded-[20px] py-[70px] px-[30px] text-center">
                     <div className="w-[56px] h-[56px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-5">
                       <svg className="w-[26px] h-[26px]">
-                        <use href={activeTab === "metrics" ? "#ic-chart" : "#ic-inbox"} />
+                        <use href="#ic-chart" />
                       </svg>
                     </div>
                     <h3 className="text-[18px] font-extrabold text-[#23282D] mb-2">

@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from apps.catalog.models import Brand, Product
+from apps.catalog.models import Brand
 
 User = get_user_model()
 

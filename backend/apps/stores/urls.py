@@ -13,12 +13,14 @@ from .views import (
     StoreInstallmentsSettingsView,
     CustomerFollowingStoresListView,
     ValidateCouponView,
+    StoreViewIncrementView,
 )
 
 urlpatterns = [
     path("", StoreListView.as_view(), name="store-list"),
     path("me/", StoreMeView.as_view(), name="store-me"),
     path("me/dashboard/", StoreDashboardView.as_view(), name="store-dashboard"),
+    path("dashboard/", StoreDashboardView.as_view(), name="store-dashboard-legacy"),
     
     # Cupons e Configurações Comerciais do Lojista (RF-19.3)
     path("coupons/", StoreCouponListCreateView.as_view(), name="store-coupons-list-create"),
@@ -30,8 +32,8 @@ urlpatterns = [
 
     # Validação de Cupom no Checkout (RF-19.4)
     path("validate-coupon/", ValidateCouponView.as_view(), name="store-validate-coupon"),
-
     path("<int:pk>/", StoreDetailView.as_view(), name="store-detail"),
+    path("<int:pk>/view/", StoreViewIncrementView.as_view(), name="store-view"),
     
     # Nova rota para a vitrine mobile da loja (RF-08.1 e RF-08.8)
     path("<int:pk>/products/", StoreProductListView.as_view(), name="store-products-list"),

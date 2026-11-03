@@ -23,6 +23,7 @@ interface CartContextData {
   items: CartItem[];
   addItem: (item: Omit<CartItem, 'quantity' | 'id'> & { quantity?: number }) => void;
   updateQuantity: (id: string, delta: number) => void;
+  setQuantity: (id: string, quantity: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
   totalItemsCount: number;
@@ -109,6 +110,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }, []);
 
+  const setQuantity = useCallback((id: string, quantity: number) => {
+    setItems((prev) =>
+      prev
+        .map((item) => item.id === id
+          ? (quantity > 0 ? { ...item, quantity } : null)
+          : item)
+        .filter(Boolean) as CartItem[],
+    );
+  }, []);
+
   const removeItem = useCallback((id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
@@ -128,6 +139,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         items,
         addItem,
         updateQuantity,
+        setQuantity,
         removeItem,
         clearCart,
         totalItemsCount,

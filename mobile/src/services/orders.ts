@@ -10,9 +10,14 @@ export interface CreateOrderPayload {
 }
 
 export interface ProcessPaymentPayload {
-  order_id: number;
+  order_id?: number;
+  order_ids?: number[];
   payment_method: 'CREDIT_CARD' | 'PIX';
   payment_token?: string;
+  card_number?: string;
+  card_holder?: string;
+  expiration_date?: string;
+  cvv?: string;
 }
 
 export async function createOrder(payload: CreateOrderPayload) {

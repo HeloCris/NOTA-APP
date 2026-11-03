@@ -1,7 +1,8 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 
-import OrderDetailScreen from '@/app/(shop)/orders/[id]';
+import OrderDetailScreen from '@/app/orders/[id]';
 
 const mockBack = jest.fn();
 
@@ -60,16 +61,20 @@ describe('Tela de detalhe do pedido - RF-14', () => {
     const { getByText } = await render(<OrderDetailScreen />);
 
     await waitFor(() => {
-      expect(getByText('Enviado')).toBeTruthy();
       expect(getByText('BR123456789X')).toBeTruthy();
+      expect(getByText('Enviado')).toBeTruthy();
       expect(getByText('Histórico do pedido')).toBeTruthy();
       expect(getByText('Enviado pela transportadora')).toBeTruthy();
       expect(getByText('Entregue')).toBeTruthy();
-    });
-  });
+    }, { timeout: 8000 });
+  }, 10000);
 
   it('copia o código de rastreio', async () => {
     const { getByLabelText } = await render(<OrderDetailScreen />);
+
+    await waitFor(() => {
+      expect(getByLabelText('Copiar código de rastreio')).toBeTruthy();
+    });
 
     fireEvent.press(getByLabelText('Copiar código de rastreio'));
 

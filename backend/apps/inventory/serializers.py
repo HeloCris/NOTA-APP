@@ -7,7 +7,7 @@ from .models import StoreProduct
 
 class ProductSummarySerializer(serializers.ModelSerializer):
 
-    brand = serializers.StringRelatedField()
+    brand: serializers.StringRelatedField = serializers.StringRelatedField()
 
     class Meta:
         model = Product
@@ -23,6 +23,8 @@ class StoreProductSerializer(serializers.ModelSerializer):
     )
 
     product = ProductSummarySerializer(read_only=True)
+    rating = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
 
     class Meta:
         model = StoreProduct
@@ -35,10 +37,26 @@ class StoreProductSerializer(serializers.ModelSerializer):
             "promotional_price",
             "stock_quantity",
             "is_available",
+            "rating",
+            "reviews_count",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "product", "created_at", "updated_at"]
+        read_only_fields = ["id", "product", "rating", "reviews_count", "created_at", "updated_at"]
+
+    def get_rating(self, obj):
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        avg = Review.objects.filter(
+            store=obj.store, product=obj.product, is_hidden=False, is_deleted=False
+        ).aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else 0.0
+
+    def get_reviews_count(self, obj):
+        from apps.reviews.models import Review
+        return Review.objects.filter(
+            store=obj.store, product=obj.product, is_hidden=False, is_deleted=False
+        ).count()
 
     def validate_volume_ml(self, value: int) -> int:
         if value <= 0:
@@ -102,8 +120,8 @@ class StoreProductSerializer(serializers.ModelSerializer):
             if store and store.is_official:
                 # Se for loja oficial vinculada a uma marca, garante que o produto pertence a essa marca
                 brand = getattr(store, "official_brand", None)
-                if not brand and hasattr(request.user, "brands"):
-                    brand = request.user.brands.first()
+                if not brand and hasattr(request.user, "brands"):  # type: ignore[union-attr]
+                    brand = request.user.brands.first()  # type: ignore[union-attr]
                 if brand and product.brand_id != brand.id:
                     raise serializers.ValidationError(
                         {"detail": f"Lojas Oficiais só podem vender perfumes da sua própria marca ({brand.name})."}

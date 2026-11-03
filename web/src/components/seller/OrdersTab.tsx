@@ -8,7 +8,7 @@ import {
   type StoreOrderStatus,
 } from "../../services/storeOrderService";
 
-type FilterKey = "ALL" | "PROCESSING" | "DELAYED" | "SHIPPED";
+type FilterKey = "ALL" | "PROCESSING" | "REQUESTS" | "DELAYED" | "SHIPPED";
 
 const statusStyles: Record<StoreOrderStatus, string> = {
   PENDING: "bg-[#F5F3E9] text-[#5A6067]",
@@ -71,12 +71,29 @@ export function OrdersTab() {
   const delayedCount = orders.filter((order) => order.is_delayed).length;
   const processingCount = orders.filter((order) => order.status === "PROCESSING").length;
   const shippedCount = orders.filter((order) => order.status === "SHIPPED").length;
+  const requestsCount = orders.filter(
+    (order) =>
+      order.status === "CANCEL_REQUESTED" ||
+      order.status === "DELIVERY_DISPUTED" ||
+      order.return_requests?.some(
+        (r) => r.status === "REQUESTED" || r.status === "APPROVED"
+      )
+  ).length;
 
   const visibleOrders = orders.filter((order) => {
     if (selectedFilter === "ALL") return true;
     if (selectedFilter === "PROCESSING") return order.status === "PROCESSING";
     if (selectedFilter === "DELAYED") return order.is_delayed;
     if (selectedFilter === "SHIPPED") return order.status === "SHIPPED";
+    if (selectedFilter === "REQUESTS") {
+      return (
+        order.status === "CANCEL_REQUESTED" ||
+        order.status === "DELIVERY_DISPUTED" ||
+        order.return_requests?.some(
+          (r) => r.status === "REQUESTED" || r.status === "APPROVED"
+        )
+      );
+    }
     return true;
   });
 
@@ -174,6 +191,7 @@ export function OrdersTab() {
             [
               ["ALL", "Todos"],
               ["PROCESSING", `Aguardando (${processingCount})`],
+              ["REQUESTS", `Solicitações (${requestsCount})`],
               ["DELAYED", `Em atraso (${delayedCount})`],
               ["SHIPPED", `Enviados (${shippedCount})`],
             ] as const
@@ -181,14 +199,18 @@ export function OrdersTab() {
             <button
               key={filterKey}
               type="button"
-              onClick={() => setSelectedFilter(filterKey)}
+              onClick={() => setSelectedFilter(filterKey as FilterKey)}
               className={`px-4 py-2 rounded-full text-[12px] font-bold transition-colors ${
                 selectedFilter === filterKey
                   ? filterKey === "DELAYED" && delayedCount > 0
                     ? "bg-[#BA1A1A] text-white"
+                    : filterKey === "REQUESTS" && requestsCount > 0
+                    ? "bg-[#A85A38] text-white"
                     : "bg-[#354B5E] text-white"
                   : filterKey === "DELAYED" && delayedCount > 0
                   ? "text-[#BA1A1A] hover:bg-[#FDF4F0]"
+                  : filterKey === "REQUESTS" && requestsCount > 0
+                  ? "text-[#A85A38] hover:bg-[#FDF4F0]"
                   : "text-[#5A6067] hover:bg-[#F5F3E9]"
               }`}
             >
@@ -386,13 +408,41 @@ export function OrdersTab() {
                           })}
                         </td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${
-                              statusStyles[order.status] || "bg-[#EFEBDD] text-[#23282D]"
-                            }`}
-                          >
-                            {statusLabels[order.status] || order.status}
-                          </span>
+                          {(() => {
+                            const pendingReturn = order.return_requests?.find(
+                              (r) => r.status === "REQUESTED" || r.status === "APPROVED"
+                            );
+
+                            if (pendingReturn) {
+                              const isApproved = pendingReturn.status === "APPROVED";
+                              return (
+                                <div>
+                                  <span
+                                    className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${
+                                      isApproved
+                                        ? "bg-[#D1E7DD] text-[#0F5132]"
+                                        : "bg-[#FFF3CD] text-[#664D03] border border-[#FFEEBA]"
+                                    }`}
+                                  >
+                                    {isApproved ? "Devolução Aprovada" : "Devolução Solicitada"}
+                                  </span>
+                                  <p className="text-[10px] text-[#6B7280] mt-1">
+                                    Pedido {statusLabels[order.status] || order.status}
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <span
+                                className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${
+                                  statusStyles[order.status] || "bg-[#EFEBDD] text-[#23282D]"
+                                }`}
+                              >
+                                {statusLabels[order.status] || order.status}
+                              </span>
+                            );
+                          })()}
                           {order.tracking_code && (
                             <p className="text-[11px] font-semibold text-[#5C6B4E] mt-2">
                               {order.carrier}: {order.tracking_code}
@@ -400,7 +450,15 @@ export function OrdersTab() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          {order.status === "PAID" ? (
+                          {order.return_requests?.some((r) => r.status === "REQUESTED" || r.status === "APPROVED") ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/store/orders/${order.id}`)}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#664D03] bg-[#FFF3CD] border border-[#FFEEBA] px-3.5 py-1.5 rounded-full hover:bg-[#FFE8A1] transition-colors cursor-pointer"
+                            >
+                              📦 Ver Devolução &rarr;
+                            </button>
+                          ) : order.status === "PAID" ? (
                             <button
                               type="button"
                               disabled={busyId === order.id}
@@ -442,7 +500,7 @@ export function OrdersTab() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => navigate(`/seller/orders/${order.id}`)}
+                              onClick={() => navigate(`/store/orders/${order.id}`)}
                               className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#354B5E] hover:underline"
                             >
                               Ver detalhes &rarr;

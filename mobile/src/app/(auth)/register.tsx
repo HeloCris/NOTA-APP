@@ -145,7 +145,7 @@ export default function RegisterScreen() {
 
       {apiError ? <Text style={styles.errorText}>{apiError}</Text> : null}
 
-      <TouchableOpacity testID="submit-register" style={[styles.primaryButton, !isValid && styles.disabledButton]} onPress={handleSubmit(onSubmit)} disabled={!isValid || isSubmitting}>
+      <TouchableOpacity testID="submit-register" style={[styles.primaryButton, !isValid && styles.disabledButton]} onPress={() => handleSubmit(onSubmit)()} disabled={!isValid || isSubmitting}>
         {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Próximo →</Text>}
       </TouchableOpacity>
 

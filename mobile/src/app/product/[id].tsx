@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -21,10 +21,13 @@ import {
   ProductDetails,
   ProductStoreOffer,
   ShippingQuoteResponse,
-  ShippingMethodQuote,
+  ApiStoreReview,
+  StoreReviewsSummary,
 } from '@/services/stores';
 import { useCart } from '@/context/CartContext';
 import { ProductCard } from '@/components/product/ProductCard';
+import { StoreReviewsModal } from '@/components/store/StoreReviewsSection';
+import { formatProductVolume } from '@/utils/productUtils';
 
 // --- Ilustração de frasco luxuoso quando não houver foto cadastrada ---
 function LuxuryBottleIllustration({ family }: { family?: string }) {
@@ -96,13 +99,15 @@ export default function ProductDetailScreen() {
   const maxWidth = Math.min(windowWidth, 480);
 
   const handleGoBack = () => {
-    if (storeId) {
-      router.push({
+    if (router.canGoBack()) {
+      router.back();
+    } else if (storeId) {
+      router.replace({
         pathname: '/store/[id]' as never,
         params: { id: storeId },
       });
     } else {
-      router.back();
+      router.replace('/(shop)/explore' as never);
     }
   };
 
@@ -128,6 +133,12 @@ export default function ProductDetailScreen() {
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Avaliações do perfume
+  const [reviews, setReviews] = useState<ApiStoreReview[]>([]);
+  const [reviewsSummary, setReviewsSummary] = useState<StoreReviewsSummary | null>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [showAllReviewsModal, setShowAllReviewsModal] = useState(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
@@ -136,6 +147,26 @@ export default function ProductDetailScreen() {
   useEffect(() => {
     let isMounted = true;
     if (!id) return;
+
+    const loadData = async () => {
+      try {
+        const revData = await storesService.getProductReviews(id, { storeId });
+        if (isMounted) {
+          setReviews(revData.results || []);
+          setReviewsSummary(revData.summary || null);
+        }
+      } catch {
+        if (isMounted) {
+          setReviews([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingReviews(false);
+        }
+      }
+    };
+
+    void loadData();
 
     Promise.all([
       storesService.getProduct(id),
@@ -147,17 +178,27 @@ export default function ProductDetailScreen() {
         setAllProducts(listData);
         setError(false);
 
-        // Se o produto tiver volumes disponíveis no BD, seleciona o primeiro
-        const vols = prodData.available_volumes || [];
-        if (vols.length > 0) {
-          const firstVol = vols[0];
+        // Se storeId foi fornecido (ex: vindo da vitrine de uma loja específica),
+        // filtra ou prioriza as ofertas e volumetrias dessa loja específica!
+        const offers = prodData.store_offers || [];
+        const storeOffers = storeId
+          ? offers.filter((o) => o.store_id.toString() === storeId.toString())
+          : [];
+        const relevantOffers = storeOffers.length > 0 ? storeOffers : offers;
+
+        // Volumes disponíveis para a loja do contexto (ou gerais caso não haja contexto de loja)
+        const relevantVolumes = storeOffers.length > 0
+          ? Array.from(new Set(storeOffers.map((o) => o.volume_ml))).sort((a, b) => a - b)
+          : (prodData.available_volumes || []);
+
+        if (relevantVolumes.length > 0) {
+          const firstVol = relevantVolumes[0];
           setSelectedVolume(firstVol);
-          // Seleciona a oferta correspondente da loja com menor preço
-          const offer = prodData.store_offers?.find((o) => o.volume_ml === firstVol);
-          setSelectedOffer(offer || prodData.store_offers?.[0] || null);
-        } else if (prodData.store_offers && prodData.store_offers.length > 0) {
-          setSelectedOffer(prodData.store_offers[0]);
-          setSelectedVolume(prodData.store_offers[0].volume_ml);
+          const offer = relevantOffers.find((o) => o.volume_ml === firstVol);
+          setSelectedOffer(offer || relevantOffers[0] || null);
+        } else if (relevantOffers.length > 0) {
+          setSelectedOffer(relevantOffers[0]);
+          setSelectedVolume(relevantOffers[0].volume_ml);
         }
       })
       .catch((err) => {
@@ -174,13 +215,16 @@ export default function ProductDetailScreen() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, storeId]);
 
   // Ao trocar o volume selecionado
   const handleSelectVolume = (vol: number) => {
     setSelectedVolume(vol);
     if (!product?.store_offers) return;
-    const matchingOffer = product.store_offers.find((o) => o.volume_ml === vol);
+    // Se storeId estiver presente, busca a oferta deste volume da loja selecionada primeiro
+    const matchingOffer = (storeId
+      ? product.store_offers.find((o) => o.store_id.toString() === storeId.toString() && o.volume_ml === vol)
+      : undefined) || product.store_offers.find((o) => o.volume_ml === vol);
     if (matchingOffer) {
       setSelectedOffer(matchingOffer);
       // Se já houver CEP calculado, recalcula com a nova oferta
@@ -267,6 +311,22 @@ export default function ProductDetailScreen() {
     });
   }, [allProducts, product]);
 
+  const storeOffersForProduct = useMemo(() => {
+    if (!product?.store_offers) return [];
+    if (!storeId) return product.store_offers;
+    const filtered = product.store_offers.filter((o) => o.store_id.toString() === storeId.toString());
+    return filtered.length > 0 ? filtered : product.store_offers;
+  }, [product, storeId]);
+
+  const displayVolumes = useMemo(() => {
+    if (storeOffersForProduct.length > 0 && storeId) {
+      return Array.from(new Set(storeOffersForProduct.map((o) => o.volume_ml))).sort((a, b) => a - b);
+    }
+    return product?.available_volumes || [];
+  }, [storeOffersForProduct, storeId, product]);
+
+  const hasVolumes = displayVolumes.length > 0;
+
   const currentPrice = selectedOffer
     ? Number(selectedOffer.price)
     : product?.min_price || null;
@@ -307,12 +367,9 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const hasVolumes =
-    product.available_volumes && product.available_volumes.length > 0;
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar style="dark" />
 
       {/* Floating Toast */}
       {toastMessage && (
@@ -434,7 +491,7 @@ export default function ProductDetailScreen() {
             {currentPrice !== null ? (
               <View style={styles.priceContainer}>
                 <Text style={styles.priceStartingText}>
-                  {hasVolumes && product.available_volumes!.length > 1
+                  {hasVolumes && displayVolumes.length > 1
                     ? 'A partir de'
                     : 'Preço'}
                 </Text>
@@ -499,12 +556,12 @@ export default function ProductDetailScreen() {
             <View style={styles.sectionWrapper}>
               <Text style={styles.sectionHeaderTitle}>Tamanho disponível</Text>
               <View style={styles.volumesRow}>
-                {product.available_volumes!.map((vol) => {
+                {displayVolumes.map((vol) => {
                   const isSelected = selectedVolume === vol;
-                  // Encontra a melhor oferta no BD para este volume específico
-                  const offerForVol = product.store_offers?.find(
-                    (o) => o.volume_ml === vol
-                  );
+                  // Encontra a melhor oferta para este volume (priorizando a loja atual)
+                  const offerForVol =
+                    storeOffersForProduct.find((o) => o.volume_ml === vol) ||
+                    product.store_offers?.find((o) => o.volume_ml === vol);
                   const isDecant = vol <= 15;
                   const label = isDecant ? `Decant ${vol}ml` : `${vol} ml`;
 
@@ -734,6 +791,177 @@ export default function ProductDetailScreen() {
           ) : null}
 
           {/* ========================================================= */}
+          {/* AVALIAÇÕES DO PRODUTO (ESTILO SHOPEE) */}
+          {/* ========================================================= */}
+          <View style={styles.reviewsSectionShopee}>
+            {/* Cabeçalho da seção */}
+            <View style={styles.reviewsShopeeHeader}>
+              <View style={styles.reviewsShopeeTitleWrap}>
+                <Text style={styles.reviewsShopeeTitle}>Avaliações do Produto</Text>
+                <View style={styles.reviewsShopeeScoreRow}>
+                  <MaterialIcons name="star" size={16} color="#F59E0B" />
+                  <Text style={styles.reviewsShopeeScoreText}>
+                    {reviewsSummary && reviewsSummary.count > 0
+                      ? reviewsSummary.average.toFixed(1).replace('.', ',')
+                      : '5,0'}
+                  </Text>
+                  <Text style={styles.reviewsShopeeCountText}>
+                    ({reviewsSummary?.count ?? reviews.length} avaliações)
+                  </Text>
+                </View>
+              </View>
+
+              {reviews.length > 0 && (
+                <TouchableOpacity
+                  style={styles.reviewsShopeeViewAllBtn}
+                  onPress={() => {
+                    if (storeId) {
+                      router.push({
+                        pathname: '/store/[id]/product/[productId]/reviews' as any,
+                        params: {
+                          id: storeId.toString(),
+                          productId: id.toString(),
+                          storeName: selectedOffer?.store_name || 'Loja',
+                          rating: reviewsSummary?.average?.toString(),
+                          reviewsCount: reviewsSummary?.count?.toString(),
+                        },
+                      });
+                    } else {
+                      setShowAllReviewsModal(true);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.reviewsShopeeViewAllText}>Ver todas</Text>
+                  <MaterialIcons name="chevron-right" size={18} color="#D97706" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Prévia das primeiras avaliações (1 a 2 comentários como na Shopee) */}
+            {isLoadingReviews ? (
+              <View style={styles.reviewsShopeeLoading}>
+                <ActivityIndicator size="small" color="#2C4659" />
+                <Text style={styles.reviewsShopeeLoadingText}>Carregando avaliações...</Text>
+              </View>
+            ) : reviews.length === 0 ? (
+              <View style={styles.reviewsShopeeEmpty}>
+                <MaterialIcons name="star-outline" size={32} color="#D1D5DB" />
+                <Text style={styles.reviewsShopeeEmptyText}>
+                  Este perfume ainda não possui avaliações.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.reviewsShopeeList}>
+                {reviews.slice(0, 2).map((rev) => (
+                  <View key={rev.id} style={styles.reviewsShopeeCard}>
+                    {/* Linha do autor e data */}
+                    <View style={styles.reviewsShopeeUserRow}>
+                      <View style={styles.reviewsShopeeAvatar}>
+                        <Text style={styles.reviewsShopeeAvatarText}>
+                          {(rev.author_name || 'C').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reviewsShopeeUserName}>{rev.author_name}</Text>
+                        <View style={styles.reviewsShopeeStarsRow}>
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <MaterialIcons
+                              key={s}
+                              name={s <= rev.rating ? 'star' : 'star-outline'}
+                              size={13}
+                              color="#F59E0B"
+                            />
+                          ))}
+                        </View>
+                      </View>
+                      <Text style={styles.reviewsShopeeDate}>
+                        {rev.created_at ? new Date(rev.created_at).toLocaleDateString('pt-BR') : ''}
+                      </Text>
+                    </View>
+
+                    {/* Variação/Volume comprado */}
+                    {Boolean(rev.volume_ml) && (
+                      <Text style={styles.reviewsShopeeVariation}>
+                        Variação: {formatProductVolume(rev.volume_ml)}
+                      </Text>
+                    )}
+
+                    {/* Comentário */}
+                    {Boolean(rev.comment) && (
+                      <Text style={styles.reviewsShopeeComment} numberOfLines={3}>
+                        {rev.comment}
+                      </Text>
+                    )}
+
+                    {/* Miniaturas de fotos */}
+                    {rev.photos && rev.photos.length > 0 && (
+                      <View style={styles.reviewsShopeePhotosRow}>
+                        {rev.photos.slice(0, 3).map((p) => (
+                          <Image
+                            key={p.id}
+                            source={{ uri: p.image }}
+                            style={styles.reviewsShopeePhotoThumb}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                          />
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Resposta da Loja */}
+                    {rev.reply && (
+                      <View style={styles.reviewsShopeeReplyBox}>
+                        <View style={styles.reviewsShopeeReplyHeader}>
+                          <MaterialIcons name="subdirectory-arrow-right" size={13} color="#2C4659" />
+                          <Text style={styles.reviewsShopeeReplyStoreName}>
+                            Resposta da Loja {rev.reply.author_name ? `(${rev.reply.author_name})` : ''}
+                          </Text>
+                          {rev.reply.created_at && (
+                            <Text style={styles.reviewsShopeeReplyDate}>
+                              {new Date(rev.reply.created_at).toLocaleDateString('pt-BR')}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.reviewsShopeeReplyText}>{rev.reply.text}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+
+                {/* Botão para visualizar todas */}
+                {reviews.length > 2 && (
+                  <TouchableOpacity
+                    style={styles.reviewsShopeeBottomButton}
+                    onPress={() => {
+                      if (storeId) {
+                        router.push({
+                          pathname: '/store/[id]/product/[productId]/reviews' as any,
+                          params: {
+                            id: storeId.toString(),
+                            productId: id.toString(),
+                            storeName: selectedOffer?.store_name || 'Loja',
+                            rating: reviewsSummary?.average?.toString(),
+                            reviewsCount: reviewsSummary?.count?.toString(),
+                          },
+                        });
+                      } else {
+                        setShowAllReviewsModal(true);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.reviewsShopeeBottomButtonText}>
+                      Ver todas as {reviews.length} avaliações
+                    </Text>
+                    <MaterialIcons name="chevron-right" size={18} color="#2C4659" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* ========================================================= */}
           {/* 7. SEÇÃO UNIFICADA DE RECOMENDAÇÕES */}
           {/* ========================================================= */}
           {recommendedItems.length > 0 ? (
@@ -831,6 +1059,17 @@ export default function ProductDetailScreen() {
             ) : null}
           </TouchableOpacity>
         </View>
+
+        {/* Modal de Todas as Avaliações do Perfume */}
+        <StoreReviewsModal
+          visible={showAllReviewsModal}
+          onClose={() => setShowAllReviewsModal(false)}
+          productId={product.id}
+          storeId={storeId || selectedOffer?.store_id}
+          storeName={product.name}
+          rating={reviewsSummary?.average ?? 5.0}
+          reviewsCount={reviewsSummary?.count ?? reviews.length}
+        />
       </View>
     </SafeAreaView>
   );
@@ -1410,5 +1649,186 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '800',
     lineHeight: 12,
+  },
+  // --- Estilos Shopee: Avaliações do Produto ---
+  reviewsSectionShopee: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  reviewsShopeeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  reviewsShopeeTitleWrap: {
+    flex: 1,
+  },
+  reviewsShopeeTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1C252E',
+  },
+  reviewsShopeeScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  reviewsShopeeScoreText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  reviewsShopeeCountText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  reviewsShopeeViewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  reviewsShopeeViewAllText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  reviewsShopeeLoading: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    gap: 6,
+  },
+  reviewsShopeeLoadingText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  reviewsShopeeEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 6,
+  },
+  reviewsShopeeEmptyText: {
+    fontSize: 12.5,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  reviewsShopeeList: {
+    marginTop: 8,
+  },
+  reviewsShopeeCard: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  reviewsShopeeUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  reviewsShopeeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E4EAEF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewsShopeeAvatarText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2C4659',
+  },
+  reviewsShopeeUserName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  reviewsShopeeStarsRow: {
+    flexDirection: 'row',
+    marginTop: 1,
+  },
+  reviewsShopeeDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  reviewsShopeeVariation: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  reviewsShopeeComment: {
+    fontSize: 12.5,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  reviewsShopeePhotosRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  reviewsShopeePhotoThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  reviewsShopeeBottomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  reviewsShopeeBottomButtonText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2C4659',
+    marginRight: 2,
+  },
+  reviewsShopeeReplyBox: {
+    marginTop: 8,
+    backgroundColor: '#F7F5EE',
+    borderRadius: 8,
+    padding: 9,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2C4659',
+  },
+  reviewsShopeeReplyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  reviewsShopeeReplyStoreName: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#2C4659',
+    flex: 1,
+  },
+  reviewsShopeeReplyDate: {
+    fontSize: 10.5,
+    color: '#9CA3AF',
+  },
+  reviewsShopeeReplyText: {
+    fontSize: 12,
+    color: '#4B5563',
+    lineHeight: 16,
   },
 });

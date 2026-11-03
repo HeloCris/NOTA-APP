@@ -16,12 +16,14 @@ const StoreShowcasePage = lazy(() =>
   }))
 );
 
-// ✅ Caminho corrigido para a estrutura real do projeto em src/features/store/StoreOrderDetail.tsx
 const StoreOrderDetailPage = lazy(() =>
   import("./features/store/StoreOrderDetail").then((module) => ({
     default: module.StoreOrderDetailPage,
   }))
 );
+
+const StoreReviewsPage = lazy(() => import("./pages/store/StoreReviewsPage.lazy"));
+const StoreMessagesPage = lazy(() => import("./pages/store/StoreMessagesPage.lazy"));
 
 export default function App() {
   return (
@@ -67,7 +69,7 @@ export default function App() {
         <Route
           path="/seller/orders/:id"
           element={
-            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
               <StoreOrderDetailPage />
             </ProtectedRoute>
           }
@@ -75,8 +77,28 @@ export default function App() {
         <Route
           path="/store/orders/:id"
           element={
-            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER"]}>
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
               <StoreOrderDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Rota obrigatória de Avaliações da Loja (RF-16.12) */}
+        <Route
+          path="/store/reviews"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
+              <StoreReviewsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Central de Mensagens da Loja (RF-18.6) */}
+        <Route
+          path="/store/messages"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
+              <StoreMessagesPage />
             </ProtectedRoute>
           }
         />

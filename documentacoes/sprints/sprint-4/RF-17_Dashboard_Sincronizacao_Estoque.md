@@ -36,7 +36,7 @@ Implementa a sincronização e consistência em tempo real do estoque entre comp
 |---|---|
 | **RF-17.1** | **[Backend — Model]** Adicionar campo `views_count = models.PositiveIntegerField(default=0)` no model `Store`. |
 | **RF-17.2** | **[Backend — Endpoint]** `POST /api/v1/stores/{id}/view/` (público, leve) para incrementar visualização da loja com segurança. |
-| **RF-17.3** | **[Backend — Endpoint]** `GET /api/v1/store/dashboard/?period=7d|30d` (restrito a `IsSeller` / `IsBrandOwner` com D2C): retorna faturamento bruto, líquido, ticket médio, pedidos pendentes, taxas de cancelamento/devolução, valor em estoque, alertas de estoque, visualizações, gráfico diário (labels + valores) e lista de pedidos recentes. |
+| **RF-17.3** | **[Backend — Endpoint]** `GET /api/v1/stores/me/dashboard/?period=7d|30d` (também disponível em `/api/v1/stores/dashboard/`, restrito a `IsSeller` / `IsBrandOwner` com D2C): retorna faturamento bruto, líquido, ticket médio, pedidos pendentes, taxas de cancelamento/devolução, valor em estoque, alertas de estoque, visualizações, gráfico diário (labels + valores) e lista de pedidos recentes. |
 | **RF-17.4** | **[Backend — Sincronização]** Garantir uso de transação atômica (`select_for_update`) e recálculo fiel de `stock_quantity` na criação de pedidos, cancelamentos e devoluções. |
 | **RF-17.5** | **[Mobile — Carrinho]** Integrar verificação de disponibilidade ao abrir o carrinho; desabilitar avanço se houver indisponível e auto-ajustar quantidades excedentes com feedback visual. |
 | **RF-17.6** | **[Mobile — Loja]** Registrar visualização ao abrir a tela de vitrine da loja. |
@@ -80,18 +80,40 @@ Implementa a sincronização e consistência em tempo real do estoque entre comp
 
 **Backend:**
 - `apps/stores/models.py` — **[MODIFY]** campo `views_count`.
-- `apps/stores/views.py` — **[MODIFY]** endpoint `view/` e cálculo detalhado do `dashboard/`.
-- `apps/stores/services/dashboard_service.py` — **[NOVO]** lógica matemática/agregada do dashboard.
+- `apps/stores/migrations/0011_store_views_count.py` — **[NEW]** migração do contador de visualizações.
+- `apps/stores/urls.py` — **[MODIFY]** rotas de visualização e dashboard.
+- `apps/stores/views.py` — **[MODIFY]** endpoints `view/` e `dashboard/`.
+- `apps/stores/services/dashboard_service.py` — **[NEW]** cálculos financeiros, gráfico, estoque e pedidos recentes.
 - `apps/orders/views.py` e `services.py` — **[MODIFY]** garantia de atômica e devolução correta de estoque.
 
 **Web:**
 - `src/components/seller/DashboardTab.tsx` — **[MODIFY]** novo layout sem Top Perfumes e com novos cards/períodos.
 - `src/types/store.ts` — **[MODIFY]** tipagens de KPIs financeiros.
 - `src/services/storeService.ts` — **[MODIFY]** suporte ao parâmetro de período.
+- `src/features/showcase/StoreShowcasePage.tsx` — **[MODIFY]** registro da visualização da vitrine.
 
 **Mobile:**
-- `src/app/(shop)/cart/index.tsx` — **[MODIFY]** checagem de estoque e bloqueio/ajuste.
-- `src/app/(shop)/store/[id].tsx` — **[MODIFY]** disparo de visualização da loja.
+- `src/context/CartContext.tsx` — **[MODIFY]** suporte a ajuste explícito de quantidade.
+- `src/utils/cartStock.ts` — **[NEW]** regra determinística de estoque do carrinho.
+- `__tests__/CartStockValidation.test.ts` — **[NEW]** testes de indisponibilidade e ajuste de quantidade.
+- `src/app/store/[id].tsx` — **[MODIFY]** disparo de visualização da loja.
+- `src/app/(shop)/cart.tsx` — **[MODIFY]** validação ao abrir o carrinho, ajuste, aviso e bloqueio do checkout.
+- `src/services/stores.ts` — **[MODIFY]** serviço para registrar visualização.
+
+**Testes RF-17:**
+- `apps/stores/tests/test_dashboard.py` — **[NEW]** KPIs financeiros, estoque, visualizações e período.
+- `apps/stores/tests/test_store_views.py` — **[NEW]** incremento público de visualizações.
+- `apps/inventory/tests/test_stock_sync.py` — **[NEW]** restauração atômica do estoque.
+- `web/src/components/seller/DashboardTab.test.tsx` — **[NEW]** KPIs, período e remoção de Top Perfumes.
+
+### Implementação entregue
+
+- Dashboard e sincronização de estoque implementados nesta feature.
+- O contador de visualizações é incrementado de forma atômica no backend e limitado a uma vez por sessão na vitrine web/mobile.
+- A baixa de estoque na criação do pedido já usa transação atômica; cancelamentos e devoluções usam bloqueio de linha ao restaurar estoque.
+- O carrinho mobile consulta o estoque atual ao receber foco, zera o subtotal de itens indisponíveis, ajusta quantidades excedentes e bloqueia o checkout enquanto houver indisponibilidade.
+- A tabela web de estoque é revalidada ao retornar à aba e a cada 30 segundos enquanto a página está visível.
+- Testes RF-17 de backend (3), teste RF-17 web (1) e build web foram validados. O teste mobile está criado, mas requer a instalação das dependências mobile (`jest-expo`) para execução.
 
 ---
 

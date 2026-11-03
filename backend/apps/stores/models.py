@@ -121,6 +121,11 @@ class Store(models.Model):
         verbose_name="Modo Férias",
     )
 
+    views_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Visualizações da loja",
+    )
+
     # Configurações de Frete Regional (RF-10)
     shipping_local_pac = models.DecimalField(
         max_digits=10,
@@ -217,7 +222,7 @@ class Store(models.Model):
         Para uma loja aparecer na vitrine e receber pedidos,
         deve estar ativa, com endereço de origem e tarifas de frete configuradas.
         """
-        return bool(self.is_active and self.has_complete_address and self.has_shipping_configured)
+        return bool(self.is_active and self.has_complete_address and self.has_shipping_configured)  # pyrefly: ignore[unnecessary-type-conversion]
 
     class Meta:
         db_table = "stores"

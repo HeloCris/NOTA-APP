@@ -6,12 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   Platform,
-  StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter } from 'expo-router';
 import Svg, {
   Path,
   Circle,
@@ -21,6 +22,7 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 import { useAuth } from '../../context/AuthContext';
+import { useUnreadNotifications } from '../../hooks/use-unread-notifications';
 
 // --- Custom Vector Icons for Categorias Rápidas ---
 
@@ -157,7 +159,9 @@ function AmberBottle() {
 }
 
 export default function ShopIndex() {
+  const router = useRouter();
   const { user } = useAuth();
+  const { unreadCount } = useUnreadNotifications();
   const userName = user?.first_name || 'Ana';
 
   const { width: windowWidth } = useWindowDimensions();
@@ -209,7 +213,7 @@ export default function ShopIndex() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
         <ScrollView
           style={styles.container}
@@ -234,9 +238,21 @@ export default function ShopIndex() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.notificationBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.notificationBtn}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(shop)/notifications' as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir notificações"
+            >
               <Ionicons name="notifications-outline" size={21} color="#1E293B" />
-              <View style={styles.notificationDot} />
+              {unreadCount > 0 && (
+                <View style={styles.notificationDot}>
+                  <Text style={styles.notificationDotText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -500,12 +516,20 @@ const styles = StyleSheet.create({
   },
   notificationDot: {
     position: 'absolute',
-    top: 10,
-    right: 11,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
     backgroundColor: '#A85A38',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationDotText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
 
   // --- Banners ---

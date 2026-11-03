@@ -17,8 +17,8 @@ export const storeService = {
     return response.data;
   },
 
-  getDashboardData: async (): Promise<DashboardData> => {
-    const response = await apiClient.get<DashboardData>('/stores/me/dashboard/');
+  getDashboardData: async (period: '7d' | '30d' = '7d'): Promise<DashboardData> => {
+    const response = await apiClient.get<DashboardData>('/stores/me/dashboard/', { params: { period } });
     return response.data;
   },
 
@@ -49,6 +49,11 @@ export const storeService = {
 
   updateInstallmentSettings: async (payload: { max_installments?: number; free_interest_installments?: number; min_installment_amount?: number }): Promise<void> => {
     await apiClient.patch('/store/settings/installments/', payload);
+  },
+
+  registerView: async (storeId: number): Promise<void> => {
+    await apiClient.post(`/stores/${storeId}/view/`);
+  },
   },
 };
 
