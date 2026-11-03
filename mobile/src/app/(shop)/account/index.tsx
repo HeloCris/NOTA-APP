@@ -16,10 +16,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../context/AuthContext';
+import { useUnreadNotifications } from '../../../hooks/use-unread-notifications';
 
 export default function AccountScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { unreadCount } = useUnreadNotifications();
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
@@ -92,6 +94,27 @@ export default function AccountScreen() {
               <Text style={styles.userName}>{displayName}</Text>
               <Text style={styles.userEmail}>{displayEmail}</Text>
             </View>
+
+            <TouchableOpacity
+              style={styles.notificationButton}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(shop)/notifications' as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir notificações"
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={21}
+                color="#273847"
+              />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {hasOlfactoryProfile ? (
@@ -274,6 +297,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#78716C',
     fontWeight: '400',
+  },
+  notificationButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E6E1D2',
+    marginLeft: 10,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: '#A85A38',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
 
   // --- Banner Perfil Olfativo ---

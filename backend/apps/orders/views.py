@@ -163,10 +163,26 @@ class OrderViewSet(viewsets.ModelViewSet):
                             unit_price=item['unit_price'],
                         )
 
+                        previous_quantity = store_product.stock_quantity
                         store_product.stock_quantity -= qty
                         store_product.save(update_fields=['stock_quantity'])
 
+                        try:
+                            from apps.communication.services import notify_low_stock
+
+                            notify_low_stock(store_product, previous_quantity)
+                        except Exception:
+                            pass
+
+                    try:
+                        from apps.communication.services import notify_store
+                        if order.store:
+                            notify_store(order.store, "Novo Pedido", f"Pedido #{order.number or order.id} recebido.", "NEW_ORDER", f"/store/orders/{order.id}")
+                    except Exception:
+                        pass
+
                     created_orders.append(order)
+
 
             primary_order = created_orders[0]
             order_ids = [o.id for o in created_orders]
@@ -374,10 +390,17 @@ class UpdateOrderStatusView(APIView):
             actor=request.user,
             reason="Iniciada separação do pedido pelo lojista.",
         )
+        try:
+            from apps.communication.services import notify_user
+            if order.user:
+                notify_user(order.user, "Pedido em separação", f"Pedido #{order.number or order.id} está em separação.", "ORDER_UPDATE", f"/(shop)/orders/{order.id}")
+        except Exception:
+            pass
 
         store = Store.objects.filter(pk=order.store_id).first()
         response_serializer = StoreOrderSerializer(order, context={'store': store})
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
 
 
 class ShipOrderView(APIView):
@@ -441,10 +464,17 @@ class ShipOrderView(APIView):
                 f" {order.tracking_code})."
             ),
         )
+        try:
+            from apps.communication.services import notify_user
+            if order.user:
+                notify_user(order.user, "Pedido despachado", f"Pedido #{order.number or order.id} foi enviado. Código: {order.tracking_code}", "ORDER_SHIPPED", f"/(shop)/orders/{order.id}")
+        except Exception:
+            pass
 
         store = Store.objects.filter(pk=order.store_id).first()
         response_serializer = StoreOrderSerializer(order, context={"store": store})
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
 
 
 # ==========================================

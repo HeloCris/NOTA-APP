@@ -32,6 +32,7 @@ import {
   type CustomerOrderStatus,
 } from '@/services/customerOrders';
 import { formatProductVolume } from '@/utils/productUtils';
+import { startConversation } from '@/services/communication';
 
 const STATUS_CONFIG: Record<
   CustomerOrderStatus,
@@ -229,6 +230,24 @@ export default function OrderDetailScreen() {
     setTimeout(() => {
       setToastMessage(null);
     }, 2800);
+  };
+
+  const handleOpenChat = async () => {
+    if (!order?.store) {
+      showToast('Não foi possível identificar a loja do pedido.');
+      return;
+    }
+
+    try {
+      const conversation = await startConversation(order.store, order.id);
+      router.push({
+        pathname: '/(shop)/chat/[id]' as any,
+        params: { id: String(conversation.id) },
+      });
+    } catch (chatError) {
+      console.error('Erro ao abrir chat:', chatError);
+      showToast('Não foi possível abrir o chat com a loja.');
+    }
   };
 
   const handleCepSearch = async (text: string) => {
@@ -930,12 +949,7 @@ export default function OrderDetailScreen() {
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.actionBtnNavy]}
                   activeOpacity={0.8}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(shop)/chat',
-                      params: { order_id: id },
-                    } as never)
-                  }
+                  onPress={() => void handleOpenChat()}
                 >
                   <Ionicons name="chatbubbles-outline" size={17} color="#FFFFFF" />
                   <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>

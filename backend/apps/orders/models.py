@@ -192,7 +192,7 @@ class ReturnPhoto(models.Model):
     return_request = models.ForeignKey(
         ReturnRequest, on_delete=models.CASCADE, related_name='photos'
     )
-    image = models.ImageField(upload_to='returns/%Y/%m/')
+    image = models.FileField(upload_to='returns/%Y/%m/')
 
     def __str__(self):
         return f'Foto #{self.id} - Devolução #{self.return_request_id}'

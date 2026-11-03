@@ -9,6 +9,8 @@ import { CatalogTab } from "../components/seller/CatalogTab";
 import { SettingsTab } from "../components/seller/SettingsTab";
 import { OrdersTab } from "../components/seller/OrdersTab";
 import { StoreReviewsView } from "../components/seller/StoreReviewsView";
+import { NotificationBell } from "../components/common/NotificationBell";
+import { StoreMessages } from "../features/store/StoreMessages";
 import { storeService } from "../services/storeService";
 import type { Store } from "../types/store";
 
@@ -144,14 +146,7 @@ export function SellerHomePage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="relative w-[46px] h-[46px] rounded-full border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067]">
-              <svg className="w-[22px] h-[22px]">
-                <use href="#ic-bell" />
-              </svg>
-              <span className="absolute -top-[2px] -right-[2px] w-[18px] h-[18px] rounded-full bg-[#A85A38] text-white text-[9px] font-extrabold flex items-center justify-center border-2 border-white">
-                3
-              </span>
-            </button>
+            <NotificationBell />
 
             {store && (
               <div
@@ -222,12 +217,14 @@ export function SellerHomePage() {
                 <StoreReviewsView store={store} onBack={() => changeTab("dashboard")} />
               )}
 
-              {(activeTab === "metrics" || activeTab === "messages") && (
+              {activeTab === "messages" && <StoreMessages />}
+
+              {activeTab === "metrics" && (
                 <div className="animate-in fade-in duration-300">
                   <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
                     <div>
                       <h1 className="text-[27px] font-extrabold text-[#263847] mb-1 tracking-[-0.01em]">
-                        {activeTab === "metrics" ? "Métricas" : "Mensagens"}
+                        Métricas
                       </h1>
                       <p className="text-[13px] text-[#5A6067] m-0">
                         Em construção. Funcionalidades avançadas chegando em breve.
@@ -237,7 +234,7 @@ export function SellerHomePage() {
                   <div className="bg-white border border-dashed border-[#E6E1D2] rounded-[20px] py-[70px] px-[30px] text-center">
                     <div className="w-[56px] h-[56px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-5">
                       <svg className="w-[26px] h-[26px]">
-                        <use href={activeTab === "metrics" ? "#ic-chart" : "#ic-inbox"} />
+                        <use href="#ic-chart" />
                       </svg>
                     </div>
                     <h3 className="text-[18px] font-extrabold text-[#23282D] mb-2">

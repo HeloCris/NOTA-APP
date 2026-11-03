@@ -102,6 +102,10 @@ jest.mock('@/services/stores', () => ({
   },
 }));
 
+jest.mock('@/services/communication', () => ({
+  startConversation: jest.fn(),
+}));
+
 jest.mock('@/constants/theme', () => ({
   Spacing: { one: 4, two: 8, three: 16, four: 24, six: 64 },
 }));

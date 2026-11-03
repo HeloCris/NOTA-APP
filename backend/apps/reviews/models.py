@@ -120,7 +120,7 @@ class ReviewPhoto(models.Model):
         related_name='photos',
         verbose_name='Avaliação',
     )
-    image = models.ImageField(
+    image = models.FileField(
         upload_to='reviews/photos/%Y/%m/',
         verbose_name='Foto da Avaliação',
     )

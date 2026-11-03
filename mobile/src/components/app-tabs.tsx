@@ -96,6 +96,9 @@ export default function AppTabs() {
           ),
         }}
       />
+
+      <Tabs.Screen name="chat" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
     </Tabs>
   );
 }

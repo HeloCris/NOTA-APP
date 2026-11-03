@@ -63,7 +63,11 @@ class StoreProductListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         store_id = self.get_store_id()
-        serializer.save(store_id=store_id)
+        store_product = serializer.save(store_id=store_id)
+
+        from apps.communication.services import notify_low_stock
+
+        notify_low_stock(store_product)
 
 
 class StoreProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -93,4 +97,9 @@ class StoreProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         store_id = self.get_store_id()
-        serializer.save(store_id=store_id)
+        previous_quantity = serializer.instance.stock_quantity
+        store_product = serializer.save(store_id=store_id)
+
+        from apps.communication.services import notify_low_stock
+
+        notify_low_stock(store_product, previous_quantity)

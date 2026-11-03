@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
+  Alert,
   Animated,
   Modal,
   Platform,
@@ -17,6 +18,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { storesService, Store, StoreProduct } from '@/services/stores';
+import { startConversation } from '@/services/communication';
 import { StoreHero } from '@/components/store/StoreHero';
 import { StoreReviewsModal } from '@/components/store/StoreReviewsSection';
 import { FamilyFilterChips } from '@/components/common/FamilyFilterChips';
@@ -41,6 +43,26 @@ export default function StoreScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [selectedFamily, setSelectedFamily] = useState<string>('');
+
+  const handleContactStore = async () => {
+    if (!store) {
+      return;
+    }
+
+    try {
+      const conversation = await startConversation(store.id);
+      router.push({
+        pathname: '/(shop)/chat/[id]' as any,
+        params: { id: String(conversation.id) },
+      });
+    } catch (error) {
+      console.error('Erro ao iniciar conversa:', error);
+      Alert.alert(
+        'Não foi possível iniciar o chat',
+        'Entre na sua conta para conversar com a loja.',
+      );
+    }
+  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -208,7 +230,7 @@ export default function StoreScreen() {
                       },
                     });
                   }}
-                  onContactPress={() => setShowContactModal(true)}
+                  onContactPress={() => void handleContactStore()}
                 />
               )}
 
