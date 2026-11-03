@@ -5,12 +5,12 @@ import {
   Platform,
   RefreshControl,
   SafeAreaView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -122,7 +122,7 @@ export default function FollowingStoresScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F1EA" />
+      <StatusBar style="dark" />
 
       {/* Header */}
       <View style={styles.header}>
