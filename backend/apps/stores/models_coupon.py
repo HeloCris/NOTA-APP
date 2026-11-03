@@ -121,3 +121,4 @@ class StoreCoupon(models.Model):
     def __str__(self) -> str:
         store_name = getattr(self.store, "name", str(self.store_id))
         return f"{self.code} ({store_name})"
+
