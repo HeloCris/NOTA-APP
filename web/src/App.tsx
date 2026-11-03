@@ -23,6 +23,7 @@ const StoreOrderDetailPage = lazy(() =>
 );
 
 const StoreReviewsPage = lazy(() => import("./pages/store/StoreReviewsPage.lazy"));
+const StoreMessagesPage = lazy(() => import("./pages/store/StoreMessagesPage.lazy"));
 
 export default function App() {
   return (
@@ -88,6 +89,16 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
               <StoreReviewsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Central de Mensagens da Loja (RF-18.6) */}
+        <Route
+          path="/store/messages"
+          element={
+            <ProtectedRoute allowedRoles={["SELLER", "CUSTOMER", "BRAND_OWNER"]}>
+              <StoreMessagesPage />
             </ProtectedRoute>
           }
         />

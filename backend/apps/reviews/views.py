@@ -121,8 +121,15 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
             )
             for photo in photos:
                 ReviewPhoto.objects.create(review=review, image=photo)
+        try:
+            from apps.communication.services import notify_store
+            if review.store:
+                notify_store(review.store, "Nova avaliação", f"Cliente avaliou {review.product.name if review.product else 'produto'}.", "NEW_REVIEW", f"/store/reviews")
+        except Exception:
+            pass
 
     def partial_update(self, request, *args, **kwargs):
+
         review = self.get_object()
 
         # RN-07: Edição única em até 30 dias
@@ -321,4 +328,11 @@ class StoreReviewViewSet(viewsets.GenericViewSet):
                 'updated_at': timezone.now(),
             },
         )
+        try:
+            from apps.communication.services import notify_user
+            if review.user:
+                notify_user(review.user, "Loja respondeu sua avaliação", "A loja respondeu à sua avaliação.", "NEW_REVIEW", f"/(shop)/reviews")
+        except Exception:
+            pass
         return Response(ReviewReplySerializer(reply).data, status=status.HTTP_200_OK)
+
