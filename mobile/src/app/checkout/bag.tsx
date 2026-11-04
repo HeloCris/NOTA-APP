@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart, CartItem } from '@/context/CartContext';
 import { CheckoutStepper } from '@/components/checkout/CheckoutStepper';
@@ -64,13 +63,26 @@ export default function CheckoutBagScreen() {
     );
   }, [appliedCoupons]);
 
+  const couponsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.entries(appliedCoupons).forEach(([storeId, res]) => {
+      if (res?.valid && res.code) {
+        map[storeId] = res.code;
+      }
+    });
+    return map;
+  }, [appliedCoupons]);
+
   const finalTotal = Math.max(0, subtotal - totalCouponDiscount);
 
   const handleContinue = () => {
+    const hasCoupons = Object.keys(couponsMap).length > 0;
     router.push({
       pathname: '/checkout/shipping' as any,
       params: {
         discount_amount: totalCouponDiscount > 0 ? String(totalCouponDiscount.toFixed(2)) : undefined,
+        coupons: hasCoupons ? JSON.stringify(couponsMap) : undefined,
+        coupon_code: hasCoupons ? Object.values(couponsMap)[0] : undefined,
       },
     });
   };

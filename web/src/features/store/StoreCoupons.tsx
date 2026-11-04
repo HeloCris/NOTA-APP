@@ -17,20 +17,27 @@ export function StoreCoupons() {
   const [usageLimit, setUsageLimit] = useState("");
   const [validUntil, setValidUntil] = useState("");
 
-  const loadCoupons = async () => {
-    try {
-      setIsLoading(true);
-      const data = await storeService.getCoupons();
-      setCoupons(data);
-    } catch {
-      toast.error("Erro ao carregar cupons da loja.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadCoupons();
+    let isMounted = true;
+    storeService
+      .getCoupons()
+      .then((data) => {
+        if (isMounted) {
+          setCoupons(data);
+        }
+      })
+      .catch(() => {
+        toast.error("Erro ao carregar cupons da loja.");
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleToggleActive = async (coupon: StoreCoupon) => {
@@ -82,8 +89,9 @@ export function StoreCoupons() {
       toast.success(`Cupom ${newCoupon.code} criado com sucesso!`);
       setIsModalOpen(false);
       resetForm();
-    } catch (err: any) {
-      const msg = err?.response?.data?.code || err?.response?.data?.error || "Erro ao criar cupom.";
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { code?: string; error?: string } } };
+      const msg = axiosError?.response?.data?.code || axiosError?.response?.data?.error || "Erro ao criar cupom.";
       toast.error(typeof msg === "string" ? msg : JSON.stringify(msg));
     } finally {
       setIsSaving(false);
@@ -253,7 +261,7 @@ export function StoreCoupons() {
                   </label>
                   <select
                     value={discountType}
-                    onChange={(e) => setDiscountType(e.target.value as any)}
+                    onChange={(e) => setDiscountType(e.target.value as "PERCENTAGE" | "FIXED_VALUE")}
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E6E1D2] text-[13.5px] focus:outline-none focus:border-[#354B5E]"
                   >
                     <option value="PERCENTAGE">Porcentagem (%)</option>

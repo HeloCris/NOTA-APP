@@ -77,9 +77,18 @@ class StoreCoupon(models.Model):
         blank=True,
         verbose_name="Limite Global de Usos",
     )
+    max_uses_per_user = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Limite de Usos por Usuário",
+    )
     used_count = models.PositiveIntegerField(
         default=0,
         verbose_name="Quantidade de Usos Realizados",
+    )
+    valid_from = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Válido A Partir De",
     )
     valid_until = models.DateTimeField(
         null=True,

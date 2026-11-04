@@ -37,7 +37,7 @@ def notify_store_followers_new_coupon(coupon: StoreCoupon):
                     user=follower.user,
                     title=title,
                     message=message,
-                    type_="NEW_ORDER",
+                    type_="NEW_COUPON",
                     target_url=f"/store/{store.id}",
                 )
             except Exception as e:
@@ -48,10 +48,11 @@ def notify_store_followers_new_coupon(coupon: StoreCoupon):
     return count
 
 
-def validate_and_calculate_coupon_discount(store_id: int, code: str, subtotal: Decimal):
+def validate_and_calculate_coupon_discount(store_id: int, code: str, subtotal: Decimal, user=None):
     """
-    Valida um cupom para a loja e calcula o desconto aplicável (RN-01, RN-02, RN-03).
+    Valida um cupom para a loja e calcula o desconto aplicável (RN-01, RN-02, RN-03, RN-04).
     Retorna dict com status, mensagem de erro se houver e valores calculados.
+    Garante que o desconto nunca deixe o subtotal de produtos abaixo de R$ 1,00 (RN-03).
     """
     clean_code = (code or "").strip().upper()
     if not clean_code:
@@ -65,11 +66,27 @@ def validate_and_calculate_coupon_discount(store_id: int, code: str, subtotal: D
     if not coupon.is_active:
         return {"valid": False, "error": "Este cupom está inativo."}
 
-    if coupon.valid_until and coupon.valid_until < timezone.now():
+    now = timezone.now()
+    if coupon.valid_from and coupon.valid_from > now:
+        return {"valid": False, "error": "Este cupom ainda não é válido."}
+
+    if coupon.valid_until and coupon.valid_until < now:
         return {"valid": False, "error": "Este cupom já expirou."}
 
     if coupon.usage_limit is not None and coupon.used_count >= coupon.usage_limit:
         return {"valid": False, "error": "O limite de utilizações deste cupom foi atingido."}
+
+    if user and getattr(user, "is_authenticated", False) and coupon.max_uses_per_user:
+        from apps.orders.models import Order, OrderStatus
+        user_uses = Order.objects.filter(
+            user=user,
+            coupon=coupon,
+        ).exclude(status__in=[OrderStatus.CANCELLED, OrderStatus.REFUNDED]).count()
+        if user_uses >= coupon.max_uses_per_user:
+            return {
+                "valid": False,
+                "error": f"Você já utilizou este cupom o limite máximo permitido ({coupon.max_uses_per_user}x).",
+            }
 
     subtotal_dec = Decimal(str(subtotal))
     if subtotal_dec < coupon.min_purchase_amount:
@@ -78,16 +95,16 @@ def validate_and_calculate_coupon_discount(store_id: int, code: str, subtotal: D
             "error": f"O valor mínimo para utilizar este cupom é de R$ {coupon.min_purchase_amount:.2f}."
         }
 
-    # Cálculo do desconto
+    # RN-03: Cálculo do desconto com trava mínima de R$ 1,00 cobrável
     if coupon.discount_type == StoreCoupon.DISCOUNT_TYPE_PERCENTAGE:
-        applied_discount = (subtotal_dec * (coupon.discount_value / Decimal("100"))).quantize(Decimal("0.01"))
-        # Desconto não pode exceder o subtotal
-        if applied_discount > subtotal_dec:
-            applied_discount = subtotal_dec
+        raw_discount = (subtotal_dec * (coupon.discount_value / Decimal("100"))).quantize(Decimal("0.01"))
     else:
-        applied_discount = min(coupon.discount_value, subtotal_dec)
+        raw_discount = coupon.discount_value
 
-    new_subtotal = max(Decimal("0.00"), subtotal_dec - applied_discount)
+    # O desconto nunca pode deixar o valor cobrável dos produtos abaixo de R$ 1,00 quando subtotal >= 1.00
+    max_allowed_discount = max(Decimal("0.00"), subtotal_dec - Decimal("1.00"))
+    applied_discount = min(raw_discount, max_allowed_discount)
+    new_subtotal = max(Decimal("1.00") if subtotal_dec >= Decimal("1.00") else subtotal_dec, subtotal_dec - applied_discount)
 
     return {
         "valid": True,

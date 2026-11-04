@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
@@ -19,7 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart } from '@/context/CartContext';
-import { storesService, ShippingQuoteResponse } from '@/services/stores';
+import { storesService } from '@/services/stores';
 import { formatProductVolume } from '@/utils/productUtils';
 import {
   UserAddress,
@@ -305,6 +304,8 @@ export default function CheckoutShippingScreen() {
         store_id: String(primaryStoreId),
         total_amount: total.toFixed(2),
         discount_amount: String(discountAmount.toFixed(2)),
+        coupons: params.coupons ? String(params.coupons) : undefined,
+        coupon_code: params.coupon_code ? String(params.coupon_code) : undefined,
         shipping_cost: String(currentShippingCost.toFixed(2)),
         shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
         address: JSON.stringify(selectedAddr),

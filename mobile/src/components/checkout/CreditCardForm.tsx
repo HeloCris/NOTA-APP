@@ -14,7 +14,7 @@ import {
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { InstallmentSelector, InstallmentOption } from './InstallmentSelector';
+import { InstallmentSelector } from './InstallmentSelector';
 
 interface CreditCardFormProps {
   onSubmit: (data: any) => void;

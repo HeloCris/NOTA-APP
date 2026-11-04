@@ -31,6 +31,7 @@ export interface Store {
     owner_id: number;
     is_official?: boolean;
     views_count?: number;
+    is_ready_to_sell?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -70,7 +71,9 @@ export interface StoreCoupon {
     discount_value: number;
     min_purchase_amount: number;
     usage_limit?: number | null;
+    max_uses_per_user?: number;
     used_count: number;
+    valid_from?: string | null;
     valid_until?: string | null;
     is_active: boolean;
     created_at: string;
@@ -82,6 +85,8 @@ export interface StoreCouponCreatePayload {
     discount_value: number;
     min_purchase_amount?: number;
     usage_limit?: number | null;
+    max_uses_per_user?: number;
+    valid_from?: string | null;
     valid_until?: string | null;
     is_active?: boolean;
 }

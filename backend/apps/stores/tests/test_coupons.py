@@ -122,7 +122,18 @@ def test_seller_isolation_ca03(api_client, seller_a, seller_b, store_a, store_b)
 
 
 @pytest.mark.django_db
-def test_validate_coupon_checkout_success(api_client, store_a):
+def test_validate_coupon_requires_auth(api_client, store_a):
+    response = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "QUALQUER",
+        "subtotal": "100.00",
+    }, format="json")
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_validate_coupon_checkout_success(api_client, customer, store_a):
+    api_client.force_authenticate(user=customer)
     coupon = StoreCoupon.objects.create(
         store=store_a,
         code="PRIMEIRA10",
@@ -144,7 +155,8 @@ def test_validate_coupon_checkout_success(api_client, store_a):
 
 
 @pytest.mark.django_db
-def test_validate_coupon_checkout_expired_ca01(api_client, store_a):
+def test_validate_coupon_checkout_expired_ca01(api_client, customer, store_a):
+    api_client.force_authenticate(user=customer)
     StoreCoupon.objects.create(
         store=store_a,
         code="EXPIRADO",
@@ -164,7 +176,8 @@ def test_validate_coupon_checkout_expired_ca01(api_client, store_a):
 
 
 @pytest.mark.django_db
-def test_validate_coupon_checkout_limit_reached_ca01(api_client, store_a):
+def test_validate_coupon_checkout_limit_reached_ca01(api_client, customer, store_a):
+    api_client.force_authenticate(user=customer)
     StoreCoupon.objects.create(
         store=store_a,
         code="ESGOTADO",
@@ -185,7 +198,8 @@ def test_validate_coupon_checkout_limit_reached_ca01(api_client, store_a):
 
 
 @pytest.mark.django_db
-def test_validate_coupon_below_min_amount(api_client, store_a):
+def test_validate_coupon_below_min_amount(api_client, customer, store_a):
+    api_client.force_authenticate(user=customer)
     StoreCoupon.objects.create(
         store=store_a,
         code="MINIMO100",
@@ -202,6 +216,112 @@ def test_validate_coupon_below_min_amount(api_client, store_a):
     assert response.status_code == 400
     assert response.data["valid"] is False
     assert "mínimo" in response.data["error"].lower()
+
+
+@pytest.mark.django_db
+def test_coupon_minimum_payable_amount_rn03(api_client, customer, store_a):
+    """RN-03: Desconto nunca pode deixar o valor de produtos abaixo de R$ 1,00."""
+    api_client.force_authenticate(user=customer)
+
+    # 100% de desconto em compra de R$ 50,00 deve aplicar R$ 49,00 de desconto
+    StoreCoupon.objects.create(
+        store=store_a,
+        code="CEMPORCENTO",
+        discount_type="PERCENTAGE",
+        discount_value=Decimal("100.00"),
+        is_active=True,
+    )
+    res_pct = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "CEMPORCENTO",
+        "subtotal": "50.00",
+    }, format="json")
+    assert res_pct.status_code == 200
+    assert res_pct.data["applied_discount"] == "49.00"
+    assert res_pct.data["new_subtotal"] == "1.00"
+
+    # Cupom fixo de R$ 80,00 em compra de R$ 50,00 deve aplicar R$ 49,00
+    StoreCoupon.objects.create(
+        store=store_a,
+        code="FIXO80",
+        discount_type="FIXED_VALUE",
+        discount_value=Decimal("80.00"),
+        is_active=True,
+    )
+    res_fix = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "FIXO80",
+        "subtotal": "50.00",
+    }, format="json")
+    assert res_fix.status_code == 200
+    assert res_fix.data["applied_discount"] == "49.00"
+    assert res_fix.data["new_subtotal"] == "1.00"
+
+
+@pytest.mark.django_db
+def test_coupon_valid_from_in_future_rejected(api_client, customer, store_a):
+    api_client.force_authenticate(user=customer)
+    StoreCoupon.objects.create(
+        store=store_a,
+        code="FUTURO",
+        discount_type="FIXED_VALUE",
+        discount_value=Decimal("20.00"),
+        valid_from=timezone.now() + timedelta(days=2),
+        is_active=True,
+    )
+    response = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "FUTURO",
+        "subtotal": "100.00",
+    }, format="json")
+    assert response.status_code == 400
+    assert response.data["valid"] is False
+    assert "ainda não é válido" in response.data["error"].lower()
+
+
+@pytest.mark.django_db
+def test_coupon_max_uses_per_user_limit(api_client, customer, store_a):
+    from apps.orders.models import Order, OrderStatus
+
+    api_client.force_authenticate(user=customer)
+    coupon = StoreCoupon.objects.create(
+        store=store_a,
+        code="UNICO",
+        discount_type="FIXED_VALUE",
+        discount_value=Decimal("10.00"),
+        max_uses_per_user=1,
+        is_active=True,
+    )
+
+    # 1. Primeira validação: OK
+    res1 = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "UNICO",
+        "subtotal": "100.00",
+    }, format="json")
+    assert res1.status_code == 200
+
+    # 2. Cliente cria pedido usando o cupom
+    Order.objects.create(
+        user=customer,
+        store=store_a,
+        total_amount=Decimal("90.00"),
+        shipping_cost=Decimal("0.00"),
+        shipping_address={"street": "Rua X"},
+        status=OrderStatus.PENDING,
+        coupon=coupon,
+        discount_amount=Decimal("10.00"),
+    )
+
+    # 3. Segunda validação: rejeitada pelo limite por usuário
+    res2 = api_client.post("/api/v1/checkout/validate-coupon/", {
+        "store_id": store_a.id,
+        "code": "UNICO",
+        "subtotal": "100.00",
+    }, format="json")
+    assert res2.status_code == 400
+    assert res2.data["valid"] is False
+    assert "limite máximo permitido" in res2.data["error"].lower()
 
 
 @pytest.mark.django_db
@@ -225,6 +345,7 @@ def test_create_coupon_notifies_followers(api_client, seller_a, store_a, custome
     # Verifica se notificação foi gerada para o seguidor
     notif = Notification.objects.filter(user=customer).first()
     assert notif is not None
+    assert notif.type == "NEW_COUPON"
     assert "SEGUIDOR15" in notif.message
     assert store_a.name in notif.message
 

@@ -151,13 +151,17 @@ class OrderViewSet(viewsets.ModelViewSet):
                         from apps.stores.models import StoreCoupon
 
                         calc = validate_and_calculate_coupon_discount(
-                            store_id, str(coupon_code), Decimal(str(store_items_subtotal))
+                            store_id, str(coupon_code), Decimal(str(store_items_subtotal)), user=request.user
                         )
                         if calc.get("valid"):
                             applied_coupon = StoreCoupon.objects.filter(id=calc["coupon_id"]).first()
                             discount_amount = Decimal(str(calc["applied_discount"]))
 
-                    subtotal_after_discount = max(Decimal("0.00"), Decimal(str(store_items_subtotal)) - discount_amount)
+                    # Trava RN-03: o subtotal de produtos nunca fica abaixo de R$ 1,00 se subtotal original >= 1.00
+                    subtotal_after_discount = max(
+                        Decimal("1.00") if Decimal(str(store_items_subtotal)) >= Decimal("1.00") else Decimal("0.00"),
+                        Decimal(str(store_items_subtotal)) - discount_amount
+                    )
                     store_order_total = round(float(subtotal_after_discount) + per_store_shipping, 2)
 
                     order = Order.objects.create(

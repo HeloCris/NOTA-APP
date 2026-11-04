@@ -155,6 +155,9 @@ export default function PaymentScreen() {
         (params.store_id as string) ||
         (parsedItems[0]?.store_id ? String(parsedItems[0].store_id) : '2');
 
+      const parsedCoupons = params.coupons ? parseParam(params.coupons) : undefined;
+      const couponCode = (params.coupon_code as string) || undefined;
+
       const orderResponse = await createOrder({
         store_id: primaryStoreId,
         total_amount: totalAmount,
@@ -162,6 +165,8 @@ export default function PaymentScreen() {
         shipping_service: shippingService,
         shipping_address: safeAddress,
         items: sanitizedItems,
+        coupons: parsedCoupons,
+        coupon_code: couponCode,
       });
 
       const orderId = orderResponse?.order_id || orderResponse?.id;

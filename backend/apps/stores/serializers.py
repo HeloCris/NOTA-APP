@@ -134,8 +134,8 @@ class StoreCouponSerializer(serializers.ModelSerializer):
         model = StoreCoupon
         fields = [
             "id", "code", "discount_type", "discount_value",
-            "min_purchase_amount", "usage_limit", "used_count",
-            "valid_until", "is_active", "created_at",
+            "min_purchase_amount", "usage_limit", "max_uses_per_user",
+            "used_count", "valid_from", "valid_until", "is_active", "created_at",
         ]
         read_only_fields = ["id", "used_count", "created_at"]
 
@@ -158,6 +158,15 @@ class StoreCouponSerializer(serializers.ModelSerializer):
         min_purchase = attrs.get("min_purchase_amount")
         if min_purchase is not None and min_purchase < 0:
             raise serializers.ValidationError({"min_purchase_amount": "O valor mínimo de compra não pode ser negativo."})
+
+        max_per_user = attrs.get("max_uses_per_user")
+        if max_per_user is not None and max_per_user < 1:
+            raise serializers.ValidationError({"max_uses_per_user": "O limite de usos por usuário deve ser de pelo menos 1."})
+
+        valid_from = attrs.get("valid_from") or (self.instance.valid_from if self.instance else None)
+        valid_until = attrs.get("valid_until") or (self.instance.valid_until if self.instance else None)
+        if valid_from and valid_until and valid_until < valid_from:
+            raise serializers.ValidationError({"valid_until": "A data final de validade não pode ser anterior à data inicial."})
 
         return attrs
 

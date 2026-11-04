@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 
 export interface InstallmentOption {
   count: number;
@@ -67,7 +66,6 @@ export function InstallmentSelector({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Opções de Parcelamento</Text>
       <View style={styles.list}>
         {options.map((opt) => {
           const isSelected = opt.count === selectedCount;

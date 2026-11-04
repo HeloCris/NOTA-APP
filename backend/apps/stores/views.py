@@ -430,9 +430,10 @@ class StoreInstallmentsSettingsView(APIView):
 
 class ValidateCouponView(APIView):
     """
-    Validação de cupom no checkout por loja (RF-19.4 / RN-01, RN-03 / CA-01, CA-02).
+    Validação de cupom no checkout por loja (RF-19.4 / RN-01, RN-03, RN-04 / CA-01, CA-02).
+    Exige autenticação para verificar limites de uso por cliente (RN-04).
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         store_id = request.data.get("store_id")
@@ -458,6 +459,7 @@ class ValidateCouponView(APIView):
             store_id=int(store_id),
             code=str(code),
             subtotal=subtotal_dec,
+            user=request.user,
         )
 
         if not result["valid"]:

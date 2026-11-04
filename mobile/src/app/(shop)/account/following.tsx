@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,25 +22,39 @@ export default function FollowingStoresScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const loadFollowing = useCallback(async () => {
+  useEffect(() => {
+    let isMounted = true;
+    storesService
+      .getFollowingStores()
+      .then((data) => {
+        if (isMounted) {
+          setStores(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar lojas seguidas:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
       const data = await storesService.getFollowingStores();
       setStores(data);
     } catch (err) {
       console.error('Erro ao carregar lojas seguidas:', err);
     } finally {
-      setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
-
-  useEffect(() => {
-    loadFollowing();
-  }, [loadFollowing]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    loadFollowing();
   };
 
   const handleUnfollow = async (storeId: number) => {
@@ -57,7 +71,7 @@ export default function FollowingStoresScreen() {
       <TouchableOpacity
         style={styles.cardContent}
         activeOpacity={0.7}
-        onPress={() => router.push(`/(shop)/store/${item.store_id}` as any)}
+        onPress={() => router.push(`/store/${item.store_id}` as any)}
       >
         <View style={styles.logoWrapper}>
           {item.logo_url ? (
@@ -102,7 +116,7 @@ export default function FollowingStoresScreen() {
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.viewStoreBtn}
-          onPress={() => router.push(`/(shop)/store/${item.store_id}` as any)}
+          onPress={() => router.push(`/store/${item.store_id}` as any)}
           activeOpacity={0.7}
         >
           <Text style={styles.viewStoreText}>Ver Loja</Text>
