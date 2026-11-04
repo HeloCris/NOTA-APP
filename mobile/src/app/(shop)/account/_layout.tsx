@@ -28,6 +28,12 @@ export default function AccountLayout() {
         }}
       />
       <Stack.Screen
+        name="following"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="edit-olfactory-profile"
         options={{
           headerShown: true,

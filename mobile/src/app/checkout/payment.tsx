@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,8 +18,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { CreditCardForm } from '@/components/checkout/CreditCardForm';
+import { InstallmentSelector } from '@/components/checkout/InstallmentSelector';
 import { PixView } from '@/components/checkout/PixView';
 import { createOrder, processPayment } from '../../services/orders';
+import { storesService } from '../../services/stores';
 import { useCart } from '../../context/CartContext';
 import { CheckoutStepper } from '../../components/checkout/CheckoutStepper';
 import {
@@ -51,6 +54,34 @@ export default function PaymentScreen() {
   const [cvvError, setCvvError] = useState('');
 
   const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
+
+  const [storeSettings, setStoreSettings] = useState<{
+    max_installments: number;
+    free_interest_installments: number;
+    min_installment_amount: number;
+  }>({
+    max_installments: 6,
+    free_interest_installments: 3,
+    min_installment_amount: 30,
+  });
+  const [selectedInstallmentCount, setSelectedInstallmentCount] = useState<number>(1);
+  const [isInstallmentModalVisible, setIsInstallmentModalVisible] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (params.store_id) {
+      storesService.getStore(params.store_id as string).then((store: any) => {
+        if (store) {
+          setStoreSettings({
+            max_installments: store.max_installments ?? 6,
+            free_interest_installments: store.free_interest_installments ?? 3,
+            min_installment_amount: store.min_installment_amount ? Number(store.min_installment_amount) : 30,
+          });
+        }
+      }).catch((err) => {
+        console.warn('Erro ao carregar configuracoes de parcelamento da loja:', err);
+      });
+    }
+  }, [params.store_id]);
 
   useEffect(() => {
     (async () => {
@@ -124,6 +155,9 @@ export default function PaymentScreen() {
         (params.store_id as string) ||
         (parsedItems[0]?.store_id ? String(parsedItems[0].store_id) : '2');
 
+      const parsedCoupons = params.coupons ? parseParam(params.coupons) : undefined;
+      const couponCode = (params.coupon_code as string) || undefined;
+
       const orderResponse = await createOrder({
         store_id: primaryStoreId,
         total_amount: totalAmount,
@@ -131,6 +165,8 @@ export default function PaymentScreen() {
         shipping_service: shippingService,
         shipping_address: safeAddress,
         items: sanitizedItems,
+        coupons: parsedCoupons,
+        coupon_code: couponCode,
       });
 
       const orderId = orderResponse?.order_id || orderResponse?.id;
@@ -247,6 +283,7 @@ export default function PaymentScreen() {
       card_holder: card.holder || 'TITULAR DO CARTAO',
       expiration_date: card.expiry || '12/28',
       cvv: savedCardsCvv.trim(),
+      installments: selectedInstallmentCount,
     });
   };
 
@@ -403,12 +440,22 @@ export default function PaymentScreen() {
 
                         <View style={{ flex: 1 }}>
                           <Text style={styles.miniLabel}>Parcelas</Text>
-                          <View style={styles.miniSelect}>
+                          <TouchableOpacity
+                            style={styles.miniSelect}
+                            onPress={() => setIsInstallmentModalVisible(true)}
+                            activeOpacity={0.7}
+                          >
                             <Text style={styles.miniSelectText} numberOfLines={1}>
-                              1x de R$ {totalAmount}
+                              {selectedInstallmentCount}x de R${' '}
+                              {(Number(totalAmount) / selectedInstallmentCount)
+                                .toFixed(2)
+                                .replace('.', ',')}
+                              {selectedInstallmentCount <= storeSettings.free_interest_installments
+                                ? ' s/ juros'
+                                : ''}
                             </Text>
                             <Feather name="chevron-down" size={14} color="#6B7280" />
-                          </View>
+                          </TouchableOpacity>
                         </View>
                       </View>
                     )}
@@ -456,6 +503,7 @@ export default function PaymentScreen() {
                 onSubmit={handlePaymentSubmit}
                 isLoading={loading}
                 totalFormatted={totalAmount}
+                installmentSettings={storeSettings}
               />
               {savedCards.length > 0 && (
                 <TouchableOpacity
@@ -474,6 +522,39 @@ export default function PaymentScreen() {
           <View style={{ height: 28 }} />
         </ScrollView>
       </View>
+
+      {/* Modal de Seleção de Parcelas para Cartão Salvo */}
+      <Modal
+        visible={isInstallmentModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsInstallmentModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Opções de Parcelamento</Text>
+              <TouchableOpacity
+                onPress={() => setIsInstallmentModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={20} color="#1C252E" />
+              </TouchableOpacity>
+            </View>
+            <InstallmentSelector
+              totalAmount={parseFloat(totalAmount.replace(',', '.')) || 0}
+              maxInstallments={storeSettings.max_installments}
+              freeInterestInstallments={storeSettings.free_interest_installments}
+              minInstallmentAmount={storeSettings.min_installment_amount}
+              selectedCount={selectedInstallmentCount}
+              onSelectOption={(opt) => {
+                setSelectedInstallmentCount(opt.count);
+                setIsInstallmentModalVisible(false);
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -774,5 +855,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
   },
 });

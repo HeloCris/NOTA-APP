@@ -9,15 +9,22 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { InstallmentSelector } from './InstallmentSelector';
 
 interface CreditCardFormProps {
   onSubmit: (data: any) => void;
   isLoading: boolean;
   totalFormatted: string;
+  installmentSettings?: {
+    max_installments?: number;
+    free_interest_installments?: number;
+    min_installment_amount?: number;
+  };
 }
 
 export type CardBrand = 'VISA' | 'MASTERCARD' | 'ELO' | 'AMEX' | 'HIPERCARD' | 'CARTÃO';
@@ -187,14 +194,23 @@ const logoStyles = StyleSheet.create({
   },
 });
 
-export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCardFormProps) {
+export function CreditCardForm({
+  onSubmit,
+  isLoading,
+  totalFormatted,
+  installmentSettings,
+}: CreditCardFormProps) {
   const [cardNumber, setCardNumber] = useState('');
   const [cardHolder, setCardHolder] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
   const [cvv, setCvv] = useState('');
   const [cpf, setCpf] = useState('');
   const [installments, setInstallments] = useState(`1x de R$ ${totalFormatted} sem juros`);
+  const [selectedInstallmentCount, setSelectedInstallmentCount] = useState<number>(1);
+  const [showInstallmentsModal, setShowInstallmentsModal] = useState<boolean>(false);
   const [saveCard, setSaveCard] = useState(true);
+
+  const totalNum = parseFloat(totalFormatted.replace(',', '.')) || 0;
 
   // Erros campo a campo
   const [errors, setErrors] = useState<{
@@ -352,6 +368,7 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
       card_brand: brand.name,
       save_card: saveCard,
       cpf: cpf.replace(/\D/g, ''),
+      installments: selectedInstallmentCount,
     });
   };
 
@@ -500,14 +517,52 @@ export function CreditCardForm({ onSubmit, isLoading, totalFormatted }: CreditCa
         )}
       </View>
 
-      {/* Parcelas */}
+      {/* Parcelas (RF-19 / RN-06) */}
       <View style={styles.inputWrapper}>
         <Text style={styles.label}>Parcelas</Text>
-        <View style={styles.selectBox}>
+        <TouchableOpacity
+          style={styles.selectBox}
+          activeOpacity={0.7}
+          onPress={() => setShowInstallmentsModal(true)}
+        >
           <Text style={styles.selectText}>{installments}</Text>
           <Feather name="chevron-down" size={16} color="#4B5563" />
-        </View>
+        </TouchableOpacity>
       </View>
+
+      {/* Modal Seletor de Parcelas */}
+      <Modal
+        visible={showInstallmentsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInstallmentsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Opções de Parcelamento</Text>
+              <TouchableOpacity
+                onPress={() => setShowInstallmentsModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={20} color="#1C252E" />
+              </TouchableOpacity>
+            </View>
+            <InstallmentSelector
+              totalAmount={totalNum}
+              maxInstallments={installmentSettings?.max_installments}
+              freeInterestInstallments={installmentSettings?.free_interest_installments}
+              minInstallmentAmount={installmentSettings?.min_installment_amount}
+              selectedCount={selectedInstallmentCount}
+              onSelectOption={(opt) => {
+                setSelectedInstallmentCount(opt.count);
+                setInstallments(opt.label);
+                setShowInstallmentsModal(false);
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Switch Salvar cartão */}
       <View style={styles.switchRow}>
@@ -768,5 +823,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#1D4ED8',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
   },
 });

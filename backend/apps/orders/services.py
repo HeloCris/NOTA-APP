@@ -59,6 +59,14 @@ class OrderPostPurchaseService:
             order.save(update_fields=['status', 'cancel_reason', 'updated_at'])
             
             OrderPostPurchaseService.restore_stock(order.items.all())
+
+            # Estorno do uso do cupom se o pedido havia sido pago (RN-04)
+            if order.coupon_id and old_status == OrderStatus.PAID:
+                from apps.stores.models import StoreCoupon
+                StoreCoupon.objects.filter(id=order.coupon_id, used_count__gt=0).update(
+                    used_count=models.F('used_count') - 1
+                )
+
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.CANCELLED, actor=user, reason=reason
             )
@@ -112,6 +120,14 @@ class OrderPostPurchaseService:
             order.status = OrderStatus.CANCELLED
             order.save(update_fields=['status', 'updated_at'])
             OrderPostPurchaseService.restore_stock(order.items.all())
+
+            # Estorno do uso do cupom em cancelamento aprovado antes do envio (RN-04)
+            if order.coupon_id:
+                from apps.stores.models import StoreCoupon
+                StoreCoupon.objects.filter(id=order.coupon_id, used_count__gt=0).update(
+                    used_count=models.F('used_count') - 1
+                )
+
             OrderPostPurchaseService.log_history(
                 order, old_status, OrderStatus.CANCELLED, actor=store_user, reason='Cancelamento aprovado pelo lojista.'
             )

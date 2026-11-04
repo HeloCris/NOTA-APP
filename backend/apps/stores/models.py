@@ -172,6 +172,26 @@ class Store(models.Model):
         verbose_name="Valor Mínimo para Frete Grátis (R$)",
     )
 
+    # Ferramentas Comerciais e Fidelização (RF-19)
+    max_installments = models.PositiveSmallIntegerField(
+        default=6,
+        verbose_name="Máximo de Parcelas Aceitas",
+    )
+    free_interest_installments = models.PositiveSmallIntegerField(
+        default=3,
+        verbose_name="Parcelas sem Juros Assumidas pela Loja",
+    )
+    min_installment_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=30.00,
+        verbose_name="Valor Mínimo de Cada Parcela (R$)",
+    )
+    followers_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Total de Seguidores",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -228,31 +248,7 @@ class Store(models.Model):
         return super().save(*args, **kwargs)
 
 
-class StoreFollower(models.Model):
-    store = models.ForeignKey(
-        Store,
-        on_delete=models.CASCADE,
-        related_name="followers",
-        verbose_name="Loja",
-    )
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="followed_stores",
-        verbose_name="Seguidor",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
+from .models_coupon import StoreCoupon, StoreFollower
 
-    objects = models.Manager()
+__all__ = ["Store", "StoreCoupon", "StoreFollower"]
 
-    class Meta:
-        db_table = "store_followers"
-        ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["store", "user"], name="store_user_follow_uniq")
-        ]
-        verbose_name = "Seguidor da Loja"
-        verbose_name_plural = "Seguidores da Loja"
-
-    def __str__(self) -> str:
-        return f"{self.user} segue {self.store.name}"

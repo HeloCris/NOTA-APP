@@ -8,6 +8,11 @@ from .views import (
     StoreProductListView,
     StoreFollowToggleView,
     StoreShippingQuoteView,
+    StoreCouponListCreateView,
+    StoreCouponDetailView,
+    StoreInstallmentsSettingsView,
+    CustomerFollowingStoresListView,
+    ValidateCouponView,
     StoreViewIncrementView,
 )
 
@@ -16,6 +21,17 @@ urlpatterns = [
     path("me/", StoreMeView.as_view(), name="store-me"),
     path("me/dashboard/", StoreDashboardView.as_view(), name="store-dashboard"),
     path("dashboard/", StoreDashboardView.as_view(), name="store-dashboard-legacy"),
+    
+    # Cupons e Configurações Comerciais do Lojista (RF-19.3)
+    path("coupons/", StoreCouponListCreateView.as_view(), name="store-coupons-list-create"),
+    path("coupons/<int:pk>/", StoreCouponDetailView.as_view(), name="store-coupons-detail"),
+    path("settings/installments/", StoreInstallmentsSettingsView.as_view(), name="store-settings-installments"),
+    
+    # Lojas Seguidas pelo Cliente (RF-19.4)
+    path("following/", CustomerFollowingStoresListView.as_view(), name="customer-following-stores-rel"),
+
+    # Validação de Cupom no Checkout (RF-19.4)
+    path("validate-coupon/", ValidateCouponView.as_view(), name="store-validate-coupon"),
     path("<int:pk>/", StoreDetailView.as_view(), name="store-detail"),
     path("<int:pk>/view/", StoreViewIncrementView.as_view(), name="store-view"),
     

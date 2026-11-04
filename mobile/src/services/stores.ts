@@ -187,6 +187,16 @@ export const storesService = {
     return response.data;
   },
 
+  getFollowingStores: async (): Promise<FollowingStore[]> => {
+    const response = await api.get('/customers/following-stores/');
+    return Array.isArray(response.data) ? response.data : response.data?.results ?? [];
+  },
+
+  validateCoupon: async (payload: { store_id: number; code: string; subtotal: number }): Promise<CouponValidationResponse> => {
+    const response = await api.post('/checkout/validate-coupon/', payload);
+    return response.data;
+  },
+
   calculateShippingQuote: async (
     storeId: number | string,
     payload: { postal_code: string; cart_subtotal?: number; state?: string }
@@ -235,6 +245,28 @@ export const storesService = {
     return response.data;
   },
 };
+
+export interface FollowingStore {
+  store_id: number;
+  name: string;
+  slug: string;
+  logo_url?: string;
+  is_official: boolean;
+  followers_count: number;
+  rating: number;
+  followed_at: string;
+}
+
+export interface CouponValidationResponse {
+  valid: boolean;
+  coupon_id?: number;
+  code?: string;
+  discount_type?: "PERCENTAGE" | "FIXED_VALUE";
+  discount_value?: string;
+  applied_discount?: string;
+  new_subtotal?: string;
+  error?: string;
+}
 
 export interface ShippingMethodQuote {
   id: "PAC" | "SEDEX";

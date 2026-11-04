@@ -20,6 +20,7 @@ class StorePublicSerializer(serializers.ModelSerializer):
             "shipping_local_pac", "shipping_local_sedex",
             "shipping_pac_price", "shipping_sedex_price",
             "shipping_handling_days", "free_shipping_threshold",
+            "max_installments", "free_interest_installments", "min_installment_amount",
             "has_complete_address", "has_shipping_configured", "is_ready_to_sell",
         ]
 
@@ -60,6 +61,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             "shipping_local_pac", "shipping_local_sedex",
             "shipping_pac_price", "shipping_sedex_price",
             "shipping_handling_days", "free_shipping_threshold",
+            "max_installments", "free_interest_installments", "min_installment_amount",
             "has_complete_address", "has_shipping_configured", "is_ready_to_sell",
             "is_official", "created_at", "updated_at",
         ]
@@ -124,3 +126,102 @@ class StoreProductPublicSerializer(serializers.ModelSerializer):
             is_hidden=False,
             is_deleted=False
         ).count()
+
+
+class StoreCouponSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import StoreCoupon
+        model = StoreCoupon
+        fields = [
+            "id", "code", "discount_type", "discount_value",
+            "min_purchase_amount", "usage_limit", "max_uses_per_user",
+            "used_count", "valid_from", "valid_until", "is_active", "created_at",
+        ]
+        read_only_fields = ["id", "used_count", "created_at"]
+
+    def validate_code(self, value: str) -> str:
+        clean_code = value.strip().upper()
+        if not clean_code:
+            raise serializers.ValidationError("O código do cupom é obrigatório.")
+        return clean_code
+
+    def validate(self, attrs):
+        discount_type = attrs.get("discount_type") or (self.instance.discount_type if self.instance else "PERCENTAGE")
+        discount_value = attrs.get("discount_value") if "discount_value" in attrs else (self.instance.discount_value if self.instance else None)
+
+        if discount_value is not None:
+            if discount_value <= 0:
+                raise serializers.ValidationError({"discount_value": "O valor do desconto deve ser maior que zero."})
+            if discount_type == "PERCENTAGE" and discount_value > 100:
+                raise serializers.ValidationError({"discount_value": "Desconto em porcentagem não pode ultrapassar 100%."})
+
+        min_purchase = attrs.get("min_purchase_amount")
+        if min_purchase is not None and min_purchase < 0:
+            raise serializers.ValidationError({"min_purchase_amount": "O valor mínimo de compra não pode ser negativo."})
+
+        max_per_user = attrs.get("max_uses_per_user")
+        if max_per_user is not None and max_per_user < 1:
+            raise serializers.ValidationError({"max_uses_per_user": "O limite de usos por usuário deve ser de pelo menos 1."})
+
+        valid_from = attrs.get("valid_from") or (self.instance.valid_from if self.instance else None)
+        valid_until = attrs.get("valid_until") or (self.instance.valid_until if self.instance else None)
+        if valid_from and valid_until and valid_until < valid_from:
+            raise serializers.ValidationError({"valid_until": "A data final de validade não pode ser anterior à data inicial."})
+
+        return attrs
+
+
+class StoreInstallmentsSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Store
+        fields = [
+            "max_installments", "free_interest_installments", "min_installment_amount"
+        ]
+
+    def validate(self, attrs):
+        max_inst = attrs.get("max_installments", getattr(self.instance, "max_installments", 6))
+        free_inst = attrs.get("free_interest_installments", getattr(self.instance, "free_interest_installments", 3))
+        min_amount = attrs.get("min_installment_amount", getattr(self.instance, "min_installment_amount", 30))
+
+        if not (1 <= max_inst <= 12):
+            raise serializers.ValidationError({"max_installments": "O número máximo de parcelas deve ser entre 1 e 12."})
+
+        if not (1 <= free_inst <= max_inst):
+            raise serializers.ValidationError({
+                "free_interest_installments": f"Parcelas sem juros devem estar entre 1 e o máximo configurado ({max_inst})."
+            })
+
+        if min_amount <= 0:
+            raise serializers.ValidationError({"min_installment_amount": "O valor mínimo da parcela deve ser maior que zero."})
+
+        return attrs
+
+
+class FollowingStoreSerializer(serializers.ModelSerializer):
+    followed_at = serializers.DateTimeField(source="created_at", read_only=True)
+    store_id = serializers.IntegerField(source="store.id", read_only=True)
+    name = serializers.CharField(source="store.name", read_only=True)
+    slug = serializers.CharField(source="store.slug", read_only=True)
+    logo_url = serializers.CharField(source="store.logo_url", read_only=True)
+    is_official = serializers.BooleanField(source="store.is_official", read_only=True)
+    followers_count = serializers.IntegerField(source="store.followers_count", read_only=True)
+    rating = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import StoreFollower
+        model = StoreFollower
+        fields = [
+            "store_id", "name", "slug", "logo_url", "is_official",
+            "followers_count", "rating", "followed_at"
+        ]
+
+    def get_rating(self, obj):
+        from apps.reviews.models import Review
+        from django.db.models import Avg
+        avg = Review.objects.filter(
+            store=obj.store,
+            product__isnull=True,
+            is_hidden=False,
+            is_deleted=False
+        ).aggregate(Avg('rating'))['rating__avg']
+        return round(float(avg), 1) if avg is not None else 0.0

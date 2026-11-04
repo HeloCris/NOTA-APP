@@ -57,6 +57,18 @@ class Order(models.Model):
     )
     shipping_address = models.JSONField()
 
+    # Campos de Cupom e Desconto Comercial (RF-19 / RN-01, RN-04)
+    coupon = models.ForeignKey(
+        'stores.StoreCoupon',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+    )
+    discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
+
     # Campos de Rastreio e Expedição
     tracking_code = models.CharField(
         max_length=100, blank=True, null=True, default=''

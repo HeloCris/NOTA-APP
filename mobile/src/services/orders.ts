@@ -7,6 +7,8 @@ export interface CreateOrderPayload {
   shipping_service?: string;
   shipping_address: any;
   items: any[];
+  coupons?: Record<string, string>;
+  coupon_code?: string;
 }
 
 export interface ProcessPaymentPayload {

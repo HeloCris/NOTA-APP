@@ -24,10 +24,14 @@ export interface Store {
     free_shipping_threshold?: number | null;
     has_complete_address?: boolean;
     has_shipping_configured?: boolean;
-    is_ready_to_sell?: boolean;
+    max_installments?: number;
+    free_interest_installments?: number;
+    min_installment_amount?: number;
+    followers_count?: number;
     owner_id: number;
     is_official?: boolean;
     views_count?: number;
+    is_ready_to_sell?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -55,6 +59,36 @@ export interface StoreUpdatePayload {
     shipping_sedex_price?: number | null;
     shipping_handling_days?: number;
     free_shipping_threshold?: number | null;
+    max_installments?: number;
+    free_interest_installments?: number;
+    min_installment_amount?: number;
+}
+
+export interface StoreCoupon {
+    id: number;
+    code: string;
+    discount_type: "PERCENTAGE" | "FIXED_VALUE";
+    discount_value: number;
+    min_purchase_amount: number;
+    usage_limit?: number | null;
+    max_uses_per_user?: number;
+    used_count: number;
+    valid_from?: string | null;
+    valid_until?: string | null;
+    is_active: boolean;
+    created_at: string;
+}
+
+export interface StoreCouponCreatePayload {
+    code: string;
+    discount_type: "PERCENTAGE" | "FIXED_VALUE";
+    discount_value: number;
+    min_purchase_amount?: number;
+    usage_limit?: number | null;
+    max_uses_per_user?: number;
+    valid_from?: string | null;
+    valid_until?: string | null;
+    is_active?: boolean;
 }
 
 export interface DashboardData {

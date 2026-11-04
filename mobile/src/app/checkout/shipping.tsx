@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
@@ -14,12 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useCart } from '@/context/CartContext';
-import { storesService, ShippingQuoteResponse } from '@/services/stores';
+import { storesService } from '@/services/stores';
 import { formatProductVolume } from '@/utils/productUtils';
 import {
   UserAddress,
@@ -38,10 +37,12 @@ interface ShippingOption {
 
 export default function CheckoutShippingScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
   const { items: cartItems, subtotal } = useCart();
+  const discountAmount = Number(params.discount_amount || 0);
 
   const items = cartItems.length > 0
     ? cartItems.map((c) => ({
@@ -139,7 +140,7 @@ export default function CheckoutShippingScreen() {
 
   const selectedShippingOption = shippingOptions.find((opt) => opt.id === selectedShipping);
   const currentShippingCost = selectedShippingOption?.price || 0;
-  const total = subtotal + currentShippingCost;
+  const total = Math.max(0, subtotal - discountAmount) + currentShippingCost;
 
   const fetchShippingForCep = async (cleanCep: string, uf: string) => {
     setIsLoadingShipping(true);
@@ -302,6 +303,9 @@ export default function CheckoutShippingScreen() {
       params: {
         store_id: String(primaryStoreId),
         total_amount: total.toFixed(2),
+        discount_amount: String(discountAmount.toFixed(2)),
+        coupons: params.coupons ? String(params.coupons) : undefined,
+        coupon_code: params.coupon_code ? String(params.coupon_code) : undefined,
         shipping_cost: String(currentShippingCost.toFixed(2)),
         shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
         address: JSON.stringify(selectedAddr),

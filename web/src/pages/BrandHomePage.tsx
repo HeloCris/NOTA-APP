@@ -14,12 +14,13 @@ import { OrdersTab } from "../components/seller/OrdersTab";
 import { StoreReviewsView } from "../components/seller/StoreReviewsView";
 import { NotificationBell } from "../components/common/NotificationBell";
 import { StoreMessages } from "../features/store/StoreMessages";
+import { StoreCoupons } from "../features/store/StoreCoupons";
 import type { Store } from "../types/store";
 import type { Brand } from "../types/catalog";
 
-type TabType = "dashboard" | "catalog" | "inventory" | "orders" | "reviews" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "inventory" | "orders" | "coupons" | "reviews" | "metrics" | "messages" | "settings";
 
-const VALID_TABS: TabType[] = ["dashboard", "catalog", "inventory", "orders", "reviews", "metrics", "messages", "settings"];
+const VALID_TABS: TabType[] = ["dashboard", "catalog", "inventory", "orders", "coupons", "reviews", "metrics", "messages", "settings"];
 
 export function BrandHomePage() {
   const { user, logout } = useAuth();
@@ -112,6 +113,7 @@ export function BrandHomePage() {
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
           <NavLink id="inventory" icon="#ic-box" label="Estoque & Vendas" />
           <NavLink id="orders" icon="#ic-box" label="Pedidos" />
+          <NavLink id="coupons" icon="#ic-coupon" label="Cupons" />
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />
@@ -207,6 +209,7 @@ export function BrandHomePage() {
                 )
               )}
               {activeTab === "orders" && <OrdersTab />}
+              {activeTab === "coupons" && <StoreCoupons />}
               {activeTab === "reviews" && (
                 <StoreReviewsView store={store} onBack={() => changeTab("dashboard")} />
               )}

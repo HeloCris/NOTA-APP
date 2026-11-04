@@ -1,6 +1,8 @@
+from decimal import Decimal
 from typing import cast
 
-from django.db import transaction
+from django.db import models, transaction
+from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -124,6 +126,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # Se houver mais de uma loja, divide o frete global entre elas
                 per_store_shipping = round(global_shipping_cost / total_stores_count, 2) if total_stores_count > 0 else 0.00
 
+                coupons_input = data.get('coupons', {})
+                if isinstance(coupons_input, str):
+                    coupons_input = {str(list(items_by_store.keys())[0]): coupons_input} if items_by_store else {}
+
                 created_orders = []
 
                 # 3. Criação de cada Order por Loja e seus OrderItems
@@ -131,7 +137,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                     store_items_subtotal = sum(
                         float(it['unit_price']) * int(it['quantity']) for it in store_items
                     )
-                    store_order_total = round(store_items_subtotal + per_store_shipping, 2)
+
+                    # Validação de cupom por loja (RN-01, RN-02, RN-03)
+                    applied_coupon = None
+                    discount_amount = Decimal("0.00")
+                    coupon_code = (
+                        coupons_input.get(str(store_id))
+                        or coupons_input.get(store_id)
+                        or (data.get('coupon_code') if len(items_by_store) == 1 else None)
+                    )
+                    if coupon_code:
+                        from apps.stores.services.coupon_service import validate_and_calculate_coupon_discount
+                        from apps.stores.models import StoreCoupon
+
+                        calc = validate_and_calculate_coupon_discount(
+                            store_id, str(coupon_code), Decimal(str(store_items_subtotal)), user=request.user
+                        )
+                        if calc.get("valid"):
+                            applied_coupon = StoreCoupon.objects.filter(id=calc["coupon_id"]).first()
+                            discount_amount = Decimal(str(calc["applied_discount"]))
+
+                    # Trava RN-03: o subtotal de produtos nunca fica abaixo de R$ 1,00 se subtotal original >= 1.00
+                    subtotal_after_discount = max(
+                        Decimal("1.00") if Decimal(str(store_items_subtotal)) >= Decimal("1.00") else Decimal("0.00"),
+                        Decimal(str(store_items_subtotal)) - discount_amount
+                    )
+                    store_order_total = round(float(subtotal_after_discount) + per_store_shipping, 2)
 
                     order = Order.objects.create(
                         user=request.user,
@@ -140,6 +171,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                         shipping_cost=per_store_shipping,
                         shipping_service=data.get('shipping_service'),
                         shipping_address=data['shipping_address'],
+                        coupon=applied_coupon,
+                        discount_amount=discount_amount,
                         status=OrderStatus.PENDING,
                     )
 
@@ -265,6 +298,13 @@ def process_payment(request):
                 old_status = order.status
                 order.status = OrderStatus.PAID
                 order.save(update_fields=['status', 'updated_at'])
+
+                # Incremento atômico de used_count do cupom ao concluir o pagamento (RN-04)
+                if order.coupon_id:
+                    from apps.stores.models import StoreCoupon
+                    StoreCoupon.objects.filter(id=order.coupon_id).update(
+                        used_count=models.F('used_count') + 1
+                    )
 
                 OrderPostPurchaseService.log_history(
                     order,

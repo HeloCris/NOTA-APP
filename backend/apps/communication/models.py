@@ -67,6 +67,7 @@ class Notification(models.Model):
         ("ORDER_SHIPPED", "Pedido enviado"),
         ("ORDER_DELIVERED", "Pedido entregue"),
         ("ORDER_UPDATE", "Atualização de pedido"),
+        ("NEW_COUPON", "Novo cupom"),
     )
 
     user = models.ForeignKey(

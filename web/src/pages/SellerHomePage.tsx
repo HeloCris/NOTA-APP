@@ -8,15 +8,16 @@ import { DashboardTab } from "../components/seller/DashboardTab";
 import { CatalogTab } from "../components/seller/CatalogTab";
 import { SettingsTab } from "../components/seller/SettingsTab";
 import { OrdersTab } from "../components/seller/OrdersTab";
+import { StoreCoupons } from "../features/store/StoreCoupons";
 import { StoreReviewsView } from "../components/seller/StoreReviewsView";
 import { NotificationBell } from "../components/common/NotificationBell";
 import { StoreMessages } from "../features/store/StoreMessages";
 import { storeService } from "../services/storeService";
 import type { Store } from "../types/store";
 
-type TabType = "dashboard" | "catalog" | "orders" | "reviews" | "metrics" | "messages" | "settings";
+type TabType = "dashboard" | "catalog" | "orders" | "coupons" | "reviews" | "metrics" | "messages" | "settings";
 
-const VALID_TABS: TabType[] = ["dashboard", "catalog", "orders", "reviews", "metrics", "messages", "settings"];
+const VALID_TABS: TabType[] = ["dashboard", "catalog", "orders", "coupons", "reviews", "metrics", "messages", "settings"];
 
 export function SellerHomePage() {
   const { user, logout } = useAuth();
@@ -99,6 +100,7 @@ export function SellerHomePage() {
           <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
           <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
           <NavLink id="orders" icon="#ic-box" label="Pedidos" />
+          <NavLink id="coupons" icon="#ic-coupon" label="Cupons" />
           <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
           <NavLink id="messages" icon="#ic-mail-nav" label="Mensagens" />
           <NavLink id="settings" icon="#ic-gear" label="Configurações" />
@@ -213,6 +215,7 @@ export function SellerHomePage() {
               )}
               {activeTab === "catalog" && <CatalogTab store={store} />}
               {activeTab === "orders" && <OrdersTab />}
+              {activeTab === "coupons" && <StoreCoupons />}
               {activeTab === "reviews" && (
                 <StoreReviewsView store={store} onBack={() => changeTab("dashboard")} />
               )}
