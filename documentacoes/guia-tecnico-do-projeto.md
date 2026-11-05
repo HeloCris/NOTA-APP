@@ -48,6 +48,8 @@ documentacoes/
   05-fluxos/
   05-qualidade-e-testes/
   sprints/
+landingpag/
+  index.html
 ```
 
 ## Backend
