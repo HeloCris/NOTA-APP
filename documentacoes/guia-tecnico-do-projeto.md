@@ -48,7 +48,7 @@ documentacoes/
   05-fluxos/
   05-qualidade-e-testes/
   sprints/
-landingpag/
+landingpage/
   index.html
 ```
 
@@ -66,9 +66,11 @@ As rotas principais do projeto incluem estas aplicações:
 | `inventory` | Cadastro, consulta, atualização e remoção de produtos do estoque de uma loja |
 | `showcase` | Consulta de produtos e detalhes públicos de loja |
 | `orders` | Pedidos, processamento de pagamento e operações de processamento/envio da loja |
+| `reviews` | Avaliações de itens entregues, médias por loja/produto e resposta pública do lojista |
+| `communication` | Conversas de chat entre cliente e loja e central de notificações in-app |
 | `core` | Aplicação compartilhada; não possui rotas próprias registradas em `config/urls.py` |
 
-As pastas `communication` e `reviews` existem em `backend/apps`, mas não estão registradas como aplicações ativas em `INSTALLED_APPS` nem incluídas nas rotas principais. Portanto, não são consideradas endpoints disponíveis com base na configuração atual.
+Na Sprint 5 (`RF-20` a `RF-24`), os módulos `catalog`, `showcase` e `stores` também concentram os endpoints de recomendação e match olfativo (`/api/v1/products/recommended/`, `/api/v1/catalog/notes/`), vitrine dinâmica (`/api/v1/showcase/home/`), busca unificada por notas/formatos (`/api/v1/products/`) e inteligência de mercado e analytics da loja (`/api/v1/stores/me/market-metrics/` e `/api/v1/stores/me/analytics/`).
 
 ### Prefixos de API registrados
 

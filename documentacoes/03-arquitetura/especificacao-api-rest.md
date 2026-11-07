@@ -671,4 +671,44 @@ Regras completas em [RF-19](../sprints/sprint-4/RF-19_Comercial_Fidelizacao.md).
 |---|---|---|---|
 | `POST` | `/api/v1/checkout/validate-coupon/` | `store_id`, `code`, `subtotal` | Valida código e calcula desconto aplicado à respectiva loja no carrinho. |
 | `POST` | `/api/v1/stores/{id}/follow/` | — | Alterna (toggle) seguir/deixar de seguir a loja. |
-| `GET` | `/api/v1/customers/following-stores/` | — | Lista lojas seguidas pelo consumidor logado. |
+- **GET `/api/v1/customers/following-stores/`** | — | Lista lojas seguidas pelo consumidor logado. |
+
+---
+
+## Recomendação Olfativa, Vitrine Dinâmica, Busca e Inteligência de Mercado — RF-20 a RF-24 (Sprint 5)
+
+Regras completas nos documentos da [Sprint 5](../sprints/sprint-5/).
+
+### 1. Motor de Recomendação e Catálogo de Notas (`RF-20`)
+
+| Método | Endpoint | Permissão | Query Params | Descrição |
+|---|---|---|---|---|
+| `GET` | `/api/v1/products/recommended/` | `IsAuthenticated` ou `AllowAny` | `limit=10` | Retorna os perfumes publicados ordenados por `match_percentage` (60% família olfativa + 40% notas da pirâmide em comum com `CustomUser.preferred_notes`), incluindo `matched_notes` e fallback para mais vendidos (`is_personalized=false`). |
+| `GET` | `/api/v1/catalog/notes/` | `AllowAny` | — | Agrega todas as notas únicas presentes em `top_notes`, `heart_notes` e `base_notes` dos produtos publicados, ordenadas por frequência no catálogo. |
+
+### 2. Vitrine Dinâmica da Home Mobile (`RF-21`)
+
+| Método | Endpoint | Permissão | Descrição |
+|---|---|---|---|
+| `GET` | `/api/v1/showcase/home/` | `IsAuthenticated` ou `AllowAny` | Consolida os dados reais da tela inicial do app em uma única requisição: `user_summary` (`has_olfactory_profile`), `families` (7 famílias olfativas com contagem de produtos), `recommended_for_you`, `decant_highlights` (ofertas com `volume_ml <= 15`), `best_sellers` e `featured_stores`. |
+
+### 3. Busca Unificada e Explorador por Notas/Formatos (`RF-22`)
+
+Expansão dos parâmetros de `GET /api/v1/products/`:
+
+| Parâmetro | Tipo | Exemplo | Descrição |
+|---|---|---|---|
+| `q` ou `search` | string | `?q=Sândalo` | Busca textual unificada em `name`, `brand__name`, `olfactory_family`, `top_notes`, `heart_notes` e `base_notes` |
+| `family` | string | `?family=Amadeirado` | Filtra por Família Olfativa |
+| `notes` | string (CSV) | `?notes=Sândalo,Bergamota` | Filtra perfumes que possuam pelo menos uma das notas informadas na pirâmide olfativa |
+| `format` | string | `?format=decant` ou `bottle` | `decant`: produtos com oferta ativa `volume_ml <= 15`; `bottle`: oferta ativa `volume_ml > 15` |
+| `min_price` / `max_price` | decimal | `?min_price=30&max_price=200` | Filtra pelo menor preço ativo do produto no marketplace |
+| `ordering` | string | `?ordering=price_asc` | Suporta `match`, `popular` (`-sold_count`), `price_asc`, `price_desc`, `newest` |
+
+### 4. Inteligência de Mercado e Analytics da Loja no Painel Web (`RF-23` e `RF-24`)
+
+| Método | Endpoint | Permissão | Query Params | Descrição |
+|---|---|---|---|---|
+| `GET` | `/api/v1/stores/me/market-metrics/` | `IsSeller` / `IsBrandOwner` | — | Retorna indicadores agregados e anônimos do ecossistema NŌTA: demanda por Família Olfativa (`family_demand`), Top 10 Notas favoritas dos clientes (`top_notes_demand`), Termômetro Decants vs. Frascos no marketplace (`format_thermometer`), benchmark de preço médio por família (`price_benchmark_by_family`) e Top 5 Perfumes em alta (`trending_products` com flag `in_my_catalog`). |
+| `GET` | `/api/v1/stores/me/analytics/` | `IsSeller` / `IsBrandOwner` | `period=7d\|30d\|all` | Retorna o funil de conversão da vitrine da loja (`store_views`, `followers_count`, `paid_orders_count`, `conversion_rate_pct`), mix de receita Decants vs. Frascos da loja, performance de cupons (`RF-19`), ranking de ofertas campeãs da loja e o diagnóstico de *Gap de Catálogo* (`catalog_gaps`) cruzando notas/famílias desejadas pelos clientes com o estoque ativo da loja. |
+
