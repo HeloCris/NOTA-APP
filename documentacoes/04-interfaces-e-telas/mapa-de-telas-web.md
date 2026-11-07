@@ -55,7 +55,25 @@ O Painel Web do Lojista é acessado via navegador desktop e foca na gestão oper
     *   Histórico (timeline com ator e motivo de cada transição).
     *   **Ações de Status:** Marcar como "Em Separação", Informar Rastreio e marcar como "Enviado", Marcar como Entregue, Cancelar (com motivo), Aprovar/Recusar cancelamento, Resolver contestação (Reenviado/Reembolsar), Aprovar/Recusar devolução e Marcar devolução recebida (com opção "Em condições de revenda").
 
-## 4. Configurações da Loja
+## 4. Aba Métricas e Inteligência de Mercado — RF-23 & RF-24
+Acessível pelo menu lateral **"Métricas"** em `SellerHomePage` e `BrandHomePage`, dividida em duas visões complementares:
+
+### 4.1 Visão 1: 🌍 Inteligência de Mercado & Tendências Olfativas (`MarketMetricsSection` — RF-23)
+*   **Pulso do Mercado (4 KPIs):** Família olfativa #1 entre os clientes do app, Nota da pirâmide mais desejada, Participação de vendas de Decants ($\le 15\text{ml}$) no marketplace e Total de fragrâncias/ofertas ativas.
+*   **Mapa de Demanda por Família Olfativa:** Gráfico de barras horizontais mostrando o percentual de clientes da NŌTA adeptos de cada uma das 7 famílias (`CustomUser.olfactory_families`) comparado à quantidade de produtos no catálogo.
+*   **Ranking Top 10 Notas Favoritas dos Clientes:** As 10 notas da pirâmide (`CustomUser.preferred_notes`) mais buscadas/favoritadas pelos consumidores.
+*   **Termômetro de Formato (Decants $\le 15\text{ml}$ vs. Frascos $> 15\text{ml}$):** Comparativo visual da proporção de unidades vendidas e ticket médio de cada formato no marketplace.
+*   **Benchmark de Preço por Família e Top 5 Perfumes em Alta:** Compara o preço médio da loja com o mercado e sinaliza quais dos 5 perfumes mais vendidos da NŌTA já estão ou não no catálogo da loja (`in_my_catalog`).
+
+### 4.2 Visão 2: 📊 Desempenho da Minha Loja & Diagnóstico de Gap (`StoreAnalyticsSection` — RF-24)
+*   **Seletor de Período:** `7 dias`, `30 dias` ou `Todo o período`.
+*   **Funil da Vitrine e Fidelização:** Visitas à vitrine (`views_count`) $\rightarrow$ Seguidores conquistados (`StoreFollower`) $\rightarrow$ Pedidos pagos e Taxa de Conversão estimada.
+*   **Performance de Cupons (RF-19) e Mix de Receita da Loja:** Receita gerada por Decants vs. Frascos na própria loja e desempenho dos cupons de desconto.
+*   **Diagnóstico de *Gap de Catálogo* (Oportunidades de Estoque):** Cruza as famílias e notas mais desejadas pelos clientes com o estoque ativo da loja, alertando sobre notas/famílias em alta onde a loja possui `0` ofertas e sugerindo perfumes do catálogo mestre para ofertar imediatamente.
+*   **Ranking de Ofertas Campeãs da Loja:** Tabela com os itens mais vendidos da loja por volumetria, estoque atual e receita.
+
+## 5. Configurações da Loja e Busca Rápida na Topbar
+*   **Busca Rápida na Topbar (RF-24):** O campo de pesquisa no topo do painel filtra e navega diretamente para os produtos da loja.
 *   **Dados Cadastrais:** Edição de Nome Fantasia, CNPJ, Telefone, E-mail de suporte.
 *   **Personalização:** Upload de Logo da Loja e Banner (se aplicável ao perfil da loja no app).
 *   **Financeiro e Parcelamento (RF-19):** Configuração de parcelas máximas aceitas (1 a 12), parcelas sem juros assumidas pela loja e valor de parcela mínima. Extrato de repasses e comissões da plataforma.

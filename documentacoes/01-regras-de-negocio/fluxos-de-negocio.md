@@ -128,3 +128,21 @@ Fluxo exclusivo para marcas que desejam ter presença oficial e/ou vendas direta
     *   Volumetrias de **5ml, 10ml ou 15ml** são automaticamente categorizadas e rotuladas como **Decants** na vitrine, na listagem de estoque e nos seletores de compra no app mobile e web.
     *   Volumetrias tradicionais (ex.: 30ml, 50ml, 100ml, 200ml) representam os frascos padrão.
     *   Na vitrine do consumidor, as ofertas agrupam as opções de volumetria e exibem o menor preço de entrada com a tag `"A partir de R$ X"`. Ao clicar, o consumidor seleciona o tamanho desejado (seja decant ou frasco completo).
+
+## 5. Fluxo de Descoberta Olfativa, Match de Perfumes e Inteligência de Mercado (RF-20 a RF-24)
+
+Regras detalhadas na pasta [Sprint 5](../sprints/sprint-5/).
+
+1.  **Construção e Evolução do DNA Olfativo do Cliente (`RF-05` / `RF-20`):**
+    *   No onboarding ou a qualquer momento em `Minha Conta -> Meu Perfil Olfativo`, o consumidor seleciona suas **Famílias Olfativas** favoritas (entre as 7 famílias da NŌTA) e suas **Notas Olfativas** preferidas (`preferred_notes`), alimentadas dinamicamente pelas notas reais do catálogo (`GET /api/v1/catalog/notes/`).
+2.  **Algoritmo de Match Olfativo (`RF-20`):**
+    *   Para cada fragrância publicada no catálogo global, o backend calcula o índice `match_percentage` (`0` a `100%`) ponderando **60% de afinidade de Família Olfativa** e **40% de interseção com as notas da pirâmide** (`top_notes`, `heart_notes`, `base_notes`).
+    *   Na tela de detalhes do perfume (`/product/[id]`), o app destaca em dourado (`✨`) exatamente quais notas da pirâmide daquele perfume coincidem com o gosto pessoal do cliente (`matched_notes`).
+3.  **Curadoria Personalizada na Home e Explorador por Notas (`RF-21` / `RF-22`):**
+    *   A vitrine inicial (`GET /api/v1/showcase/home/`) adapta-se ao cliente: exibe a trilha `"Para o Seu Perfil Olfativo"` ordenada por maior `% Match`, a trilha `"Descubra em Decants (≤ 15ml)"` para experimentação acessível e as lojas em destaque.
+    *   Na aba **Explorar**, a lupa realiza uma busca unificada em tempo real (perfumes, marcas, famílias, notas da pirâmide e lojas). O consumidor pode combinar notas olfativas como filtros (`?notes=Sândalo,Baunilha`), acionar o atalho **"✨ Usar minhas notas favoritas"** ou filtrar exclusivamente por **Decants ($\le 15\text{ml}$)** ou **Frascos ($> 15\text{ml}$)**.
+4.  **Inteligência de Mercado e Diagnóstico de *Gap de Catálogo* para Lojistas e Marcas (`RF-23` / `RF-24`):**
+    *   No Painel Web, a aba **Métricas** transforma os dados olfativos coletados dos clientes em inteligência comercial para os vendedores (`GET /api/v1/stores/me/market-metrics/` e `GET /api/v1/stores/me/analytics/`):
+        *   **Visão de Mercado (`RF-23`):** Exibe o ranking das famílias e Top 10 notas mais desejadas pelos consumidores da NŌTA, o termômetro de demanda entre Decants e Frascos, o preço médio praticado no mercado por família e os Top 5 perfumes da plataforma.
+        *   **Visão da Loja & Gap de Catálogo (`RF-24`):** Além do funil de conversão da loja (`views_count` $\rightarrow$ seguidores $\rightarrow$ pedidos) e performance de cupons, o sistema cruza as famílias e notas mais buscadas no app com o estoque ativo da loja e aponta **Oportunidades de Estoque (*Gaps Olfativos*)**, sugerindo perfumes do catálogo global que atendem àquela demanda reprimida.
+
