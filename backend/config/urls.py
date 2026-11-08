@@ -23,7 +23,10 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/store/coupons/<int:pk>/", StoreCouponDetailView.as_view(), name="store-coupons-detail-direct"),
     path("api/v1/store/settings/installments/", StoreInstallmentsSettingsView.as_view(), name="store-installments-settings-direct"),
 
-    path("api/v1/", include("apps.catalog.urls")),
+    path(
+    "api/v1/",
+    include("apps.catalog.urls", namespace="catalog"),
+    ),
     path("api/v1/", include("apps.inventory.urls")),
     path("api/v1/showcase/", include("apps.showcase.urls")),
     path("api/v1/", include("apps.orders.urls")),

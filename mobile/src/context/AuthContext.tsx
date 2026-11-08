@@ -108,13 +108,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   async function updateProfile(data: any) {
     const updatedUser = await authService.updateProfile(data);
-    setUser(updatedUser);
+    setUser((prev) => (prev ? { ...prev, ...updatedUser } : updatedUser));
   }
 
   async function updateOlfactoryProfile(data: OlfactoryProfile) {
-    const updatedUser = await authService.updateOlfactoryProfile(data);
-    setUser(updatedUser);
-  }
+  const updatedData = await authService.updateOlfactoryProfile(data);
+  setUser((prev) => {
+    if (!prev) return null;
+    return {
+      ...prev,
+      ...updatedData,
+      olfactory_families: updatedData?.olfactory_families ?? data.olfactory_families,
+      preferred_notes: updatedData?.preferred_notes ?? data.preferred_notes,
+    };
+  });
+}
 
   return (
     <AuthContext.Provider

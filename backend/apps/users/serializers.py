@@ -126,11 +126,10 @@ class MeSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
+        # Remove store_id apenas se não for SELLER, garantindo que
+        # olfactory_families e preferred_notes fiquem SEMPRE presentes no JSON.
         if instance.role == CustomUser.Roles.CUSTOMER:
             data.pop("store_id", None)
-        else:
-            data.pop("olfactory_families", None)
-            data.pop("preferred_notes", None)
 
         return data
 
@@ -144,23 +143,16 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
         ]
 
     def validate_olfactory_families(self, value):
-        valid_families = [
-            "Amadeirado",
-            "Cítrico",
-            "Oriental",
-            "Floral",
-            "Fougère",
-            "Aquático",
-            "Gourmand",
-        ]
-
-        for family in value:
-            if family not in valid_families:
-                raise serializers.ValidationError(
-                    f"Família olfativa '{family}' inválida."
-                )
-
+        if not isinstance(value, list):
+            raise serializers.ValidationError(
+                "Famílias olfativas devem ser enviadas como uma lista de textos."
+            )
         return value
+
+    def to_representation(self, instance):
+        # Retorna a representação completa do usuário através do MeSerializer,
+        # sincronizando 100% dos dados com o AuthContext no React Native.
+        return MeSerializer(instance, context=self.context).data
 
 
 class UserAddressSerializer(serializers.ModelSerializer):

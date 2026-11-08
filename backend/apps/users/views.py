@@ -130,6 +130,19 @@ class OlfactoryProfileView(generics.UpdateAPIView):
     def get_object(self):
         return self.request.user
 
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", True)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Retorna o objeto completo do usuário via MeSerializer para sincronizar 100% dos dados com o frontend
+        return Response(
+            MeSerializer(instance, context=self.get_serializer_context()).data,
+            status=status.HTTP_200_OK,
+        )
+
 
 class UserAddressListCreateView(generics.ListCreateAPIView):
     serializer_class = UserAddressSerializer

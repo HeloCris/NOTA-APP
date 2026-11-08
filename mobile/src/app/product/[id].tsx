@@ -112,10 +112,10 @@ export default function ProductDetailScreen() {
   };
 
   const [product, setProduct] = useState<ProductDetails | null>(null);
-  const [allProducts, setAllProducts] = useState<ProductDetails[]>([]);
+  const [recommendedProducts, setRecommendedProducts] = useState<ProductDetails[]>([]);
+  const [isPersonalized, setIsPersonalized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
 
   // Volumetria selecionada (número em ml, ex: 10, 75, 100, 125)
@@ -170,12 +170,13 @@ export default function ProductDetailScreen() {
 
     Promise.all([
       storesService.getProduct(id),
-      storesService.getProducts(),
+      storesService.getRecommendedProducts(Number(id), 6),
     ])
-      .then(([prodData, listData]) => {
+      .then(([prodData, recData]) => {
         if (!isMounted) return;
         setProduct(prodData);
-        setAllProducts(listData);
+        setRecommendedProducts(recData.results || []);
+        setIsPersonalized(recData.is_personalized || false);
         setError(false);
 
         // Se storeId foi fornecido (ex: vindo da vitrine de uma loja específica),
@@ -243,8 +244,8 @@ export default function ProductDetailScreen() {
       return;
     }
 
-    const storeId = offerToUse?.store_id || product?.store_offers?.[0]?.store_id;
-    if (!storeId) {
+    const storeIdToUse = offerToUse?.store_id || product?.store_offers?.[0]?.store_id;
+    if (!storeIdToUse) {
       setShippingError('Nenhuma loja disponível para calcular o frete deste perfume.');
       setShippingQuote(null);
       return;
@@ -255,7 +256,7 @@ export default function ProductDetailScreen() {
     try {
       setIsCalculatingShipping(true);
       setShippingError(null);
-      const quote = await storesService.calculateShippingQuote(storeId, {
+      const quote = await storesService.calculateShippingQuote(storeIdToUse, {
         postal_code: cleanCep,
         cart_subtotal: price,
       });
@@ -274,30 +275,33 @@ export default function ProductDetailScreen() {
     calculateRealShipping(cep, selectedOffer);
   };
 
-  // 1) Recomendações formatadas no padrão do catálogo:
-  // Cada perfume aparece somente 1 vez com "A partir de R$ ..." se houver variações,
-  // e ao clicar redireciona para a página de detalhes daquele perfume.
-  const recommendedItems = useMemo(() => {
-    if (!product) return [];
-    
-    // Todos os perfumes da plataforma exceto o que já está aberto na tela
-    const others = allProducts.filter((p) => p.id !== product.id);
+  // Verifica se uma nota olfativa específica dá match com o perfil do usuário (RF-20 / RN-05)
+  const isMatchedNote = (noteName: string) => {
+    if (!product?.matched_notes || product.matched_notes.length === 0) return false;
+    const norm = noteName.toLowerCase().trim();
+    return product.matched_notes.some(
+      (mn) => mn.toLowerCase().trim().includes(norm) || norm.includes(mn.toLowerCase().trim())
+    );
+  };
 
-    return others.map((p) => {
-      const hasVariations = (p.available_volumes && p.available_volumes.length > 1) || 
-                            (p.store_offers && p.store_offers.length > 1);
-      const minPrice = p.min_price ?? (
-        p.store_offers && p.store_offers.length > 0 
+  // Recomendações formatadas para o grid inferior
+  const recommendedItems = useMemo(() => {
+    return recommendedProducts.map((p) => {
+      const hasVariations =
+        (p.available_volumes && p.available_volumes.length > 1) ||
+        (p.store_offers && p.store_offers.length > 1);
+      const minPrice =
+        p.min_price ??
+        (p.store_offers && p.store_offers.length > 0
           ? Math.min(...p.store_offers.map((o) => parseFloat(o.price) || 0))
-          : 0
-      );
+          : 0);
       const primaryOffer = p.store_offers && p.store_offers.length > 0 ? p.store_offers[0] : null;
 
       return {
         id: p.id,
         product_id: p.id,
         product_name: p.name,
-        brand_name: p.brand?.name || 'NOTA',
+        brand_name: p.brand?.name || 'NŌTA',
         olfactory_family: p.olfactory_family || 'Geral',
         price: minPrice ? minPrice.toString() : '0',
         image_url: p.image_url,
@@ -307,9 +311,10 @@ export default function ProductDetailScreen() {
         store_state: primaryOffer?.state || p.store_state || '',
         sold_count: p.sold_count || 0,
         hasMultipleVariations: Boolean(hasVariations),
+        match_percentage: p.match_percentage,
       };
     });
-  }, [allProducts, product]);
+  }, [recommendedProducts]);
 
   const storeOffersForProduct = useMemo(() => {
     if (!product?.store_offers) return [];
@@ -400,7 +405,7 @@ export default function ProductDetailScreen() {
               </View>
             )}
 
-            {/* Botões de Ação Flutuantes sobre a Imagem */}
+            {/* Botões de Ação Flutuantes (RF-20 / RN-06: Botão de coração estático removido) */}
             <View style={styles.heroActionBar}>
               <TouchableOpacity
                 onPress={handleGoBack}
@@ -418,31 +423,12 @@ export default function ProductDetailScreen() {
                 >
                   <MaterialIcons name="share" size={20} color="#1C252E" />
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setIsFavorite(!isFavorite);
-                    showToast(
-                      !isFavorite
-                        ? 'Adicionado aos favoritos!'
-                        : 'Removido dos favoritos'
-                    );
-                  }}
-                  style={styles.floatingCircleBtn}
-                  accessibilityLabel="Favoritar"
-                >
-                  <MaterialIcons
-                    name={isFavorite ? 'favorite' : 'favorite-border'}
-                    size={22}
-                    color={isFavorite ? '#DC2626' : '#1C252E'}
-                  />
-                </TouchableOpacity>
               </View>
             </View>
           </View>
 
           {/* ========================================================= */}
-          {/* 2. INFORMAÇÕES DO PRODUTO (BD) */}
+          {/* 2. INFORMAÇÕES DO PRODUTO (BD) & MATCH OLFATIVO (RF-20) */}
           {/* ========================================================= */}
           <View style={styles.cardSection}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
@@ -461,6 +447,27 @@ export default function ProductDetailScreen() {
             <Text style={styles.concentrationSubtext}>
               {product.concentration || 'Eau de Parfum'} • {product.olfactory_family}
             </Text>
+
+            {/* CARD DE MATCH OLFATIVO (RF-20 / RN-05) */}
+            {product.match_percentage !== null && product.match_percentage !== undefined && product.match_percentage > 0 && (
+              <View style={styles.matchCardContainer}>
+                <View style={styles.matchCardHeader}>
+                  <Ionicons name="sparkles" size={18} color="#D97706" />
+                  <Text style={styles.matchCardTitle}>
+                    ✨ {product.match_percentage}% Match com seu Perfil Olfativo
+                  </Text>
+                </View>
+                <Text style={styles.matchCardDescription}>
+                  {product.matched_family && product.matched_notes && product.matched_notes.length > 0
+                    ? `Combina com sua família ${product.olfactory_family} e com suas notas de ${product.matched_notes.join(', ')}.`
+                    : product.matched_family
+                    ? `Combina com sua família olfativa ${product.olfactory_family}.`
+                    : product.matched_notes && product.matched_notes.length > 0
+                    ? `Combina com suas notas favoritas de ${product.matched_notes.join(', ')}.`
+                    : `Fragrância em alta sintonia com suas preferências olfativas.`}
+                </Text>
+              </View>
+            )}
 
             {/* Tags de Classificação e Família Olfativa cadastradas no BD */}
             <View style={styles.familyPillsRow}>
@@ -558,7 +565,6 @@ export default function ProductDetailScreen() {
               <View style={styles.volumesRow}>
                 {displayVolumes.map((vol) => {
                   const isSelected = selectedVolume === vol;
-                  // Encontra a melhor oferta para este volume (priorizando a loja atual)
                   const offerForVol =
                     storeOffersForProduct.find((o) => o.volume_ml === vol) ||
                     product.store_offers?.find((o) => o.volume_ml === vol);
@@ -700,7 +706,7 @@ export default function ProductDetailScreen() {
           </View>
 
           {/* ========================================================= */}
-          {/* 5. PIRÂMIDE OLFATIVA (BD) */}
+          {/* 5. PIRÂMIDE OLFATIVA COM DESTAQUE EM MATCHES (RF-20 / RN-05) */}
           {/* ========================================================= */}
           {Boolean((product.top_notes && product.top_notes.length > 0) ||
             (product.heart_notes && product.heart_notes.length > 0) ||
@@ -717,11 +723,19 @@ export default function ProductDetailScreen() {
                     <View style={styles.notesPillList}>
                       {product.top_notes
                         .filter((note) => typeof note === 'string' && note.trim().length > 0)
-                        .map((note, index) => (
-                          <View key={`top-${index}`} style={styles.notePill}>
-                            <Text style={styles.notePillText}>{String(note)}</Text>
-                          </View>
-                        ))}
+                        .map((note, index) => {
+                          const matched = isMatchedNote(note);
+                          return (
+                            <View
+                              key={`top-${index}`}
+                              style={[styles.notePill, matched && styles.notePillMatched]}
+                            >
+                              <Text style={[styles.notePillText, matched && styles.notePillTextMatched]}>
+                                {matched ? `✦ ${String(note)}` : String(note)}
+                              </Text>
+                            </View>
+                          );
+                        })}
                     </View>
                   </View>
                 ) : null}
@@ -735,11 +749,19 @@ export default function ProductDetailScreen() {
                     <View style={styles.notesPillList}>
                       {product.heart_notes
                         .filter((note) => typeof note === 'string' && note.trim().length > 0)
-                        .map((note, index) => (
-                          <View key={`heart-${index}`} style={styles.notePill}>
-                            <Text style={styles.notePillText}>{String(note)}</Text>
-                          </View>
-                        ))}
+                        .map((note, index) => {
+                          const matched = isMatchedNote(note);
+                          return (
+                            <View
+                              key={`heart-${index}`}
+                              style={[styles.notePill, matched && styles.notePillMatched]}
+                            >
+                              <Text style={[styles.notePillText, matched && styles.notePillTextMatched]}>
+                                {matched ? `✦ ${String(note)}` : String(note)}
+                              </Text>
+                            </View>
+                          );
+                        })}
                     </View>
                   </View>
                 ) : null}
@@ -753,11 +775,19 @@ export default function ProductDetailScreen() {
                     <View style={styles.notesPillList}>
                       {product.base_notes
                         .filter((note) => typeof note === 'string' && note.trim().length > 0)
-                        .map((note, index) => (
-                          <View key={`base-${index}`} style={styles.notePill}>
-                            <Text style={styles.notePillText}>{String(note)}</Text>
-                          </View>
-                        ))}
+                        .map((note, index) => {
+                          const matched = isMatchedNote(note);
+                          return (
+                            <View
+                              key={`base-${index}`}
+                              style={[styles.notePill, matched && styles.notePillMatched]}
+                            >
+                              <Text style={[styles.notePillText, matched && styles.notePillTextMatched]}>
+                                {matched ? `✦ ${String(note)}` : String(note)}
+                              </Text>
+                            </View>
+                          );
+                        })}
                     </View>
                   </View>
                 ) : null}
@@ -791,10 +821,9 @@ export default function ProductDetailScreen() {
           ) : null}
 
           {/* ========================================================= */}
-          {/* AVALIAÇÕES DO PRODUTO (ESTILO SHOPEE) */}
+          {/* AVALIAÇÕES DO PRODUTO */}
           {/* ========================================================= */}
           <View style={styles.reviewsSectionShopee}>
-            {/* Cabeçalho da seção */}
             <View style={styles.reviewsShopeeHeader}>
               <View style={styles.reviewsShopeeTitleWrap}>
                 <Text style={styles.reviewsShopeeTitle}>Avaliações do Produto</Text>
@@ -838,7 +867,6 @@ export default function ProductDetailScreen() {
               )}
             </View>
 
-            {/* Prévia das primeiras avaliações (1 a 2 comentários como na Shopee) */}
             {isLoadingReviews ? (
               <View style={styles.reviewsShopeeLoading}>
                 <ActivityIndicator size="small" color="#2C4659" />
@@ -855,7 +883,6 @@ export default function ProductDetailScreen() {
               <View style={styles.reviewsShopeeList}>
                 {reviews.slice(0, 2).map((rev) => (
                   <View key={rev.id} style={styles.reviewsShopeeCard}>
-                    {/* Linha do autor e data */}
                     <View style={styles.reviewsShopeeUserRow}>
                       <View style={styles.reviewsShopeeAvatar}>
                         <Text style={styles.reviewsShopeeAvatarText}>
@@ -880,21 +907,18 @@ export default function ProductDetailScreen() {
                       </Text>
                     </View>
 
-                    {/* Variação/Volume comprado */}
                     {Boolean(rev.volume_ml) && (
                       <Text style={styles.reviewsShopeeVariation}>
                         Variação: {formatProductVolume(rev.volume_ml)}
                       </Text>
                     )}
 
-                    {/* Comentário */}
                     {Boolean(rev.comment) && (
                       <Text style={styles.reviewsShopeeComment} numberOfLines={3}>
                         {rev.comment}
                       </Text>
                     )}
 
-                    {/* Miniaturas de fotos */}
                     {rev.photos && rev.photos.length > 0 && (
                       <View style={styles.reviewsShopeePhotosRow}>
                         {rev.photos.slice(0, 3).map((p) => (
@@ -909,7 +933,6 @@ export default function ProductDetailScreen() {
                       </View>
                     )}
 
-                    {/* Resposta da Loja */}
                     {rev.reply && (
                       <View style={styles.reviewsShopeeReplyBox}>
                         <View style={styles.reviewsShopeeReplyHeader}>
@@ -929,7 +952,6 @@ export default function ProductDetailScreen() {
                   </View>
                 ))}
 
-                {/* Botão para visualizar todas */}
                 {reviews.length > 2 && (
                   <TouchableOpacity
                     style={styles.reviewsShopeeBottomButton}
@@ -962,14 +984,16 @@ export default function ProductDetailScreen() {
           </View>
 
           {/* ========================================================= */}
-          {/* 7. SEÇÃO UNIFICADA DE RECOMENDAÇÕES */}
+          {/* 7. SEÇÃO DE RECOMENDAÇÕES E MATCH (RF-20 / RN-05) */}
           {/* ========================================================= */}
           {recommendedItems.length > 0 ? (
             <View style={styles.shopeeSectionWrapper}>
               <View style={styles.shopeeHeaderRow}>
                 <View style={styles.shopeeTitleGroup}>
-                  <Ionicons name="sparkles" size={18} color="#2C4659" />
-                  <Text style={styles.shopeeSectionTitle}>Recomendações</Text>
+                  <Ionicons name="sparkles" size={18} color="#D97706" />
+                  <Text style={styles.shopeeSectionTitle}>
+                    {isPersonalized ? 'Combina com seu Perfil Olfativo' : 'Recomendações para você'}
+                  </Text>
                 </View>
               </View>
 
@@ -995,7 +1019,7 @@ export default function ProductDetailScreen() {
         </ScrollView>
 
         {/* ========================================================= */}
-        {/* 8. BARRA FIXA INFERIOR COM DADOS REAIS */}
+        {/* 8. BARRA FIXA INFERIOR */}
         {/* ========================================================= */}
         <View style={styles.bottomBarContainer}>
           <View style={styles.bottomBarStoreInfo}>
@@ -1214,6 +1238,33 @@ const styles = StyleSheet.create({
     color: '#78716C',
     marginTop: 2,
   },
+
+  // Estilos do Match Olfativo (RF-20 / RN-05)
+  matchCardContainer: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+  },
+  matchCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  matchCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  matchCardDescription: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+
   familyPillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1518,11 +1569,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  notePillMatched: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
   },
   notePillText: {
     fontSize: 12,
     color: '#4B5563',
     fontWeight: '500',
+  },
+  notePillTextMatched: {
+    color: '#92400E',
+    fontWeight: '800',
   },
 
   // Sobre
@@ -1561,11 +1622,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#1C252E',
-  },
-  shopeeBadgeHint: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#78716C',
   },
   shopeeGrid: {
     flexDirection: 'row',
@@ -1650,7 +1706,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 12,
   },
-  // --- Estilos Shopee: Avaliações do Produto ---
+
+  // Avaliações
   reviewsSectionShopee: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,

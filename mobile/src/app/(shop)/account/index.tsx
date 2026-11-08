@@ -27,12 +27,12 @@ export default function AccountScreen() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Carrega dinamicamente os dados do usuário autenticado no AuthContext
+  // Leitura 100% dinâmica dos dados reais do usuário no AuthContext
+  const displayEmail = user?.email || '';
   const displayName =
     [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
-    'Ana Ferreira';
-  const displayEmail = user?.email || 'ana.ferreira@email.com';
-  const avatarLetter = (user?.first_name?.[0] || 'A').toUpperCase();
+    (displayEmail ? displayEmail.split('@')[0] : 'Usuário');
+  const avatarLetter = (user?.first_name?.[0] || displayEmail[0] || 'U').toUpperCase();
   const olfactoryFamilies = user?.olfactory_families ?? [];
   const preferredNotes = user?.preferred_notes ?? [];
   const hasOlfactoryProfile = olfactoryFamilies.length > 0 || preferredNotes.length > 0;
@@ -91,14 +91,14 @@ export default function AccountScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* --- USER HEADER (Dinâmico com os dados do usuário) --- */}
+          {/* --- USER HEADER --- */}
           <View style={styles.userHeader}>
             <View style={styles.avatar}>
               <Text style={styles.avatarLetter}>{avatarLetter}</Text>
             </View>
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{displayName}</Text>
-              <Text style={styles.userEmail}>{displayEmail}</Text>
+              {displayEmail ? <Text style={styles.userEmail}>{displayEmail}</Text> : null}
             </View>
 
             <TouchableOpacity
@@ -123,16 +123,46 @@ export default function AccountScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* --- BANNER PERFIL OLFATIVO --- */}
           {hasOlfactoryProfile ? (
             <View style={styles.olfactoryBanner}>
-              <Text style={styles.olfactoryTitle}>Famílias</Text>
-              <View style={styles.chipsRow}>
-                {olfactoryFamilies.map((family: string) => <Text key={family} style={styles.profileChip}>{family}</Text>)}
+              <View style={styles.olfactoryHeaderRow}>
+                <Text style={styles.olfactorySectionTitle}>Perfil Olfativo</Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.editOlfactoryText}>Editar</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={[styles.olfactoryTitle, styles.notesTitle]}>Notas favoritas</Text>
-              <View style={styles.chipsRow}>
-                {preferredNotes.map((note: string) => <Text key={note} style={styles.profileChip}>{note}</Text>)}
-              </View>
+
+              {olfactoryFamilies.length > 0 && (
+                <>
+                  <Text style={styles.olfactoryTitle}>Famílias</Text>
+                  <View style={styles.chipsRow}>
+                    {olfactoryFamilies.map((family: string) => (
+                      <Text key={family} style={styles.profileChip}>
+                        {family}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {preferredNotes.length > 0 && (
+                <>
+                  <Text style={[styles.olfactoryTitle, styles.notesTitle]}>
+                    Notas favoritas
+                  </Text>
+                  <View style={styles.chipsRow}>
+                    {preferredNotes.map((note: string) => (
+                      <Text key={note} style={styles.profileChip}>
+                        {note}
+                      </Text>
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
           ) : (
             <View style={styles.olfactoryBanner}>
@@ -151,15 +181,18 @@ export default function AccountScreen() {
             </View>
           )}
 
-          <View style={styles.personalSection}>
-            <View style={styles.personalHeading}>
-              <Text style={styles.personalTitle}>Dados Pessoais</Text>
-              <TouchableOpacity onPress={() => router.push('/(shop)/account/edit-profile' as any)}>
-                <Text style={styles.editText}>Editar</Text>
-              </TouchableOpacity>
+          {/* --- DADOS PESSOAIS --- */}
+          {displayEmail ? (
+            <View style={styles.personalSection}>
+              <View style={styles.personalHeading}>
+                <Text style={styles.personalTitle}>Dados Pessoais</Text>
+                <TouchableOpacity onPress={() => router.push('/(shop)/account/edit-profile' as any)}>
+                  <Text style={styles.editText}>Editar</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.personalEmail}>{displayEmail}</Text>
             </View>
-            <Text style={styles.personalEmail}>{displayEmail}</Text>
-          </View>
+          ) : null}
 
           {/* --- MENU CARD --- */}
           <View style={styles.menuCard}>
@@ -262,8 +295,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 24,
   },
-
-  // --- Header ---
   userHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -343,8 +374,24 @@ const styles = StyleSheet.create({
     borderColor: '#F4DFD5',
     padding: 18,
   },
+  olfactoryHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  olfactorySectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#273847',
+  },
+  editOlfactoryText: {
+    color: '#A85A38',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   olfactoryTitle: {
-    fontSize: 15.5,
+    fontSize: 14,
     fontWeight: '700',
     color: '#A85A38',
     marginBottom: 6,
@@ -372,7 +419,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  notesTitle: { marginTop: 16 },
+  notesTitle: { marginTop: 12 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   profileChip: {
     backgroundColor: '#FFFFFF',
@@ -384,6 +431,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+
+  // --- Dados Pessoais ---
   personalSection: {
     marginHorizontal: 20,
     marginBottom: 20,
