@@ -33,6 +33,19 @@ interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
+const formatUser = (userData: any): User | null => {
+  if (!userData) return null;
+  return {
+    ...userData,
+    olfactory_families: Array.isArray(userData?.olfactory_families)
+      ? userData.olfactory_families
+      : [],
+    preferred_notes: Array.isArray(userData?.preferred_notes)
+      ? userData.preferred_notes
+      : [],
+  };
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -54,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = await getToken(ACCESS_TOKEN_KEY);
         if (token && active) {
           const userData = await authService.me();
-          if (active) setUser(userData);
+          if (active) setUser(formatUser(userData));
         } else if (active) {
           setUser(null);
         }
@@ -82,17 +95,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await saveToken(ACCESS_TOKEN_KEY, tokens.access);
     await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
     const userData = await authService.me();
-    setUser(userData);
+    setUser(formatUser(userData));
   }
 
   async function signUp(data: any) {
     const response = await authService.register(data);
-    
+
     if (response?.access && response?.refresh) {
       await saveToken(ACCESS_TOKEN_KEY, response.access);
       await saveToken(REFRESH_TOKEN_KEY, response.refresh);
       const userData = await authService.me();
-      setUser(userData);
+      setUser(formatUser(userData));
     } else {
       await signIn({ email: data.email, password: data.password });
     }
@@ -103,26 +116,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await saveToken(ACCESS_TOKEN_KEY, tokens.access);
     await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
     const userData = await authService.me();
-    setUser(userData);
+    setUser(formatUser(userData));
   }
 
   async function updateProfile(data: any) {
     const updatedUser = await authService.updateProfile(data);
-    setUser((prev) => (prev ? { ...prev, ...updatedUser } : updatedUser));
+    setUser((prev) => formatUser({ ...prev, ...updatedUser }));
   }
 
   async function updateOlfactoryProfile(data: OlfactoryProfile) {
-  const updatedData = await authService.updateOlfactoryProfile(data);
-  setUser((prev) => {
-    if (!prev) return null;
-    return {
-      ...prev,
-      ...updatedData,
-      olfactory_families: updatedData?.olfactory_families ?? data.olfactory_families,
-      preferred_notes: updatedData?.preferred_notes ?? data.preferred_notes,
-    };
-  });
-}
+    const response = await authService.updateOlfactoryProfile(data);
+    setUser((prev) => {
+      const merged = {
+        ...prev,
+        ...response,
+        olfactory_families:
+          Array.isArray(response?.olfactory_families) && response.olfactory_families.length > 0
+            ? response.olfactory_families
+            : data.olfactory_families,
+        preferred_notes:
+          Array.isArray(response?.preferred_notes) && response.preferred_notes.length > 0
+            ? response.preferred_notes
+            : data.preferred_notes,
+      };
+      return formatUser(merged);
+    });
+  }
 
   return (
     <AuthContext.Provider

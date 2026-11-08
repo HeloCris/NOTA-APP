@@ -27,7 +27,7 @@ export default function AccountScreen() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Leitura 100% dinâmica dos dados reais do usuário no AuthContext
+  // Leitura dinâmica dos dados do usuário no AuthContext
   const displayEmail = user?.email || '';
   const displayName =
     [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
@@ -36,6 +36,9 @@ export default function AccountScreen() {
   const olfactoryFamilies = user?.olfactory_families ?? [];
   const preferredNotes = user?.preferred_notes ?? [];
   const hasOlfactoryProfile = olfactoryFamilies.length > 0 || preferredNotes.length > 0;
+  
+  // Perfil olfativo é restrito a clientes (CUSTOMER ou não definido nos mocks de teste)
+  const isCustomer = !user?.role || user?.role === 'CUSTOMER';
 
   const confirmSignOut = async () => {
     setShowLogoutModal(false);
@@ -123,62 +126,64 @@ export default function AccountScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* --- BANNER PERFIL OLFATIVO --- */}
-          {hasOlfactoryProfile ? (
-            <View style={styles.olfactoryBanner}>
-              <View style={styles.olfactoryHeaderRow}>
-                <Text style={styles.olfactorySectionTitle}>Perfil Olfativo</Text>
+          {/* --- BANNER PERFIL OLFATIVO (Apenas para CUSTOMER) --- */}
+          {isCustomer && (
+            hasOlfactoryProfile ? (
+              <View style={styles.olfactoryBanner}>
+                <View style={styles.olfactoryHeaderRow}>
+                  <Text style={styles.olfactorySectionTitle}>Perfil Olfativo</Text>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.editOlfactoryText}>Editar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {olfactoryFamilies.length > 0 && (
+                  <>
+                    <Text style={styles.olfactoryTitle}>Famílias</Text>
+                    <View style={styles.chipsRow}>
+                      {olfactoryFamilies.map((family: string) => (
+                        <Text key={family} style={styles.profileChip}>
+                          {family}
+                        </Text>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {preferredNotes.length > 0 && (
+                  <>
+                    <Text style={[styles.olfactoryTitle, styles.notesTitle]}>
+                      Notas favoritas
+                    </Text>
+                    <View style={styles.chipsRow}>
+                      {preferredNotes.map((note: string) => (
+                        <Text key={note} style={styles.profileChip}>
+                          {note}
+                        </Text>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : (
+              <View style={styles.olfactoryBanner}>
+                <Text style={styles.olfactoryTitle}>Complete seu perfil olfativo</Text>
+                <Text style={styles.olfactoryDesc}>
+                  Responda 5 perguntas rápidas e receba recomendações de fragrâncias
+                  sob medida para você.
+                </Text>
                 <TouchableOpacity
+                  style={styles.olfactoryBtn}
+                  activeOpacity={0.85}
                   onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
-                  activeOpacity={0.7}
                 >
-                  <Text style={styles.editOlfactoryText}>Editar</Text>
+                  <Text style={styles.olfactoryBtnText}>Completar agora</Text>
                 </TouchableOpacity>
               </View>
-
-              {olfactoryFamilies.length > 0 && (
-                <>
-                  <Text style={styles.olfactoryTitle}>Famílias</Text>
-                  <View style={styles.chipsRow}>
-                    {olfactoryFamilies.map((family: string) => (
-                      <Text key={family} style={styles.profileChip}>
-                        {family}
-                      </Text>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {preferredNotes.length > 0 && (
-                <>
-                  <Text style={[styles.olfactoryTitle, styles.notesTitle]}>
-                    Notas favoritas
-                  </Text>
-                  <View style={styles.chipsRow}>
-                    {preferredNotes.map((note: string) => (
-                      <Text key={note} style={styles.profileChip}>
-                        {note}
-                      </Text>
-                    ))}
-                  </View>
-                </>
-              )}
-            </View>
-          ) : (
-            <View style={styles.olfactoryBanner}>
-              <Text style={styles.olfactoryTitle}>Complete seu perfil olfativo</Text>
-              <Text style={styles.olfactoryDesc}>
-                Responda 5 perguntas rápidas e receba recomendações de fragrâncias
-                sob medida para você.
-              </Text>
-              <TouchableOpacity
-                style={styles.olfactoryBtn}
-                activeOpacity={0.85}
-                onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
-              >
-                <Text style={styles.olfactoryBtnText}>Completar agora</Text>
-              </TouchableOpacity>
-            </View>
+            )
           )}
 
           {/* --- DADOS PESSOAIS --- */}

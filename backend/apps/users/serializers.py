@@ -70,8 +70,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "last_name": instance.last_name,
             "phone": instance.phone,
             "role": instance.role,
-            "olfactory_families": getattr(instance, "olfactory_families", []),
-            "preferred_notes": getattr(instance, "preferred_notes", []),
+            "olfactory_families": getattr(instance, "olfactory_families", []) or [],
+            "preferred_notes": getattr(instance, "preferred_notes", []) or [],
         }
 
 
@@ -126,15 +126,27 @@ class MeSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
-        # Remove store_id apenas se não for SELLER, garantindo que
-        # olfactory_families e preferred_notes fiquem SEMPRE presentes no JSON.
         if instance.role == CustomUser.Roles.CUSTOMER:
             data.pop("store_id", None)
+            data["olfactory_families"] = instance.olfactory_families or []
+            data["preferred_notes"] = instance.preferred_notes or []
+        elif instance.role == CustomUser.Roles.SELLER:
+            data.pop("olfactory_families", None)
+            data.pop("preferred_notes", None)
 
         return data
 
 
 class OlfactoryProfileSerializer(serializers.ModelSerializer):
+    olfactory_families = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+    )
+    preferred_notes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+    )
+
     class Meta:
         model = CustomUser
         fields = [
@@ -142,16 +154,16 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
             "preferred_notes",
         ]
 
-    def validate_olfactory_families(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError(
-                "Famílias olfativas devem ser enviadas como uma lista de textos."
-            )
-        return value
+    def update(self, instance, validated_data):
+        if "olfactory_families" in validated_data:
+            instance.olfactory_families = validated_data["olfactory_families"]
+        if "preferred_notes" in validated_data:
+            instance.preferred_notes = validated_data["preferred_notes"]
+
+        instance.save(update_fields=["olfactory_families", "preferred_notes"])
+        return instance
 
     def to_representation(self, instance):
-        # Retorna a representação completa do usuário através do MeSerializer,
-        # sincronizando 100% dos dados com o AuthContext no React Native.
         return MeSerializer(instance, context=self.context).data
 
 

@@ -321,9 +321,23 @@ class RecommendedProductListView(ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
+        limit_raw = request.query_params.get("limit", 10)
+        try:
+            limit = int(limit_raw)
+            if limit <= 0:
+                return Response(
+                    {"detail": "O parâmetro 'limit' deve ser um número inteiro positivo."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            limit = min(limit, 50)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "O parâmetro 'limit' deve ser um valor numérico inteiro válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         queryset = self.get_queryset()
         user = request.user
-        limit = int(request.query_params.get("limit", 10))
 
         followed_store_ids = set()
         is_personalized = False
