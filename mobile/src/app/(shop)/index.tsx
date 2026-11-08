@@ -162,7 +162,9 @@ export default function ShopIndex() {
   const router = useRouter();
   const { user } = useAuth();
   const { unreadCount } = useUnreadNotifications();
-  const userName = user?.first_name || 'Ana';
+
+  // Nome dinâmico sem fallback fixo para "Ana"
+  const userName = user?.first_name || (user?.email ? user.email.split('@')[0] : 'Visitante');
 
   const { width: windowWidth } = useWindowDimensions();
   // Constrain to mobile width on desktop, full-width on mobile
@@ -457,8 +459,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 24,
   },
-
-  // --- Header ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -531,8 +531,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
   },
-
-  // --- Banners ---
   bannersScroll: {
     paddingHorizontal: 20,
     gap: 12,
@@ -571,8 +569,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 26,
   },
-
-  // --- Categorias Rápidas ---
   sectionHeader: {
     paddingHorizontal: 20,
     marginTop: 22,
@@ -621,8 +617,6 @@ const styles = StyleSheet.create({
     color: '#1C252E',
     fontWeight: '700',
   },
-
-  // --- Lojas em Destaque ---
   sectionHeaderWithAction: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -685,8 +679,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-
-  // --- Para Você (Product Cards) ---
   productsGrid: {
     flexDirection: 'row',
     paddingHorizontal: 20,

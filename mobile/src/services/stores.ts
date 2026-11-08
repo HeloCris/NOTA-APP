@@ -87,7 +87,7 @@ export interface Store {
   logo_url?: string;
   is_active: boolean;
   vacation_mode: boolean;
-  is_verified?: boolean; // Mapeado ou opcional para o badge visual
+  is_verified?: boolean;
   is_official?: boolean;
   rating?: number;
   reviews_count?: number;
@@ -148,6 +148,72 @@ export interface ProductDetails {
   store_offers?: ProductStoreOffer[];
   available_volumes?: number[];
   min_price?: number | null;
+  // Campos da RF-20 (Match Olfativo)
+  match_percentage?: number | null;
+  matched_notes?: string[];
+  matched_family?: boolean;
+}
+
+export interface FollowingStore {
+  store_id: number;
+  name: string;
+  slug: string;
+  logo_url?: string;
+  is_official: boolean;
+  followers_count: number;
+  rating: number;
+  followed_at: string;
+}
+
+export interface CouponValidationResponse {
+  valid: boolean;
+  coupon_id?: number;
+  code?: string;
+  discount_type?: "PERCENTAGE" | "FIXED_VALUE";
+  discount_value?: string;
+  applied_discount?: string;
+  new_subtotal?: string;
+  error?: string;
+}
+
+export interface ShippingMethodQuote {
+  id: "PAC" | "SEDEX";
+  name: string;
+  price: number;
+  handling_days: number;
+  transit_days_min: number;
+  transit_days_max: number;
+  total_delivery_days_min: number;
+  total_delivery_days_max: number;
+  description: string;
+  is_free: boolean;
+}
+
+export interface ShippingQuoteResponse {
+  store_id: number;
+  store_name: string;
+  origin_state: string;
+  origin_postal_code: string;
+  destination_state: string;
+  destination_postal_code: string;
+  region_tier: "LOCAL" | "NATIONAL";
+  region_description: string;
+  handling_days: number;
+  free_shipping_threshold: number | null;
+  qualifies_for_free_shipping: boolean;
+  methods: ShippingMethodQuote[];
+}
+
+export interface CatalogNotesResponse {
+  top_notes: string[];
+  heart_notes: string[];
+  base_notes: string[];
+  families: string[];
+}
+
+export interface RecommendedProductsResponse {
+  is_personalized: boolean;
+  results: ProductDetails[];
 }
 
 export const storesService = {
@@ -244,54 +310,24 @@ export const storesService = {
     });
     return response.data;
   },
+
+  // Métodos da RF-20 agregados ao objeto do serviço
+  getCatalogNotes: async (): Promise<CatalogNotesResponse> => {
+    const response = await api.get('/catalog/notes/');
+    return response.data;
+  },
+
+  getRecommendedProducts: async (excludeId?: number, limit = 6): Promise<RecommendedProductsResponse> => {
+    const response = await api.get('/products/recommended/', {
+      params: {
+        exclude_id: excludeId,
+        limit,
+      },
+    });
+    return response.data;
+  },
 };
 
-export interface FollowingStore {
-  store_id: number;
-  name: string;
-  slug: string;
-  logo_url?: string;
-  is_official: boolean;
-  followers_count: number;
-  rating: number;
-  followed_at: string;
-}
-
-export interface CouponValidationResponse {
-  valid: boolean;
-  coupon_id?: number;
-  code?: string;
-  discount_type?: "PERCENTAGE" | "FIXED_VALUE";
-  discount_value?: string;
-  applied_discount?: string;
-  new_subtotal?: string;
-  error?: string;
-}
-
-export interface ShippingMethodQuote {
-  id: "PAC" | "SEDEX";
-  name: string;
-  price: number;
-  handling_days: number;
-  transit_days_min: number;
-  transit_days_max: number;
-  total_delivery_days_min: number;
-  total_delivery_days_max: number;
-  description: string;
-  is_free: boolean;
-}
-
-export interface ShippingQuoteResponse {
-  store_id: number;
-  store_name: string;
-  origin_state: string;
-  origin_postal_code: string;
-  destination_state: string;
-  destination_postal_code: string;
-  region_tier: "LOCAL" | "NATIONAL";
-  region_description: string;
-  handling_days: number;
-  free_shipping_threshold: number | null;
-  qualifies_for_free_shipping: boolean;
-  methods: ShippingMethodQuote[];
-}
+// Exportações individuais mantidas para compatibilidade retroativa
+export const getCatalogNotes = storesService.getCatalogNotes;
+export const getRecommendedProducts = storesService.getRecommendedProducts;

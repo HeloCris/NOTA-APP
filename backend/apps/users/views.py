@@ -44,13 +44,13 @@ class RegisterView(generics.CreateAPIView):
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]  # stub de simplejwt tipa como tuple[()]
+    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]
     serializer_class = CustomTokenObtainPairSerializer
 
 
 class TokenBlacklistView(SimpleJWTTokenBlacklistView):
     _serializer_class = api_settings.TOKEN_BLACKLIST_SERIALIZER
-    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]  # stub de simplejwt tipa como tuple[()]
+    permission_classes = (permissions.AllowAny,)  # type: ignore[assignment]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -129,6 +129,20 @@ class OlfactoryProfileView(generics.UpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", True)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        updated_instance = serializer.save()
+        updated_instance.refresh_from_db()
+
+        return Response(
+            MeSerializer(updated_instance, context=self.get_serializer_context()).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class UserAddressListCreateView(generics.ListCreateAPIView):

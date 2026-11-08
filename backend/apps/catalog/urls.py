@@ -1,6 +1,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from apps.catalog.views import RecommendedProductListView, CatalogNotesView
 
 from .views import (
     BrandListView, 
@@ -15,6 +16,8 @@ from .views import (
     BrandOnboardingView,
     BrandStatusView
 )
+
+app_name = "catalog"
 
 router = DefaultRouter()
 router.register(r'brands/me/products', BrandProductViewSet, basename='brand-products')
@@ -33,4 +36,6 @@ urlpatterns = [
     
     path("products/", ProductListCreateView.as_view(), name="product-list"),
     path("products/<int:pk>/", ProductDetailView.as_view(), name="product-detail"),
+    path('products/recommended/', RecommendedProductListView.as_view(), name='recommended-products'),
+    path('catalog/notes/', CatalogNotesView.as_view(), name='catalog-notes'),
 ]

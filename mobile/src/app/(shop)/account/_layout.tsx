@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Stack } from 'expo-router';
 
@@ -15,30 +16,32 @@ export default function AccountLayout() {
           headerShown: false,
         }}
       />
+
       <Stack.Screen
         name="addresses"
         options={{
           headerShown: false,
         }}
       />
+
       <Stack.Screen
         name="payment-methods"
         options={{
           headerShown: false,
         }}
       />
+
       <Stack.Screen
         name="following"
         options={{
           headerShown: false,
         }}
       />
+
       <Stack.Screen
         name="edit-olfactory-profile"
         options={{
-          headerShown: true,
-          title: 'Meu Perfil Olfativo',
-          headerBackTitle: 'Conta',
+          headerShown: false,
         }}
       />
     </Stack>

@@ -70,8 +70,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "last_name": instance.last_name,
             "phone": instance.phone,
             "role": instance.role,
-            "olfactory_families": getattr(instance, "olfactory_families", []),
-            "preferred_notes": getattr(instance, "preferred_notes", []),
+            "olfactory_families": getattr(instance, "olfactory_families", []) or [],
+            "preferred_notes": getattr(instance, "preferred_notes", []) or [],
         }
 
 
@@ -128,7 +128,9 @@ class MeSerializer(serializers.ModelSerializer):
 
         if instance.role == CustomUser.Roles.CUSTOMER:
             data.pop("store_id", None)
-        else:
+            data["olfactory_families"] = instance.olfactory_families or []
+            data["preferred_notes"] = instance.preferred_notes or []
+        elif instance.role == CustomUser.Roles.SELLER:
             data.pop("olfactory_families", None)
             data.pop("preferred_notes", None)
 
@@ -136,6 +138,15 @@ class MeSerializer(serializers.ModelSerializer):
 
 
 class OlfactoryProfileSerializer(serializers.ModelSerializer):
+    olfactory_families = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+    )
+    preferred_notes = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+    )
+
     class Meta:
         model = CustomUser
         fields = [
@@ -143,24 +154,17 @@ class OlfactoryProfileSerializer(serializers.ModelSerializer):
             "preferred_notes",
         ]
 
-    def validate_olfactory_families(self, value):
-        valid_families = [
-            "Amadeirado",
-            "Cítrico",
-            "Oriental",
-            "Floral",
-            "Fougère",
-            "Aquático",
-            "Gourmand",
-        ]
+    def update(self, instance, validated_data):
+        if "olfactory_families" in validated_data:
+            instance.olfactory_families = validated_data["olfactory_families"]
+        if "preferred_notes" in validated_data:
+            instance.preferred_notes = validated_data["preferred_notes"]
 
-        for family in value:
-            if family not in valid_families:
-                raise serializers.ValidationError(
-                    f"Família olfativa '{family}' inválida."
-                )
+        instance.save(update_fields=["olfactory_families", "preferred_notes"])
+        return instance
 
-        return value
+    def to_representation(self, instance):
+        return MeSerializer(instance, context=self.context).data
 
 
 class UserAddressSerializer(serializers.ModelSerializer):

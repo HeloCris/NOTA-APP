@@ -1,7 +1,7 @@
 import re
 from rest_framework import serializers
-
 from .models import Brand, Product
+from apps.catalog.services.recommendation_service import calculate_olfactory_match
 
 
 class BrandOnboardingSerializer(serializers.ModelSerializer):
@@ -41,12 +41,13 @@ class ProductStoreOfferSerializer(serializers.Serializer):
     store_logo = serializers.URLField(source='store.logo_url', allow_blank=True, default='')
 
 
-
 class ProductSerializer(serializers.ModelSerializer):
     brand = BrandSerializer(read_only=True)
     brand_id = serializers.PrimaryKeyRelatedField(
-        queryset=Brand.objects.all(), source="brand", write_only=True  # type: ignore
+        queryset=Brand.objects.all(), source="brand", write_only=True, required=False
     )
+    brand_name = serializers.CharField(source='brand.name', read_only=True)
+
     store_offers = serializers.SerializerMethodField()
     available_volumes = serializers.SerializerMethodField()
     min_price = serializers.SerializerMethodField()
@@ -55,14 +56,25 @@ class ProductSerializer(serializers.ModelSerializer):
     store_city = serializers.SerializerMethodField()
     store_state = serializers.SerializerMethodField()
 
+    match_percentage = serializers.SerializerMethodField()
+    matched_notes = serializers.SerializerMethodField()
+    matched_family = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = [
-            "id", "name", "brand", "brand_id", "ean", "anvisa_code", "concentration", "gender", "olfactory_family", "top_notes",
-            "heart_notes", "base_notes", "description", "image_url", "is_approved", "sold_count",
-            "store_offers", "available_volumes", "min_price", "store_name", "store_is_official", "store_city", "store_state"
+            "id", "name", "brand", "brand_id", "brand_name", "ean", "anvisa_code",
+            "concentration", "gender", "olfactory_family", "top_notes", "heart_notes",
+            "base_notes", "description", "image_url", "is_approved", "sold_count",
+            "store_offers", "available_volumes", "min_price", "store_name",
+            "store_is_official", "store_city", "store_state",
+            "match_percentage", "matched_notes", "matched_family"
         ]
-        read_only_fields = ["id", "is_approved", "store_offers", "available_volumes", "min_price", "store_name", "store_is_official", "store_city", "store_state"]
+        read_only_fields = [
+            "id", "is_approved", "store_offers", "available_volumes", "min_price",
+            "store_name", "store_is_official", "store_city", "store_state",
+            "match_percentage", "matched_notes", "matched_family"
+        ]
 
     def get_store_offers(self, obj):
         offers = obj.store_products.filter(
@@ -119,6 +131,33 @@ class ProductSerializer(serializers.ModelSerializer):
             store__is_active=True
         ).select_related('store').first()
         return first_sp.store.state if first_sp and first_sp.store else ""
+
+    def _get_match_data(self, obj):
+        if not hasattr(self, '_match_cache'):
+            self._match_cache = {}
+
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return {"match_percentage": None, "matched_notes": [], "matched_family": False}
+
+        user_id = request.user.id
+        cache_key = f"{user_id}_{obj.id}"
+
+        if cache_key not in self._match_cache:
+            followed_store_ids = self.context.get('followed_store_ids')
+            self._match_cache[cache_key] = calculate_olfactory_match(
+                request.user, obj, followed_store_ids=followed_store_ids
+            )
+        return self._match_cache[cache_key]
+
+    def get_match_percentage(self, obj):
+        return self._get_match_data(obj)["match_percentage"]
+
+    def get_matched_notes(self, obj):
+        return self._get_match_data(obj)["matched_notes"]
+
+    def get_matched_family(self, obj):
+        return self._get_match_data(obj)["matched_family"]
 
     def validate_top_notes(self, value: list[str]) -> list[str]:
         return self._validate_notes(value)
