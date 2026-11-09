@@ -66,11 +66,21 @@ class HomeProductSerializer(serializers.ModelSerializer):
         ]
 
     def get_min_price(self, obj):
-        active_sps = obj.store_products.filter(
-            is_available=True,
-            stock_quantity__gt=0,
-            store__is_active=True,
-        )
+        # Otimização N+1: consome os objetos pré-carregados em memória quando disponíveis
+        if hasattr(obj, "_prefetched_objects_cache") and "store_products" in obj._prefetched_objects_cache:
+            active_sps = [
+                sp
+                for sp in obj.store_products.all()
+                if sp.is_available
+                and sp.stock_quantity > 0
+                and getattr(sp.store, "is_active", True)
+            ]
+        else:
+            active_sps = obj.store_products.filter(
+                is_available=True,
+                stock_quantity__gt=0,
+                store__is_active=True,
+            )
         prices = [
             float(sp.promotional_price or sp.price)
             for sp in active_sps
@@ -79,6 +89,15 @@ class HomeProductSerializer(serializers.ModelSerializer):
         return min(prices) if prices else None
 
     def get_has_decant(self, obj):
+        # Otimização N+1: consome os objetos pré-carregados em memória quando disponíveis
+        if hasattr(obj, "_prefetched_objects_cache") and "store_products" in obj._prefetched_objects_cache:
+            return any(
+                sp.is_available
+                and sp.stock_quantity > 0
+                and getattr(sp.store, "is_active", True)
+                and (sp.volume_ml is not None and sp.volume_ml <= 15)
+                for sp in obj.store_products.all()
+            )
         return obj.store_products.filter(
             is_available=True,
             stock_quantity__gt=0,
@@ -123,23 +142,26 @@ class HomeStoreSerializer(serializers.ModelSerializer):
         ]
 
     def get_rating(self, obj):
-        from apps.reviews.models import Review
-        from django.db.models import Avg
+        if hasattr(obj, "avg_rating"):
+            avg = obj.avg_rating
+        else:
+            from apps.reviews.models import Review
+            from django.db.models import Avg
 
-        avg = Review.objects.filter(
-            store=obj,
-            product__isnull=True,
-            is_hidden=False,
-            is_deleted=False,
-        ).aggregate(Avg("rating"))["rating__avg"]
-        return round(float(avg), 1) if avg is not None else 0.0
+            avg = Review.objects.filter(
+                store=obj,
+                is_hidden=False,
+                is_deleted=False,
+            ).aggregate(Avg("rating"))["rating__avg"]
+        return round(float(avg), 1) if avg is not None else None
 
     def get_reviews_count(self, obj):
+        if hasattr(obj, "total_reviews"):
+            return obj.total_reviews
         from apps.reviews.models import Review
 
         return Review.objects.filter(
             store=obj,
-            product__isnull=True,
             is_hidden=False,
             is_deleted=False,
         ).count()

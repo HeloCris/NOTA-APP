@@ -156,6 +156,7 @@ def setup_home_data(db):
         "prod_woody": prod_woody,
         "prod_floral": prod_floral,
         "prod_out_of_stock": prod_out_of_stock,
+        "prod_inactive_store": prod_inactive_store,
         "customer_with_profile": customer_with_profile,
         "customer_no_profile": customer_no_profile,
     }
@@ -176,6 +177,7 @@ def test_home_feed_anonymous(api_client, setup_home_data):
     assert len(stores) == 1
     assert stores[0]["slug"] == "maison-noire"
     assert stores[0]["is_official"] is True
+    assert stores[0]["rating"] is None
 
     # Produtos recomendados não devem conter produtos sem estoque ou de lojas inativas
     rec_products = data["recommended_products"]
@@ -236,4 +238,133 @@ def test_home_feed_authenticated_without_profile(api_client, setup_home_data):
 
     assert data["has_olfactory_profile"] is False
     assert data["user_summary"]["olfactory_families"] == []
+
+
+@pytest.mark.django_db
+def test_home_feed_filters_out_inactive_stores_and_zero_stock_products(api_client, setup_home_data):
+    """
+    Garante cobertura estrita das regras:
+    - Lojas inativas (is_active=False) não aparecem em featured_stores.
+    - Produtos pertencentes a lojas inativas não aparecem em recommended_products nem decant_highlights.
+    - Produtos com estoque zerado (stock_quantity=0) ou indisponíveis não aparecem no feed da Home.
+    """
+    response = api_client.get("/api/v1/showcase/home/")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.data
+
+    featured_slugs = [s["slug"] for s in data["featured_stores"]]
+    assert setup_home_data["store_inactive"].slug not in featured_slugs
+
+    recommended_ids = [p["id"] for p in data["recommended_products"]]
+    decant_ids = [p["id"] for p in data["decant_highlights"]]
+
+    # Produto com estoque 0 não pode constar em nenhuma lista
+    zero_stock_id = setup_home_data["prod_out_of_stock"].id
+    assert zero_stock_id not in recommended_ids
+    assert zero_stock_id not in decant_ids
+
+    # Produto de loja inativa não pode constar em nenhuma lista
+    inactive_store_prod_id = setup_home_data["prod_inactive_store"].id
+    assert inactive_store_prod_id not in recommended_ids
+    assert inactive_store_prod_id not in decant_ids
+
+    # Loja sem produtos em estoque não aparece em featured_stores
+    seller_3 = CustomUser.objects.create_user(
+        email="seller3@nota.com",
+        password="password123",
+        first_name="Vendedor Sem Estoque",
+        role=CustomUser.Roles.SELLER,
+    )
+    store_without_stock = Store.objects.create(
+        owner=seller_3,
+        name="Loja Sem Estoque",
+        slug="loja-sem-estoque",
+        cnpj="33333333000103",
+        is_active=True,
+    )
+    prod_empty = Product.objects.create(
+        brand=setup_home_data["prod_woody"].brand,
+        name="Perfume Vazio",
+        olfactory_family=Product.OlfactoryFamily.WOODY,
+        is_approved=True,
+    )
+    StoreProduct.objects.create(
+        store=store_without_stock,
+        product=prod_empty,
+        volume_ml=50,
+        price="100.00",
+        stock_quantity=0,
+        is_available=True,
+    )
+
+    response_after = api_client.get("/api/v1/showcase/home/")
+    after_slugs = [s["slug"] for s in response_after.data["featured_stores"]]
+    assert "loja-sem-estoque" not in after_slugs
+
+
+@pytest.mark.django_db
+def test_home_feed_featured_stores_order_by_rating(api_client, setup_home_data):
+    """
+    Valida RN-03: featured_stores deve priorizar nota de avaliação (avg_rating) como primeiro critério.
+    """
+    seller = setup_home_data["store_active"].owner
+    # Loja A: com avaliação alta (5.0)
+    store_a = Store.objects.create(
+        owner=seller,
+        name="Loja Estrela Alta",
+        slug="loja-estrela-alta",
+        cnpj="44444444000104",
+        is_official=False,
+        followers_count=5,
+        is_active=True,
+    )
+    # Loja B: com avaliação média (4.0) mas oficial e mais seguidores
+    store_b = Store.objects.create(
+        owner=seller,
+        name="Loja Estrela Media",
+        slug="loja-estrela-media",
+        cnpj="55555555000105",
+        is_official=True,
+        followers_count=100,
+        is_active=True,
+    )
+
+    prod = setup_home_data["prod_woody"]
+    sp_a = StoreProduct.objects.create(store=store_a, product=prod, volume_ml=50, price="100", stock_quantity=10, is_available=True)
+    sp_b = StoreProduct.objects.create(store=store_b, product=prod, volume_ml=50, price="100", stock_quantity=10, is_available=True)
+
+    # Cria compras e reviews fictícias
+    from apps.orders.models import Order, OrderItem
+    from apps.reviews.models import Review
+
+    buyer = setup_home_data["customer_no_profile"]
+    order_a = Order.objects.create(user=buyer, store=store_a, total_amount="100", shipping_address="Rua Teste, 100")
+    item_a = OrderItem.objects.create(order=order_a, store_product=sp_a, quantity=1, unit_price="100")
+    Review.objects.create(
+        order_item=item_a,
+        user=buyer,
+        store=store_a,
+        product=prod,
+        store_product=sp_a,
+        rating=5,
+    )
+
+    order_b = Order.objects.create(user=buyer, store=store_b, total_amount="100", shipping_address="Rua Teste, 200")
+    item_b = OrderItem.objects.create(order=order_b, store_product=sp_b, quantity=1, unit_price="100")
+    Review.objects.create(
+        order_item=item_b,
+        user=buyer,
+        store=store_b,
+        product=prod,
+        store_product=sp_b,
+        rating=4,
+    )
+
+    response = api_client.get("/api/v1/showcase/home/")
+    stores = response.data["featured_stores"]
+    slugs = [s["slug"] for s in stores]
+
+    # Loja A (5.0) deve vir antes de Loja B (4.0), mesmo Loja B sendo oficial e tendo mais seguidores
+    assert slugs.index("loja-estrela-alta") < slugs.index("loja-estrela-media")
+
 

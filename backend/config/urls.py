@@ -2,7 +2,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
-from django.views.generic import RedirectView
 
 from apps.stores.views import (
     CustomerFollowingStoresListView,
@@ -13,7 +12,6 @@ from apps.stores.views import (
 )
 
 urlpatterns: list[URLPattern | URLResolver] = [
-    path("", RedirectView.as_view(url="/api/v1/showcase/home/", permanent=False)),
     path("admin/", admin.site.urls),
     path("api/v1/auth/", include("apps.users.urls")),
     path("api/v1/stores/", include("apps.stores.urls")),

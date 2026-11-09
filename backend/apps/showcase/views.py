@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Q, QuerySet
+from django.db.models import Avg, Count, F, Prefetch, Q, QuerySet
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -97,9 +97,7 @@ class ShowcaseHomeFeedView(APIView):
                 StoreFollower.objects.filter(user=user).values_list("store_id", flat=True)
             )
 
-        from django.db.models import Avg
-
-        # 1. Lojas em destaque ativas e com estoque ativo (RN-03)
+        # 1. Lojas em destaque ativas e com estoque ativo (RN-03: prioriza nota de avaliação)
         featured_stores = (
             Store.objects.filter(
                 is_active=True,
@@ -110,14 +108,34 @@ class ShowcaseHomeFeedView(APIView):
                 avg_rating=Avg(
                     "reviews__rating",
                     filter=Q(
-                        reviews__product__isnull=True,
                         reviews__is_hidden=False,
                         reviews__is_deleted=False,
                     ),
-                )
+                ),
+                total_reviews=Count(
+                    "reviews",
+                    filter=Q(
+                        reviews__is_hidden=False,
+                        reviews__is_deleted=False,
+                    ),
+                ),
             )
             .distinct()
-            .order_by("-is_official", "-avg_rating", "-followers_count", "-views_count")[:8]
+            .order_by(
+                F("avg_rating").desc(nulls_last=True),
+                "-followers_count",
+                "-is_official",
+                "-views_count",
+            )[:8]
+        )
+
+        active_store_products_prefetch = Prefetch(
+            "store_products",
+            queryset=StoreProduct.objects.filter(
+                is_available=True,
+                stock_quantity__gt=0,
+                store__is_active=True,
+            ).select_related("store"),
         )
 
         # 2. Base de perfumes aprovados com oferta em estoque ativo (RN-01, RN-04)
@@ -129,7 +147,7 @@ class ShowcaseHomeFeedView(APIView):
                 store_products__store__is_active=True,
             )
             .select_related("brand")
-            .prefetch_related("store_products")
+            .prefetch_related(active_store_products_prefetch)
             .distinct()
         )
 
@@ -167,7 +185,7 @@ class ShowcaseHomeFeedView(APIView):
                 store_products__volume_ml__lte=15,
             )
             .select_related("brand")
-            .prefetch_related("store_products")
+            .prefetch_related(active_store_products_prefetch)
             .distinct()
         )
         decant_products.sort(

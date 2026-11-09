@@ -365,9 +365,9 @@ export default function ShopIndex() {
             </TouchableOpacity>
           </ScrollView>
 
-          {/* --- 7 CATEGORIAS RÁPIDAS (RN-05) --- */}
+          {/* --- 7 FAMÍLIAS OLFATIVAS (RN-05) --- */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Categorias Rápidas</Text>
+            <Text style={styles.sectionTitle}>Famílias Olfativas</Text>
             <Text style={styles.sectionSubtitle}>Toque para filtrar por família</Text>
           </View>
 
@@ -421,7 +421,9 @@ export default function ShopIndex() {
             >
               {feed?.featured_stores && feed.featured_stores.length > 0 ? (
                 feed.featured_stores.map((store: HomeStoreItem) => {
-                  const ratingLabel = store.rating > 0 ? store.rating.toFixed(1) : 'Novo';
+                  const ratingLabel = (store.rating !== null && store.rating !== undefined && store.rating > 0)
+                    ? store.rating.toFixed(1)
+                    : 'Novo';
                   const locationLabel = store.city && store.state
                     ? `${store.city}/${store.state}`
                     : store.reviews_count > 0

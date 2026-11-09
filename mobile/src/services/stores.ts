@@ -25,7 +25,7 @@ export interface HomeStoreItem {
   state?: string;
   is_official: boolean;
   followers_count: number;
-  rating: number;
+  rating: number | null;
   reviews_count: number;
 }
 
