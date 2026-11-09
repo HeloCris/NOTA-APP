@@ -1,5 +1,45 @@
 import { api } from './api';
 
+export interface HomeProductItem {
+  id: number;
+  name: string;
+  brand_name: string;
+  brand_id?: number;
+  olfactory_family: string;
+  concentration?: string;
+  gender?: string;
+  image_url?: string;
+  min_price: number | null;
+  has_decant: boolean;
+  match_percentage: number | null;
+  sold_count: number;
+}
+
+export interface HomeStoreItem {
+  id: number;
+  name: string;
+  slug: string;
+  logo_url?: string;
+  cover_url?: string;
+  city?: string;
+  state?: string;
+  is_official: boolean;
+  followers_count: number;
+  rating: number;
+  reviews_count: number;
+}
+
+export interface HomeFeedResponse {
+  has_olfactory_profile: boolean;
+  user_summary: {
+    olfactory_families: string[];
+    preferred_notes: string[];
+  };
+  recommended_products: HomeProductItem[];
+  featured_stores: HomeStoreItem[];
+  decant_highlights: HomeProductItem[];
+}
+
 export interface StoreProduct {
   id: number;
   product_id?: number;
@@ -326,8 +366,15 @@ export const storesService = {
     });
     return response.data;
   },
+
+  // RF-21: Feed Dinâmico da Home
+  getHomeFeed: async (): Promise<HomeFeedResponse> => {
+    const response = await api.get<HomeFeedResponse>('/showcase/home/');
+    return response.data;
+  },
 };
 
 // Exportações individuais mantidas para compatibilidade retroativa
 export const getCatalogNotes = storesService.getCatalogNotes;
 export const getRecommendedProducts = storesService.getRecommendedProducts;
+export const getHomeFeed = storesService.getHomeFeed;

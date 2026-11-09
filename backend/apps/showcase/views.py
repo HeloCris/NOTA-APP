@@ -2,11 +2,20 @@ from decimal import Decimal, InvalidOperation
 
 from django.db.models import Q, QuerySet
 from rest_framework import generics, permissions
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from apps.catalog.models import Product
+from apps.catalog.services.recommendation_service import calculate_olfactory_match
 from apps.inventory.models import StoreProduct
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreFollower
 
-from .serializers import ShowcaseProductSerializer, ShowcaseStoreSerializer
+from .serializers import (
+    HomeProductSerializer,
+    HomeStoreSerializer,
+    ShowcaseProductSerializer,
+    ShowcaseStoreSerializer,
+)
 
 
 class PublicProductQuerysetMixin:
@@ -61,3 +70,112 @@ def serializers_prefetch(products):
     from django.db.models import Prefetch
 
     return Prefetch("store_products", queryset=products, to_attr="public_products")
+
+
+class ShowcaseHomeFeedView(APIView):
+    """
+    Feed dinâmico da Home Mobile (RF-21 / RN-01 a RN-04).
+    Retorna lojas ativas em destaque, produtos recomendados por afinidade olfativa (ou popularidade)
+    e destaques de decants disponíveis com estoque.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user if request.user and request.user.is_authenticated else None
+        user_families = getattr(user, "olfactory_families", []) or [] if user else []
+        user_notes = getattr(user, "preferred_notes", []) or [] if user else []
+        has_olfactory_profile = bool(user and (user_families or user_notes))
+
+        user_summary = {
+            "olfactory_families": user_families,
+            "preferred_notes": user_notes,
+        }
+
+        followed_store_ids = set()
+        if user:
+            followed_store_ids = set(
+                StoreFollower.objects.filter(user=user).values_list("store_id", flat=True)
+            )
+
+        # 1. Lojas em destaque ativas e com estoque ativo (RN-03)
+        featured_stores = (
+            Store.objects.filter(
+                is_active=True,
+                store_products__is_available=True,
+                store_products__stock_quantity__gt=0,
+            )
+            .distinct()
+            .order_by("-is_official", "-followers_count", "-views_count")[:8]
+        )
+
+        # 2. Base de perfumes aprovados com oferta em estoque ativo (RN-01, RN-04)
+        base_products = list(
+            Product.objects.filter(
+                is_approved=True,
+                store_products__is_available=True,
+                store_products__stock_quantity__gt=0,
+                store_products__store__is_active=True,
+            )
+            .select_related("brand")
+            .prefetch_related("store_products")
+            .distinct()
+        )
+
+        if has_olfactory_profile and user:
+            for prod in base_products:
+                match_data = calculate_olfactory_match(
+                    user, prod, followed_store_ids=followed_store_ids
+                )
+                prod.match_percentage = match_data.get("match_percentage")
+
+            # Ordena por maior afinidade olfativa (RN-02) e desempata por vendas/criação
+            base_products.sort(
+                key=lambda p: (
+                    p.match_percentage if p.match_percentage is not None else -1,
+                    p.sold_count or 0,
+                    p.id,
+                ),
+                reverse=True,
+            )
+            recommended_products = base_products[:10]
+        else:
+            base_products.sort(
+                key=lambda p: (p.sold_count or 0, p.id),
+                reverse=True,
+            )
+            recommended_products = base_products[:10]
+
+        # 3. Destaques de decants (volume <= 15ml) com estoque ativo
+        decant_products = list(
+            Product.objects.filter(
+                is_approved=True,
+                store_products__is_available=True,
+                store_products__stock_quantity__gt=0,
+                store_products__store__is_active=True,
+                store_products__volume_ml__lte=15,
+            )
+            .select_related("brand")
+            .prefetch_related("store_products")
+            .distinct()
+        )
+        decant_products.sort(
+            key=lambda p: (p.sold_count or 0, p.id),
+            reverse=True,
+        )
+        decant_highlights = decant_products[:6]
+
+        context = {"request": request, "followed_store_ids": followed_store_ids}
+
+        return Response({
+            "has_olfactory_profile": has_olfactory_profile,
+            "user_summary": user_summary,
+            "recommended_products": HomeProductSerializer(
+                recommended_products, many=True, context=context
+            ).data,
+            "featured_stores": HomeStoreSerializer(
+                featured_stores, many=True, context=context
+            ).data,
+            "decant_highlights": HomeProductSerializer(
+                decant_highlights, many=True, context=context
+            ).data,
+        })

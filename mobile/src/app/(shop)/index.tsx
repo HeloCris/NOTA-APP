@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Platform,
   useWindowDimensions,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -23,8 +25,14 @@ import Svg, {
 } from 'react-native-svg';
 import { useAuth } from '../../context/AuthContext';
 import { useUnreadNotifications } from '../../hooks/use-unread-notifications';
+import {
+  storesService,
+  HomeFeedResponse,
+  HomeProductItem,
+  HomeStoreItem,
+} from '../../services/stores';
 
-// --- Custom Vector Icons for Categorias Rápidas ---
+// --- Ícones Vetoriais das 7 Famílias Olfativas Oficiais (RN-05) ---
 
 function DropletIcon() {
   return (
@@ -92,31 +100,47 @@ function GourmandIcon() {
   );
 }
 
-// --- Perfume Bottle Illustrations for "Para Você" ---
-
-function LavenderBottle() {
+function FougereIcon() {
   return (
-    <Svg width={100} height={135} viewBox="0 0 110 140">
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 22V8M12 8C9 4 5 5 4 8c3 1 5 4 8 0zM12 14c3-3 7-2 8 1-3 1-5 4-8-1zM12 18c-2-2-5-2-6 0 2 1 4 3 6 0z"
+        stroke="#2E7D32"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function AquaticIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2 12c2.5-3 5-3 7.5 0s5 3 7.5 0 5-3 7 0M2 17c2.5-3 5-3 7.5 0s5 3 7.5 0 5-3 7 0"
+        stroke="#0284C7"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// Ilustração de fallback para perfume sem foto
+function BottleFallback() {
+  return (
+    <Svg width={70} height={95} viewBox="0 0 110 140">
       <Defs>
-        <LinearGradient id="lavenderGrad" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0%" stopColor="#DDD6FE" />
-          <Stop offset="35%" stopColor="#C4B5FD" />
-          <Stop offset="75%" stopColor="#A78BFA" />
-          <Stop offset="100%" stopColor="#8B5CF6" />
-        </LinearGradient>
-        <LinearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0%" stopColor="#FDE047" />
-          <Stop offset="50%" stopColor="#CA8A04" />
-          <Stop offset="100%" stopColor="#854D0E" />
+        <LinearGradient id="glassGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0%" stopColor="#E2E8F0" />
+          <Stop offset="50%" stopColor="#CBD5E1" />
+          <Stop offset="100%" stopColor="#94A3B8" />
         </LinearGradient>
       </Defs>
-      {/* Golden Cap */}
-      <Rect x="46" y="14" width="18" height="16" rx="2" fill="url(#goldGrad)" />
-      {/* Golden Neck */}
-      <Rect x="49" y="30" width="12" height="7" rx="1" fill="#CA8A04" />
-      {/* Bottle Body */}
-      <Rect x="26" y="37" width="58" height="88" rx="8" fill="url(#lavenderGrad)" />
-      {/* Minimalist Label Frame */}
+      <Rect x="46" y="14" width="18" height="16" rx="2" fill="#354B5E" />
+      <Rect x="49" y="30" width="12" height="7" rx="1" fill="#64748B" />
+      <Rect x="26" y="37" width="58" height="88" rx="8" fill="url(#glassGrad)" />
       <Rect
         x="37"
         y="58"
@@ -132,86 +156,116 @@ function LavenderBottle() {
   );
 }
 
-function AmberBottle() {
-  return (
-    <Svg width={100} height={135} viewBox="0 0 110 140">
-      <Defs>
-        <LinearGradient id="amberGrad" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0%" stopColor="#FCD34D" />
-          <Stop offset="40%" stopColor="#F59E0B" />
-          <Stop offset="80%" stopColor="#D97706" />
-          <Stop offset="100%" stopColor="#92400E" />
-        </LinearGradient>
-        <LinearGradient id="goldCapGrad" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0%" stopColor="#FEF08A" />
-          <Stop offset="60%" stopColor="#D97706" />
-          <Stop offset="100%" stopColor="#78350F" />
-        </LinearGradient>
-      </Defs>
-      {/* Golden Spherical Cap */}
-      <Circle cx="55" cy="22" r="11" fill="url(#goldCapGrad)" />
-      {/* Neck */}
-      <Rect x="50" y="33" width="10" height="7" fill="#B45309" />
-      {/* Cylinder Bottle Body */}
-      <Rect x="38" y="40" width="34" height="90" rx="6" fill="url(#amberGrad)" />
-    </Svg>
-  );
-}
+// As 7 Famílias Olfativas Oficiais do Sistema (RN-05)
+const OLFACTORY_CATEGORIES = [
+  { name: 'Amadeirado', icon: <DropletIcon /> },
+  { name: 'Floral', icon: <FlowerIcon /> },
+  { name: 'Cítrico', icon: <CitrusIcon /> },
+  { name: 'Oriental', icon: <OrientalIcon /> },
+  { name: 'Gourmand', icon: <GourmandIcon /> },
+  { name: 'Fougère', icon: <FougereIcon /> },
+  { name: 'Aquático', icon: <AquaticIcon /> },
+];
 
 export default function ShopIndex() {
   const router = useRouter();
   const { user } = useAuth();
   const { unreadCount } = useUnreadNotifications();
 
-  // Nome dinâmico sem fallback fixo para "Ana"
+  const [feed, setFeed] = useState<HomeFeedResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Nome e inicial reais do usuário autenticado (RN-08)
   const userName = user?.first_name || (user?.email ? user.email.split('@')[0] : 'Visitante');
+  const userInitial = (user?.first_name?.[0] || user?.email?.[0] || 'V').toUpperCase();
 
   const { width: windowWidth } = useWindowDimensions();
-  // Constrain to mobile width on desktop, full-width on mobile
   const containerWidth = Math.min(windowWidth, 460);
 
-  // Responsive calculations:
-  // Banner width occupies ~78-80% of screen, leaving exactly 40-50px peeking on the right
+  // Banner responsivo ocupando ~80% da tela com peek
   const bannerGap = 12;
-  const bannerWidth = Math.round(containerWidth * 0.78);
+  const bannerWidth = Math.round(containerWidth * 0.80);
   const snapInterval = bannerWidth + bannerGap;
 
-  // Store card: 2 cards visible with a peek of the 3rd
-  const storeCardWidth = Math.round((containerWidth - 40 - 12) / 2.25);
+  // Largura de card de loja
+  const storeCardWidth = Math.round((containerWidth - 40 - 12) / 2.2);
 
-  const [activeCategory, setActiveCategory] = useState<string>('Amadeirado');
+  // Largura do card de produto (grid de 2 colunas)
+  const productCardWidth = Math.floor((containerWidth - 40 - 12) / 2);
 
-  const categories = [
-    { id: '1', name: 'Amadeirado', icon: <DropletIcon /> },
-    { id: '2', name: 'Floral', icon: <FlowerIcon /> },
-    { id: '3', name: 'Cítrico', icon: <CitrusIcon /> },
-    { id: '4', name: 'Oriental', icon: <OrientalIcon /> },
-    { id: '5', name: 'Gourmand', icon: <GourmandIcon /> },
-  ];
+  const fetchFeed = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const data = await storesService.getHomeFeed();
+      setFeed(data);
+    } catch (error) {
+      console.error('Erro ao carregar feed da Home:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const stores = [
-    {
-      id: '1',
-      name: "Maison d'Essence",
-      letter: 'M',
-      rating: '4.9',
-      category: 'Nicho',
-    },
-    {
-      id: '2',
-      name: 'Ateliê Olfativo',
-      letter: 'A',
-      rating: '4.8',
-      category: 'Autoral',
-    },
-    {
-      id: '3',
-      name: 'Raridades Perfumadas',
-      letter: 'R',
-      rating: '4.9',
-      category: 'Vintage',
-    },
-  ];
+  useEffect(() => {
+    let isMounted = true;
+    storesService.getHomeFeed()
+      .then((data) => {
+        if (isMounted) {
+          setFeed(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Erro no feed inicial:', err);
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Navegação para busca filtrada por família olfativa (RN-05)
+  const handleFamilyPress = (familyName: string) => {
+    router.push({
+      pathname: '/(shop)/explore',
+      params: { family: familyName },
+    } as never);
+  };
+
+  // Navegação para lojas e produtos
+  const handleStorePress = (storeId: number) => {
+    router.push(`/store/${storeId}` as never);
+  };
+
+  const handleProductPress = (productId: number) => {
+    router.push(`/product/${productId}` as never);
+  };
+
+  // Banner 1: Festival de Decants (RN-06)
+  const handleDecantBannerPress = () => {
+    router.push({
+      pathname: '/(shop)/explore',
+      params: { type: 'decant' },
+    } as never);
+  };
+
+  // Banner 2: Descoberta Olfativa (RN-06)
+  const handleDiscoveryBannerPress = () => {
+    if (feed?.has_olfactory_profile) {
+      router.push({
+        pathname: '/(shop)/explore',
+        params: { openNotes: '1' },
+      } as never);
+    } else {
+      router.push('/(shop)/account/edit-olfactory-profile' as never);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -221,14 +275,21 @@ export default function ShopIndex() {
           style={styles.container}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchFeed(true)}
+              tintColor="#354B5E"
+              colors={['#354B5E']}
+            />
+          }
         >
-          {/* --- HEADER --- */}
+          {/* --- HEADER DINÂMICO (RN-08) --- */}
           <View style={styles.header}>
             <View style={styles.userInfo}>
-              <Image
-                source={require('@/assets/images/avatar_ana.jpg')}
-                style={styles.avatar}
-              />
+              <View style={styles.avatarCircle} testID="user-avatar-circle">
+                <Text style={styles.avatarInitial}>{userInitial}</Text>
+              </View>
               <View style={styles.greetingContainer}>
                 <View style={styles.greetingRow}>
                   <Text style={styles.greeting}>Olá, {userName}</Text>
@@ -258,7 +319,7 @@ export default function ShopIndex() {
             </TouchableOpacity>
           </View>
 
-          {/* --- BANNERS CARROSSEL RESPONSIVO --- */}
+          {/* --- BANNERS DE CURADORIA INTERATIVOS (RN-06) --- */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -267,7 +328,7 @@ export default function ShopIndex() {
             decelerationRate="fast"
             snapToAlignment="start"
           >
-            {/* Banner 1: Lançamentos */}
+            {/* Banner 1: Festival de Decants */}
             <TouchableOpacity
               style={[
                 styles.bannerCard,
@@ -275,14 +336,17 @@ export default function ShopIndex() {
                 { width: bannerWidth },
               ]}
               activeOpacity={0.9}
+              onPress={handleDecantBannerPress}
+              testID="banner-decants"
             >
-              <Text style={styles.bannerTagNavy}>LANÇAMENTOS</Text>
+              <Text style={styles.bannerTagNavy}>FESTIVAL DE DECANTS</Text>
               <Text style={styles.bannerTitle} numberOfLines={2}>
-                Fragrâncias de Inverno{'\n'}chegaram
+                Perfumes de nicho em{'\n'}5ml, 10ml e 15ml →
               </Text>
+              <Text style={styles.bannerSubtext}>Experimente antes de comprar o frasco</Text>
             </TouchableOpacity>
 
-            {/* Banner 2: Oferta do Dia */}
+            {/* Banner 2: Descoberta Olfativa */}
             <TouchableOpacity
               style={[
                 styles.bannerCard,
@@ -290,17 +354,21 @@ export default function ShopIndex() {
                 { width: bannerWidth },
               ]}
               activeOpacity={0.9}
+              onPress={handleDiscoveryBannerPress}
+              testID="banner-discovery"
             >
-              <Text style={styles.bannerTagTerracotta}>OFERTA DO DIA</Text>
+              <Text style={styles.bannerTagTerracotta}>DESCOBERTA OLFATIVA</Text>
               <Text style={styles.bannerTitle} numberOfLines={2}>
-                Até 30% OFF{'\n'}em selecionados
+                Encontre fragrâncias pelas{'\n'}suas notas favoritas →
               </Text>
+              <Text style={styles.bannerSubtext}>Curadoria de acordo com seu gosto</Text>
             </TouchableOpacity>
           </ScrollView>
 
-          {/* --- CATEGORIAS RÁPIDAS --- */}
+          {/* --- 7 CATEGORIAS RÁPIDAS (RN-05) --- */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Categorias Rápidas</Text>
+            <Text style={styles.sectionSubtitle}>Toque para filtrar por família</Text>
           </View>
 
           <ScrollView
@@ -308,132 +376,292 @@ export default function ShopIndex() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesScroll}
           >
-            {categories.map((cat) => {
-              const isSelected = activeCategory === cat.name;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={styles.categoryItem}
-                  activeOpacity={0.7}
-                  onPress={() => setActiveCategory(cat.name)}
-                >
-                  <View
-                    style={[
-                      styles.categoryCircle,
-                      isSelected && styles.categoryCircleActive,
-                    ]}
-                  >
-                    {cat.icon}
-                  </View>
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      isSelected && styles.categoryLabelActive,
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* --- LOJAS EM DESTAQUE --- */}
-          <View style={styles.sectionHeaderWithAction}>
-            <Text style={styles.sectionTitle}>Lojas em Destaque</Text>
-            <TouchableOpacity activeOpacity={0.6}>
-              <Text style={styles.seeAllText}>Ver todas →</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storesScroll}
-            snapToInterval={storeCardWidth + 12}
-            decelerationRate="fast"
-          >
-            {stores.map((store) => (
+            {OLFACTORY_CATEGORIES.map((cat) => (
               <TouchableOpacity
-                key={store.id}
-                style={[styles.storeCard, { width: storeCardWidth }]}
-                activeOpacity={0.8}
+                key={cat.name}
+                style={styles.categoryItem}
+                activeOpacity={0.7}
+                onPress={() => handleFamilyPress(cat.name)}
+                testID={`category-${cat.name}`}
               >
-                <View style={styles.storeLogo}>
-                  <Text style={styles.storeLogoText}>{store.letter}</Text>
+                <View style={styles.categoryCircle}>
+                  {cat.icon}
                 </View>
-                <Text style={styles.storeName} numberOfLines={1}>
-                  {store.name}
+                <Text style={styles.categoryLabel}>
+                  {cat.name}
                 </Text>
-                <View style={styles.storeRatingRow}>
-                  <Text style={styles.storeStar}>★</Text>
-                  <Text style={styles.storeRatingText}>
-                    {' '}
-                    {store.rating} · {store.category}
-                  </Text>
-                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* --- PARA VOCÊ --- */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Para Você</Text>
+          {/* --- LOJAS EM DESTAQUE (RN-03, RN-07) --- */}
+          <View style={styles.sectionHeaderWithAction}>
+            <View>
+              <Text style={styles.sectionTitle}>Lojas em Destaque</Text>
+              <Text style={styles.sectionSubtitle}>Parceiros e marcas verificadas</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => router.push({ pathname: '/(shop)/explore', params: { tab: 'stores' } } as never)}
+              testID="see-all-stores-btn"
+            >
+              <Text style={styles.seeAllText}>Ver todas →</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.productsGrid}>
-            {/* Card 1: Lavender Royale */}
-            <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
-              <View style={styles.productInnerBox}>
-                <LavenderBottle />
-              </View>
-              <View style={styles.productDetails}>
-                <Text style={styles.productBrand}>Maison d&apos;Essence</Text>
-                <Text style={styles.productName} numberOfLines={1}>
-                  Lavande Royale
-                </Text>
-                <View style={styles.productFooter}>
-                  <Text style={styles.productPrice}>R$ 389,90</Text>
-                  <View style={styles.familyBadge}>
-                    <Text style={styles.familyBadgeText}>Floral</Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
+          {loading && !feed ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#354B5E" />
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.storesScroll}
+            >
+              {feed?.featured_stores && feed.featured_stores.length > 0 ? (
+                feed.featured_stores.map((store: HomeStoreItem) => {
+                  const ratingLabel = store.rating > 0 ? store.rating.toFixed(1) : 'Novo';
+                  const locationLabel = store.city && store.state
+                    ? `${store.city}/${store.state}`
+                    : store.reviews_count > 0
+                    ? `${store.reviews_count} aval.`
+                    : 'Loja';
 
-            {/* Card 2: Ambre Impérial */}
-            <TouchableOpacity style={styles.productCard} activeOpacity={0.85}>
-              <View style={styles.productInnerBox}>
-                <AmberBottle />
-              </View>
-              <View style={styles.productDetails}>
-                <Text style={styles.productBrand}>Ateliê Olfativo</Text>
-                <Text style={styles.productName} numberOfLines={1}>
-                  Ambre Impérial
-                </Text>
-                <View style={styles.productFooter}>
-                  <Text style={styles.productPrice}>R$ 420,00</Text>
-                  <View
-                    style={[
-                      styles.familyBadge,
-                      { backgroundColor: '#FDF2E9' },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.familyBadgeText,
-                        { color: '#A85A38' },
-                      ]}
+                  return (
+                    <TouchableOpacity
+                      key={store.id}
+                      style={[styles.storeCard, { width: storeCardWidth }]}
+                      activeOpacity={0.8}
+                      onPress={() => handleStorePress(store.id)}
+                      testID={`store-card-${store.id}`}
                     >
-                      Oriental
-                    </Text>
-                  </View>
+                      <View style={styles.storeLogoBox}>
+                        {store.logo_url ? (
+                          <Image
+                            source={{ uri: store.logo_url }}
+                            style={styles.storeLogoImg}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={styles.storeLogoFallback}>
+                            <Text style={styles.storeLogoText}>
+                              {store.name.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                        {store.is_official && (
+                          <View style={styles.officialCheckBadge} testID="official-badge">
+                            <Ionicons name="checkmark-sharp" size={10} color="#FFFFFF" />
+                          </View>
+                        )}
+                      </View>
+
+                      <Text style={styles.storeName} numberOfLines={1}>
+                        {store.name}
+                      </Text>
+
+                      <View style={styles.storeRatingRow}>
+                        <Ionicons name="star" size={12} color="#D97706" />
+                        <Text style={styles.storeRatingText}>
+                          {' '}{ratingLabel} · {locationLabel}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyStoresCard}>
+                  <Text style={styles.emptyStoresText}>Nenhuma loja encontrada.</Text>
                 </View>
-              </View>
+              )}
+            </ScrollView>
+          )}
+
+          {/* --- PARA VOCÊ (RN-02, RN-04, CA-05) --- */}
+          <View style={styles.sectionHeaderWithAction}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                {feed?.has_olfactory_profile ? 'Para Você ✨' : 'Para Você'}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {feed?.has_olfactory_profile
+                  ? 'Baseado nas suas preferências olfativas'
+                  : 'Fragrâncias mais procuradas do catálogo'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => router.push('/(shop)/explore' as never)}
+              testID="explore-catalog-btn"
+            >
+              <Text style={styles.seeAllText}>Explorar catálogo →</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={{ height: 32 }} />
+          {/* Card de convite para quem ainda não tem perfil olfativo configurado (RN-02) */}
+          {feed && !feed.has_olfactory_profile && (
+            <View style={styles.inviteCard} testID="olfactory-invite-card">
+              <View style={styles.inviteIconCircle}>
+                <Ionicons name="sparkles" size={20} color="#354B5E" />
+              </View>
+              <View style={styles.inviteContent}>
+                <Text style={styles.inviteTitle}>Descubra seu Match Olfativo</Text>
+                <Text style={styles.inviteDesc}>
+                  Configure suas notas e famílias favoritas em 30 segundos para receber recomendações exclusivas.
+                </Text>
+                <TouchableOpacity
+                  style={styles.inviteBtn}
+                  activeOpacity={0.8}
+                  onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as never)}
+                  testID="setup-profile-btn"
+                >
+                  <Text style={styles.inviteBtnText}>Configurar Perfil →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Grid de Produtos Recomendados */}
+          {loading && !feed ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#354B5E" />
+            </View>
+          ) : (
+            <View style={styles.productsGrid}>
+              {feed?.recommended_products && feed.recommended_products.length > 0 ? (
+                feed.recommended_products.map((item: HomeProductItem) => {
+                  const formattedPrice = item.min_price != null
+                    ? `A partir de R$ ${item.min_price.toFixed(2).replace('.', ',')}`
+                    : 'Sob consulta';
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.productCard, { width: productCardWidth }]}
+                      activeOpacity={0.85}
+                      onPress={() => handleProductPress(item.id)}
+                      testID={`product-card-${item.id}`}
+                    >
+                      {/* Top Badges: Match % e Decant */}
+                      <View style={styles.productTopBadges}>
+                        {item.match_percentage != null && item.match_percentage > 0 ? (
+                          <View style={styles.matchBadge} testID={`match-badge-${item.id}`}>
+                            <Text style={styles.matchBadgeText}>
+                              ✨ {item.match_percentage}% Match
+                            </Text>
+                          </View>
+                        ) : <View />}
+
+                        {item.has_decant && (
+                          <View style={styles.decantTag}>
+                            <Text style={styles.decantTagText}>Decant</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Imagem do Perfume ou Fallback */}
+                      <View style={styles.productInnerBox}>
+                        {item.image_url ? (
+                          <Image
+                            source={{ uri: item.image_url }}
+                            style={styles.productImage}
+                            contentFit="contain"
+                          />
+                        ) : (
+                          <BottleFallback />
+                        )}
+                      </View>
+
+                      {/* Informações */}
+                      <View style={styles.productDetails}>
+                        <Text style={styles.productBrand} numberOfLines={1}>
+                          {item.brand_name || 'Exclusivo'}
+                        </Text>
+                        <Text style={styles.productName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <View style={styles.productFooter}>
+                          <Text style={styles.productPrice}>{formattedPrice}</Text>
+                          <View style={styles.familyBadge}>
+                            <Text style={styles.familyBadgeText}>
+                              {item.olfactory_family || 'Geral'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyProductsBox}>
+                  <Text style={styles.emptyProductsText}>
+                    Nenhum produto disponível no momento.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* --- DECANTS PARA EXPERIMENTAR (Se houver ofertas fracionadas) --- */}
+          {feed?.decant_highlights && feed.decant_highlights.length > 0 && (
+            <>
+              <View style={styles.sectionHeaderWithAction}>
+                <View>
+                  <Text style={styles.sectionTitle}>Decants para Experimentar</Text>
+                  <Text style={styles.sectionSubtitle}>Fracionados originais de 5ml, 10ml e 15ml</Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.6}
+                  onPress={handleDecantBannerPress}
+                >
+                  <Text style={styles.seeAllText}>Ver todos →</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.storesScroll}
+              >
+                {feed.decant_highlights.map((item: HomeProductItem) => (
+                  <TouchableOpacity
+                    key={`decant-${item.id}`}
+                    style={[styles.decantCard, { width: storeCardWidth }]}
+                    activeOpacity={0.85}
+                    onPress={() => handleProductPress(item.id)}
+                    testID={`decant-highlight-${item.id}`}
+                  >
+                    <View style={styles.decantInnerBox}>
+                      {item.image_url ? (
+                        <Image
+                          source={{ uri: item.image_url }}
+                          style={styles.decantImage}
+                          contentFit="contain"
+                        />
+                      ) : (
+                        <BottleFallback />
+                      )}
+                      <View style={styles.decantSmallBadge}>
+                        <Text style={styles.decantSmallBadgeText}>5 a 15ml</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.decantBrand} numberOfLines={1}>
+                      {item.brand_name}
+                    </Text>
+                    <Text style={styles.decantName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.decantPrice}>
+                      {item.min_price != null ? `A partir de R$ ${item.min_price.toFixed(2).replace('.', ',')}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -449,12 +677,9 @@ const styles = StyleSheet.create({
   mainWrapper: {
     flex: 1,
     width: '100%',
-    alignSelf: 'center',
   },
   container: {
     flex: 1,
-    width: '100%',
-    backgroundColor: '#F4F1EA',
   },
   contentContainer: {
     paddingBottom: 24,
@@ -464,67 +689,72 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 16 : 10,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 12,
   },
-  avatar: {
+  avatarCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: '#E8E3D5',
+    backgroundColor: '#354B5E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    fontFamily: Platform.select({ ios: 'System', android: 'sans-serif-medium' }),
   },
   greetingContainer: {
-    marginLeft: 12,
-    flex: 1,
+    justifyContent: 'center',
   },
   greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   greeting: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1C252E',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E293B',
+    fontFamily: Platform.select({ ios: 'System', android: 'sans-serif-medium' }),
   },
   wave: {
     fontSize: 16,
   },
   subGreeting: {
-    fontSize: 13,
-    color: '#78716C',
+    fontSize: 12.5,
+    color: '#64748B',
     marginTop: 2,
+    fontFamily: Platform.select({ ios: 'System', android: 'sans-serif' }),
   },
   notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    marginLeft: 8,
+    position: 'relative',
   },
   notificationDot: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 5,
+    right: 5,
+    backgroundColor: '#9E4732',
     minWidth: 16,
     height: 16,
-    paddingHorizontal: 3,
     borderRadius: 8,
-    backgroundColor: '#A85A38',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 2,
   },
   notificationDotText: {
     color: '#FFFFFF',
@@ -532,106 +762,107 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   bannersScroll: {
-    paddingHorizontal: 20,
+    paddingLeft: 20,
+    paddingRight: 8,
     gap: 12,
   },
   bannerCard: {
-    height: 152,
-    borderRadius: 20,
-    padding: 20,
-    justifyContent: 'center',
+    height: 140,
+    borderRadius: 18,
+    padding: 18,
+    justifyContent: 'space-between',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   bannerNavy: {
-    backgroundColor: '#1F2E3D',
+    backgroundColor: '#1E293B',
   },
   bannerTerracotta: {
-    backgroundColor: '#9E512F',
+    backgroundColor: '#9E4732',
   },
   bannerTagNavy: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#94A3B8',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    color: '#93C5FD',
+    letterSpacing: 1,
   },
   bannerTagTerracotta: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#FCD34D',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    color: '#FED7AA',
+    letterSpacing: 1,
   },
   bannerTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: '#FFFFFF',
-    lineHeight: 26,
+    lineHeight: 23,
+    marginTop: 4,
+  },
+  bannerSubtext: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.75)',
   },
   sectionHeader: {
     paddingHorizontal: 20,
-    marginTop: 22,
-    marginBottom: 14,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1C252E',
-  },
-  categoriesScroll: {
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  categoryItem: {
-    alignItems: 'center',
-    width: 60,
-  },
-  categoryCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EFECE4',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  categoryCircleActive: {
-    borderColor: '#2C4659',
-    backgroundColor: '#FAF9F6',
-  },
-  categoryLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  categoryLabelActive: {
-    color: '#1C252E',
-    fontWeight: '700',
+    marginTop: 26,
+    marginBottom: 12,
   },
   sectionHeaderWithAction: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 20,
-    marginTop: 22,
+    marginTop: 26,
     marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
   seeAllText: {
     fontSize: 13,
+    fontWeight: '700',
+    color: '#9E4732',
+  },
+  categoriesScroll: {
+    paddingLeft: 20,
+    paddingRight: 8,
+    gap: 14,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    width: 66,
+  },
+  categoryCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  categoryLabel: {
+    fontSize: 11.5,
     fontWeight: '600',
-    color: '#2C4659',
+    color: '#475569',
+    textAlign: 'center',
   },
   storesScroll: {
-    paddingHorizontal: 20,
+    paddingLeft: 20,
+    paddingRight: 8,
     gap: 12,
   },
   storeCard: {
@@ -639,110 +870,275 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#EFECE4',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#E2E8F0',
   },
-  storeLogo: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#1F2E3D',
-    justifyContent: 'center',
-    alignItems: 'center',
+  storeLogoBox: {
+    position: 'relative',
+    width: 44,
+    height: 44,
     marginBottom: 10,
   },
+  storeLogoImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+  },
+  storeLogoFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   storeLogoText: {
-    color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
+    color: '#354B5E',
+  },
+  officialCheckBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1D9BF0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   storeName: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1C252E',
+    color: '#1E293B',
     marginBottom: 4,
   },
   storeRatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  storeStar: {
-    color: '#D97706',
-    fontSize: 12,
-  },
   storeRatingText: {
     fontSize: 11.5,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  emptyStoresCard: {
+    padding: 20,
+  },
+  emptyStoresText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  loadingBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  inviteCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1,
+    borderColor: '#E9E3D5',
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  inviteIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EBE4D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteContent: {
+    flex: 1,
+  },
+  inviteTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  inviteDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  inviteBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#354B5E',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 14,
+  },
+  inviteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   productsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 20,
     gap: 12,
   },
   productCard: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#EFECE4',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
   },
-  productInnerBox: {
-    height: 155,
-    borderRadius: 12,
-    backgroundColor: '#FAF9F5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F0EDE4',
-  },
-  productDetails: {
-    paddingTop: 10,
-    paddingHorizontal: 4,
-    paddingBottom: 4,
-  },
-  productBrand: {
-    fontSize: 11,
-    color: '#78716C',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  productName: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#1C252E',
-    marginBottom: 6,
-  },
-  productFooter: {
+  productTopBadges: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    height: 22,
+    marginBottom: 4,
+  },
+  matchBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  matchBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  decantTag: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  decantTagText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  productInnerBox: {
+    height: 110,
+    borderRadius: 10,
+    backgroundColor: '#FAF9F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  productImage: {
+    width: '85%',
+    height: '85%',
+  },
+  productDetails: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  productBrand: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#8C939D',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  productName: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1E293B',
     marginTop: 2,
+    marginBottom: 6,
+  },
+  productFooter: {
+    flexDirection: 'column',
+    gap: 4,
   },
   productPrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2C4659',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
   },
   familyBadge: {
-    backgroundColor: '#F0F4EC',
+    backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+    alignSelf: 'flex-start',
   },
   familyBadgeText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#4D6B53',
+    color: '#475569',
+  },
+  emptyProductsBox: {
+    width: '100%',
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyProductsText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  decantCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  decantInnerBox: {
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: '#FAF9F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  decantImage: {
+    width: '80%',
+    height: '80%',
+  },
+  decantSmallBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#354B5E',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  decantSmallBadgeText: {
+    fontSize: 8.5,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  decantBrand: {
+    fontSize: 10,
+    color: '#8C939D',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  decantName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  decantPrice: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#9E4732',
   },
 });
