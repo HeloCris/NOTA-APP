@@ -97,6 +97,8 @@ class ShowcaseHomeFeedView(APIView):
                 StoreFollower.objects.filter(user=user).values_list("store_id", flat=True)
             )
 
+        from django.db.models import Avg
+
         # 1. Lojas em destaque ativas e com estoque ativo (RN-03)
         featured_stores = (
             Store.objects.filter(
@@ -104,8 +106,18 @@ class ShowcaseHomeFeedView(APIView):
                 store_products__is_available=True,
                 store_products__stock_quantity__gt=0,
             )
+            .annotate(
+                avg_rating=Avg(
+                    "reviews__rating",
+                    filter=Q(
+                        reviews__product__isnull=True,
+                        reviews__is_hidden=False,
+                        reviews__is_deleted=False,
+                    ),
+                )
+            )
             .distinct()
-            .order_by("-is_official", "-followers_count", "-views_count")[:8]
+            .order_by("-is_official", "-avg_rating", "-followers_count", "-views_count")[:8]
         )
 
         # 2. Base de perfumes aprovados com oferta em estoque ativo (RN-01, RN-04)

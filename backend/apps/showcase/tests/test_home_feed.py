@@ -236,3 +236,4 @@ def test_home_feed_authenticated_without_profile(api_client, setup_home_data):
 
     assert data["has_olfactory_profile"] is False
     assert data["user_summary"]["olfactory_families"] == []
+
