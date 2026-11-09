@@ -11,7 +11,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-me-in-production")
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h.strip()] if DEBUG else [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -160,6 +160,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
     "http://127.0.0.1:8081",
 ]
+
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
