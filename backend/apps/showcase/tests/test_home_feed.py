@@ -368,3 +368,119 @@ def test_home_feed_featured_stores_order_by_rating(api_client, setup_home_data):
     assert slugs.index("loja-estrela-alta") < slugs.index("loja-estrela-media")
 
 
+@pytest.mark.django_db
+def test_home_feed_reviews_count_not_inflated_by_multiple_store_products(api_client, setup_home_data):
+    """
+    Garante que total_reviews com distinct=True não infla o reviews_count em lojas com N produtos em estoque (RF-21.1).
+    """
+    from apps.orders.models import Order, OrderItem
+    from apps.reviews.models import Review
+
+    seller = setup_home_data["store_active"].owner
+    store = Store.objects.create(
+        owner=seller,
+        name="Loja Multi Produtos",
+        slug="loja-multi-produtos",
+        cnpj="99999999000199",
+        is_official=True,
+        followers_count=10,
+        is_active=True,
+    )
+
+    brand = setup_home_data["prod_woody"].brand
+    prod1 = setup_home_data["prod_woody"]
+    prod2 = setup_home_data["prod_floral"]
+    prod3 = Product.objects.create(
+        brand=brand,
+        name="Perfume Teste 3",
+        olfactory_family=Product.OlfactoryFamily.CITRUS,
+        is_approved=True,
+    )
+
+    # 3 produtos em estoque ativo na loja
+    sp1 = StoreProduct.objects.create(store=store, product=prod1, volume_ml=50, price="100", stock_quantity=10, is_available=True)
+    sp2 = StoreProduct.objects.create(store=store, product=prod2, volume_ml=50, price="150", stock_quantity=5, is_available=True)
+    sp3 = StoreProduct.objects.create(store=store, product=prod3, volume_ml=50, price="200", stock_quantity=8, is_available=True)
+
+    # 2 avaliações reais e distintas para essa loja
+    buyer = setup_home_data["customer_no_profile"]
+    order = Order.objects.create(user=buyer, store=store, total_amount="250", shipping_address="Rua Teste, 300")
+    item1 = OrderItem.objects.create(order=order, store_product=sp1, quantity=1, unit_price="100")
+    item2 = OrderItem.objects.create(order=order, store_product=sp2, quantity=1, unit_price="150")
+
+    Review.objects.create(
+        order_item=item1,
+        user=buyer,
+        store=store,
+        product=prod1,
+        store_product=sp1,
+        rating=5,
+    )
+    Review.objects.create(
+        order_item=item2,
+        user=buyer,
+        store=store,
+        product=prod2,
+        store_product=sp2,
+        rating=4,
+    )
+
+    response = api_client.get("/api/v1/showcase/home/")
+    assert response.status_code == status.HTTP_200_OK
+
+    store_data = next((s for s in response.data["featured_stores"] if s["slug"] == "loja-multi-produtos"), None)
+    assert store_data is not None
+
+    # reviews_count deve ser exatamente 2 (e não 2 * 3 produtos = 6)
+    assert store_data["reviews_count"] == 2
+    assert store_data["rating"] == 4.5
+
+
+@pytest.mark.django_db
+def test_home_feed_store_rating_matches_store_detail(api_client, setup_home_data):
+    """
+    Garante que o cálculo de rating e reviews_count na Home coincide perfeitamente com os dados públicos da loja (RN-03).
+    """
+    from apps.orders.models import Order, OrderItem
+    from apps.reviews.models import Review
+
+    seller = setup_home_data["store_active"].owner
+    store = Store.objects.create(
+        owner=seller,
+        name="Loja Comparacao Detail",
+        slug="loja-comparacao-detail",
+        cnpj="88888888000188",
+        is_official=True,
+        followers_count=10,
+        is_active=True,
+    )
+
+    prod = setup_home_data["prod_woody"]
+    sp = StoreProduct.objects.create(store=store, product=prod, volume_ml=50, price="100", stock_quantity=10, is_available=True)
+
+    buyer = setup_home_data["customer_no_profile"]
+    order = Order.objects.create(user=buyer, store=store, total_amount="100", shipping_address="Rua Teste, 400")
+    item = OrderItem.objects.create(order=order, store_product=sp, quantity=1, unit_price="100")
+
+    Review.objects.create(
+        order_item=item,
+        user=buyer,
+        store=store,
+        product=prod,
+        store_product=sp,
+        rating=4,
+    )
+
+    # Consulta Home Feed
+    res_home = api_client.get("/api/v1/showcase/home/")
+    home_store = next((s for s in res_home.data["featured_stores"] if s["slug"] == "loja-comparacao-detail"), None)
+
+    # Consulta Detail da Loja
+    res_store = api_client.get(f"/api/v1/stores/{store.id}/")
+
+    assert home_store is not None
+    assert home_store["rating"] == res_store.data["rating"] == 4.0
+    assert home_store["reviews_count"] == res_store.data["reviews_count"] == 1
+
+
+

@@ -11,11 +11,17 @@ jest.mock('expo-router', () => ({
     push: mockPush,
   }),
   useLocalSearchParams: () => mockSearchParams,
+  useGlobalSearchParams: () => mockSearchParams,
+}));
+
+jest.mock('expo-image', () => ({
+  Image: 'Image',
 }));
 
 jest.mock('../src/services/stores', () => ({
   storesService: {
     getStores: jest.fn(),
+    getProducts: jest.fn(),
   },
 }));
 
@@ -48,14 +54,60 @@ const mockStores = [
   },
 ];
 
-describe('ExploreScreen (Integração com Parâmetros de URL - RF-21)', () => {
+const mockApiProducts = [
+  {
+    id: 101,
+    name: 'Santal Majestueux',
+    brand: { id: 1, name: 'Maison Luxe' },
+    olfactory_family: 'Amadeirado',
+    available_volumes: [10, 50, 100],
+    min_price: 60.0,
+    top_notes: ['Cardamomo'],
+    heart_notes: ['Íris'],
+    base_notes: ['Sândalo'],
+  },
+  {
+    id: 102,
+    name: 'Rose Éternelle',
+    brand: { id: 2, name: 'Fleuriste Paris' },
+    olfactory_family: 'Floral',
+    available_volumes: [100],
+    min_price: 350.0,
+    top_notes: ['Lichia'],
+    heart_notes: ['Rosa'],
+    base_notes: ['Almíscar'],
+  },
+  {
+    id: 103,
+    name: 'Ambre Nocturne',
+    brand: { id: 3, name: 'Atelier Oriental' },
+    olfactory_family: 'Oriental',
+    available_volumes: [5, 10, 50],
+    min_price: 85.0,
+    top_notes: ['Canela'],
+    heart_notes: ['Âmbar'],
+    base_notes: ['Baunilha'],
+  },
+];
+
+describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-21 / Médio 3)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchParams = {};
     (storesService.getStores as jest.Mock).mockResolvedValue(mockStores);
+    (storesService.getProducts as jest.Mock).mockImplementation((params) => {
+      if (params?.olfactory_family) {
+        return Promise.resolve(
+          mockApiProducts.filter(
+            (p) => p.olfactory_family.toLowerCase() === params.olfactory_family.toLowerCase()
+          )
+        );
+      }
+      return Promise.resolve(mockApiProducts);
+    });
   });
 
-  it('aplica filtro de família olfativa quando family é fornecido via URL (RN-05, CA-03)', async () => {
+  it('aplica filtro de família olfativa consultando a API e navegando com ID real (RN-05, CA-03)', async () => {
     mockSearchParams = { family: 'Oriental' };
 
     const screen = await render(<ExploreScreen />);
@@ -64,12 +116,27 @@ describe('ExploreScreen (Integração com Parâmetros de URL - RF-21)', () => {
     expect(screen.getByTestId('active-family-filter')).toBeTruthy();
     expect(screen.getByText('Família: Oriental')).toBeTruthy();
 
-    // Deve exibir o perfume da família Oriental (Grand Soir) e não exibir perfumes de outras famílias (ex: Essência do Brasil - Floral)
-    expect(screen.getByText('Grand Soir')).toBeTruthy();
-    expect(screen.queryByText('Essência do Brasil')).toBeNull();
+    // Consulta na API com o filtro de família
+    expect(storesService.getProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ olfactory_family: 'Oriental' })
+    );
+
+    // Deve exibir o perfume retornado pela API para Oriental (Ambre Nocturne) e não exibir Floral
+    await waitFor(() => {
+      expect(screen.getByText('Ambre Nocturne')).toBeTruthy();
+      expect(screen.queryByText('Rose Éternelle')).toBeNull();
+    });
+
+    // Toque no botão de detalhes navega para o ID real do produto (/product/103)
+    const detailsBtn = screen.getByTestId('product-btn-103');
+    fireEvent.press(detailsBtn);
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/product/[id]',
+      params: { id: '103' },
+    });
   });
 
-  it('aplica filtro de decants quando type=decant é fornecido via URL (RN-06, CA-04)', async () => {
+  it('aplica filtro de decants exibindo apenas produtos com volumetria <= 15ml (RN-06, CA-04)', async () => {
     mockSearchParams = { type: 'decant' };
 
     const screen = await render(<ExploreScreen />);
@@ -78,10 +145,13 @@ describe('ExploreScreen (Integração com Parâmetros de URL - RF-21)', () => {
     expect(screen.getByTestId('active-type-filter')).toBeTruthy();
     expect(screen.getByText('Tipo: Decants')).toBeTruthy();
 
-    // Perfume com decant deve aparecer (Oud Wood)
-    expect(screen.getByText('Oud Wood')).toBeTruthy();
-    // Perfume sem decant NÃO deve aparecer (Essência do Brasil)
-    expect(screen.queryByText('Essência do Brasil')).toBeNull();
+    await waitFor(() => {
+      // Perfumes com decants disponíveis (<= 15ml) devem ser exibidos
+      expect(screen.getByText('Santal Majestueux')).toBeTruthy();
+      expect(screen.getByText('Ambre Nocturne')).toBeTruthy();
+      // Perfume com apenas 100ml NÃO deve aparecer
+      expect(screen.queryByText('Rose Éternelle')).toBeNull();
+    });
   });
 
   it('abre automaticamente o modal de notas olfativas quando openNotes="1" (RN-06, CA-04)', async () => {

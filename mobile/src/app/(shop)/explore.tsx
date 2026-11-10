@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,16 @@ import {
   useWindowDimensions,
   Platform,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useGlobalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { storesService, Store } from '../../services/stores';
+import { storesService, Store, ProductDetails } from '../../services/stores';
 import Svg, {
   Rect,
-  Circle,
   Defs,
   LinearGradient,
   Stop,
@@ -90,97 +91,16 @@ function AmberBottle() {
   );
 }
 
-interface CatalogPerfume {
-  id: number;
-  name: string;
-  brand: string;
-  family: string;
-  notes: string[];
-  hasDecant: boolean;
-  volume: string;
-  price: string;
-  bottleType: 'tf' | 'natura' | 'amber';
+function BottleIllustration({ family }: { family?: string }) {
+  const fam = family?.toLowerCase() || '';
+  if (fam.includes('oriental') || fam.includes('gourmand')) {
+    return <AmberBottle />;
+  }
+  if (fam.includes('floral') || fam.includes('cítrico') || fam.includes('citrico') || fam.includes('aquático') || fam.includes('aquatico')) {
+    return <NaturaBottle />;
+  }
+  return <TomFordBottle />;
 }
-
-const CATALOG_PRODUCTS: CatalogPerfume[] = [
-  {
-    id: 1,
-    name: 'Oud Wood',
-    brand: 'TOM FORD',
-    family: 'Amadeirado',
-    notes: ['Oud', 'Sândalo', 'Cardamomo', 'Vetiver'],
-    hasDecant: true,
-    volume: '100ml',
-    price: 'R$ 1.540',
-    bottleType: 'tf',
-  },
-  {
-    id: 2,
-    name: 'Essência do Brasil',
-    brand: 'NATURA',
-    family: 'Floral',
-    notes: ['Rosa Damascena', 'Jasmim', 'Lichia'],
-    hasDecant: false,
-    volume: '100ml',
-    price: 'R$ 289',
-    bottleType: 'natura',
-  },
-  {
-    id: 3,
-    name: 'Grand Soir',
-    brand: 'MAISON F. KURKDJIAN',
-    family: 'Oriental',
-    notes: ['Âmbar', 'Baunilha', 'Fava Tonka'],
-    hasDecant: true,
-    volume: '70ml',
-    price: 'R$ 1.890',
-    bottleType: 'amber',
-  },
-  {
-    id: 4,
-    name: 'Bergamote 22',
-    brand: 'LE LABO',
-    family: 'Cítrico',
-    notes: ['Bergamota', 'Limão Siciliano', 'Flor de Laranjeira'],
-    hasDecant: true,
-    volume: '50ml',
-    price: 'R$ 1.250',
-    bottleType: 'natura',
-  },
-  {
-    id: 5,
-    name: 'Angels Share',
-    brand: 'KILIAN',
-    family: 'Gourmand',
-    notes: ['Conhaque', 'Canela', 'Carvalho', 'Baunilha'],
-    hasDecant: true,
-    volume: '50ml',
-    price: 'R$ 1.620',
-    bottleType: 'amber',
-  },
-  {
-    id: 6,
-    name: 'Beau De Jour',
-    brand: 'TOM FORD',
-    family: 'Fougère',
-    notes: ['Lavanda', 'Gerânio', 'Musgo de Carvalho'],
-    hasDecant: false,
-    volume: '100ml',
-    price: 'R$ 1.100',
-    bottleType: 'tf',
-  },
-  {
-    id: 7,
-    name: 'Acqua di Sale',
-    brand: 'PROFUMUM ROMA',
-    family: 'Aquático',
-    notes: ['Sal Marinho', 'Algas', 'Mirto', 'Cedro'],
-    hasDecant: true,
-    volume: '100ml',
-    price: 'R$ 1.450',
-    bottleType: 'natura',
-  },
-];
 
 const FAMILIES_LIST = [
   'Todos',
@@ -199,56 +119,112 @@ const POPULAR_NOTES_MAP: Record<string, string[]> = {
   'Notas de Fundo': ['Sândalo', 'Cedro', 'Baunilha', 'Âmbar', 'Oud', 'Almíscar'],
 };
 
+const getParam = (val?: string | string[]): string => {
+  if (Array.isArray(val)) return val[0] || '';
+  return val || '';
+};
+
 export default function ExploreScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    family?: string;
-    type?: string;
-    openNotes?: string;
-    tab?: string;
+  const localParams = useLocalSearchParams<{
+    family?: string | string[];
+    type?: string | string[];
+    openNotes?: string | string[];
+    tab?: string | string[];
   }>();
+  const globalParams = useGlobalSearchParams<{
+    family?: string | string[];
+    type?: string | string[];
+    openNotes?: string | string[];
+    tab?: string | string[];
+  }>();
+
+  const paramFamily = getParam(localParams.family) || getParam(globalParams.family);
+  const paramType = getParam(localParams.type) || getParam(globalParams.type);
+  const paramOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
+  const paramTab = getParam(localParams.tab) || getParam(globalParams.tab);
 
   // Estados principais de navegação e filtros (CA-03, CA-04, RN-05, RN-06, RN-07)
   const [activeTab, setActiveTab] = useState<'products' | 'stores'>(
-    params.tab === 'stores' ? 'stores' : 'products'
+    paramTab === 'stores' ? 'stores' : 'products'
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFamily, setSelectedFamily] = useState<string>(params.family || '');
+  const [selectedFamily, setSelectedFamily] = useState<string>(paramFamily || '');
   const [selectedType, setSelectedType] = useState<string>(
-    params.type === 'decant' ? 'decant' : ''
+    paramType === 'decant' ? 'decant' : ''
   );
   const [selectedTag, setSelectedTag] = useState<string>(
-    params.type === 'decant' ? 'Decants' : (params.family || '')
+    paramType === 'decant' ? 'Decants' : (paramFamily || '')
   );
   const [selectedNote, setSelectedNote] = useState<string>('');
-  const [isNotesModalOpen, setIsNotesModalOpen] = useState<boolean>(params.openNotes === '1');
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState<boolean>(paramOpenNotes === '1');
   const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<ProductDetails[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
 
-  // Sincroniza parâmetros de rota recebidos via deep link ou push (RN-05 a RN-07)
+  // Sincroniza parâmetros de rota (Deep links, Home push, Tab switches)
   useEffect(() => {
-    if (params.tab === 'stores') {
+    const currentTab = getParam(localParams.tab) || getParam(globalParams.tab);
+    if (currentTab === 'stores') {
       setActiveTab('stores');
-    } else if (params.tab === 'products') {
+    } else if (currentTab === 'products') {
       setActiveTab('products');
     }
 
-    if (params.family !== undefined) {
-      setSelectedFamily(params.family);
-      if (params.family) {
-        setSelectedTag(params.family);
-      }
+    const currentFamily = getParam(localParams.family) || getParam(globalParams.family);
+    if (currentFamily) {
+      setSelectedFamily(currentFamily);
+      setSelectedTag(currentFamily);
     }
 
-    if (params.type === 'decant') {
+    const currentType = getParam(localParams.type) || getParam(globalParams.type);
+    if (currentType === 'decant') {
       setSelectedType('decant');
       setSelectedTag('Decants');
     }
 
-    if (params.openNotes === '1') {
+    const currentOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
+    if (currentOpenNotes === '1') {
       setIsNotesModalOpen(true);
     }
-  }, [params.tab, params.family, params.type, params.openNotes]);
+  }, [
+    localParams.tab,
+    globalParams.tab,
+    localParams.family,
+    globalParams.family,
+    localParams.type,
+    globalParams.type,
+    localParams.openNotes,
+    globalParams.openNotes,
+  ]);
 
+  // Carrega produtos reais da API usando storesService.getProducts (Médio 3 / RN-05 a RN-07)
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingProducts(true);
+
+    storesService
+      .getProducts({
+        search: searchQuery.trim() || undefined,
+        olfactory_family: selectedFamily || undefined,
+      })
+      .then((data) => {
+        if (isMounted) {
+          setProducts(Array.isArray(data) ? data : []);
+          setLoadingProducts(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar produtos na busca:', err);
+        if (isMounted) setLoadingProducts(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [searchQuery, selectedFamily]);
+
+  // Carrega lojas reais
   useEffect(() => {
     storesService
       .getStores()
@@ -259,29 +235,33 @@ export default function ExploreScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  // Filtragem de produtos conforme busca e filtros ativos
-  const filteredProducts = CATALOG_PRODUCTS.filter((prod) => {
-    if (selectedFamily && prod.family.toLowerCase() !== selectedFamily.toLowerCase()) {
-      return false;
-    }
-    if (selectedType === 'decant' && !prod.hasDecant) {
-      return false;
-    }
-    if (selectedNote && !prod.notes.some((n) => n.toLowerCase() === selectedNote.toLowerCase())) {
-      return false;
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchesName = prod.name.toLowerCase().includes(q);
-      const matchesBrand = prod.brand.toLowerCase().includes(q);
-      const matchesFamily = prod.family.toLowerCase().includes(q);
-      const matchesNote = prod.notes.some((n) => n.toLowerCase().includes(q));
-      if (!matchesName && !matchesBrand && !matchesFamily && !matchesNote) {
-        return false;
+  // Filtragem de produtos por decant e notas
+  const filteredProducts = useMemo(() => {
+    return products.filter((prod) => {
+      // Filtro de decant (<= 15ml)
+      if (selectedType === 'decant') {
+        const hasDecant =
+          prod.available_volumes?.some((v) => v <= 15) ||
+          prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15) ||
+          (prod as any).has_decant;
+        if (!hasDecant) return false;
       }
-    }
-    return true;
-  });
+
+      // Filtro por nota olfativa
+      if (selectedNote) {
+        const allNotes = [
+          ...(prod.top_notes || []),
+          ...(prod.heart_notes || []),
+          ...(prod.base_notes || []),
+        ].map((n) => n.toLowerCase());
+        if (!allNotes.some((n) => n.includes(selectedNote.toLowerCase()))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [products, selectedType, selectedNote]);
 
   // Filtragem de lojas na aba de Lojas
   const visibleStores = stores.filter((store) =>
@@ -643,7 +623,11 @@ export default function ExploreScreen() {
                   <Text style={styles.productCountBadge}>{filteredProducts.length} itens</Text>
                 </View>
 
-                {filteredProducts.length === 0 ? (
+                {loadingProducts ? (
+                  <View style={styles.loadingBox} testID="loading-products-box">
+                    <ActivityIndicator size="small" color="#2C4659" />
+                  </View>
+                ) : filteredProducts.length === 0 ? (
                   <View style={styles.emptyStateBox}>
                     <Ionicons name="sparkles-outline" size={36} color="#9CA3AF" />
                     <Text style={styles.emptyStateText}>
@@ -652,60 +636,76 @@ export default function ExploreScreen() {
                   </View>
                 ) : (
                   <View style={styles.productsGrid}>
-                    {filteredProducts.map((prod) => (
-                      <View
-                        key={prod.id}
-                        style={styles.productCard}
-                        testID={`product-card-${prod.id}`}
-                      >
-                        <View style={styles.productInnerBox}>
-                          {prod.bottleType === 'tf' ? (
-                            <TomFordBottle />
-                          ) : prod.bottleType === 'natura' ? (
-                            <NaturaBottle />
-                          ) : (
-                            <AmberBottle />
-                          )}
-                        </View>
+                    {filteredProducts.map((prod) => {
+                      const brandName = typeof prod.brand === 'object' && prod.brand !== null
+                        ? prod.brand.name
+                        : String(prod.brand || 'Marca');
+                      const hasDecantOffer =
+                        prod.available_volumes?.some((v) => v <= 15) ||
+                        prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15) ||
+                        (prod as any).has_decant;
+                      const priceLabel = prod.min_price != null
+                        ? `A partir de R$ ${prod.min_price.toFixed(2).replace('.', ',')}`
+                        : 'Sob consulta';
 
-                        <View style={styles.productInfo}>
-                          <Text style={styles.productBrand}>{prod.brand}</Text>
-                          <Text style={styles.productName} numberOfLines={1}>
-                            {prod.name}
-                          </Text>
-
-                          <View style={styles.badgeRow}>
-                            <View style={styles.tagBadge}>
-                              <Text style={styles.tagBadgeText}>{prod.family}</Text>
-                            </View>
-                            {prod.hasDecant && (
-                              <View style={[styles.tagBadge, styles.decantTagBadge]}>
-                                <Text style={styles.decantTagBadgeText}>Decant</Text>
-                              </View>
+                      return (
+                        <View
+                          key={prod.id}
+                          style={styles.productCard}
+                          testID={`product-card-${prod.id}`}
+                        >
+                          <View style={styles.productInnerBox}>
+                            {prod.image_url ? (
+                              <Image
+                                source={{ uri: prod.image_url }}
+                                style={styles.productImg}
+                                contentFit="contain"
+                              />
+                            ) : (
+                              <BottleIllustration family={prod.olfactory_family} />
                             )}
                           </View>
 
-                          <View style={styles.priceRow}>
-                            <Text style={styles.volumeText}>{prod.volume}</Text>
-                            <Text style={styles.priceText}>{prod.price}</Text>
-                          </View>
+                          <View style={styles.productInfo}>
+                            <Text style={styles.productBrand} numberOfLines={1}>
+                              {brandName.toUpperCase()}
+                            </Text>
+                            <Text style={styles.productName} numberOfLines={1}>
+                              {prod.name}
+                            </Text>
 
-                          <TouchableOpacity
-                            style={styles.detailsBtn}
-                            activeOpacity={0.7}
-                            onPress={() =>
-                              router.push({
-                                pathname: '/product/[id]' as never,
-                                params: { id: prod.id.toString() },
-                              })
-                            }
-                            testID={`product-btn-${prod.id}`}
-                          >
-                            <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
-                          </TouchableOpacity>
+                            <View style={styles.badgeRow}>
+                              <View style={styles.tagBadge}>
+                                <Text style={styles.tagBadgeText}>{prod.olfactory_family}</Text>
+                              </View>
+                              {hasDecantOffer ? (
+                                <View style={[styles.tagBadge, styles.decantTagBadge]}>
+                                  <Text style={styles.decantTagBadgeText}>Decant</Text>
+                                </View>
+                              ) : null}
+                            </View>
+
+                            <View style={styles.priceRow}>
+                              <Text style={styles.priceText}>{priceLabel}</Text>
+                            </View>
+
+                            <TouchableOpacity
+                              style={styles.detailsBtn}
+                              activeOpacity={0.7}
+                              onPress={() =>
+                                router.push({
+                                  pathname: '/product/[id]' as never,
+                                  params: { id: prod.id.toString() },
+                                })
+                              }
+                              testID={`product-btn-${prod.id}`}
+                            >
+                              <Text style={styles.detailsBtnText}>Ver Detalhes</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 )}
               </View>
@@ -1062,6 +1062,13 @@ const styles = StyleSheet.create({
     color: '#1C252E',
   },
 
+  // --- Loading Box ---
+  loadingBox: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   // --- Grid de Perfumes ---
   productsGrid: {
     flexDirection: 'row',
@@ -1090,6 +1097,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#F0EDE4',
+  },
+  productImg: {
+    width: '100%',
+    height: '100%',
   },
   productInfo: {
     paddingTop: 10,
@@ -1141,13 +1152,8 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginBottom: 8,
   },
-  volumeText: {
-    fontSize: 11,
-    color: '#78716C',
-    fontWeight: '500',
-  },
   priceText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#2C4659',
   },

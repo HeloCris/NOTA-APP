@@ -204,6 +204,20 @@ describe('StorePage - RF-08', () => {
     expect(getByText(store.bio)).toBeTruthy();
   });
 
+  it('renderiza corretamente quando a loja possui rating: null sem quebrar e sem nota numérica (RN-03)', async () => {
+    mockGetStore.mockResolvedValueOnce({
+      ...store,
+      rating: null,
+    });
+    mockGetStoreProducts.mockResolvedValueOnce(products);
+
+    const { getByTestId, queryByText } = await render(<StoreScreen />);
+    await waitFor(() => expect(getByTestId('store-hero')).toBeTruthy());
+
+    expect(queryByText('4.8')).toBeNull();
+    expect(queryByText('4,8')).toBeNull();
+  });
+
   it('renderiza chips e filtra pela família selecionada', async () => {
     mockGetStoreProducts
       .mockResolvedValueOnce(products)

@@ -47,7 +47,10 @@ export function StoreHero({
     extrapolate: 'clamp',
   });
 
-  const ratingDisplay = (store.rating ?? 4.8).toFixed(1).replace('.', ',');
+  const ratingDisplay =
+    store.rating !== null && store.rating !== undefined && store.rating > 0
+      ? store.rating.toFixed(1).replace('.', ',')
+      : 'Novo';
   const perfumesCount = productsCount ?? store.products_count ?? 12;
   const locationText = store.city ? `${store.city}${store.state ? `, ${store.state}` : ''}` : null;
 

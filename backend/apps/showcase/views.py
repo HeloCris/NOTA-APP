@@ -97,7 +97,13 @@ class ShowcaseHomeFeedView(APIView):
                 StoreFollower.objects.filter(user=user).values_list("store_id", flat=True)
             )
 
-        # 1. Lojas em destaque ativas e com estoque ativo (RN-03: prioriza nota de avaliação)
+        # 1. Lojas em destaque ativas e com estoque ativo (RN-03: Vitrine e Ordenação de Lojas)
+        # Conforme a RN-03, as lojas oficiais e parceiras ativas são ordenadas prioritariamente
+        # pela reputação real calculada (nota média de avaliações dos clientes - avg_rating),
+        # de forma decrescente com nulls_last=True para posicionar lojas sem avaliação no final.
+        # Os critérios de desempate subsequentes são: maior número de seguidores (-followers_count),
+        # selo oficial de verificação (-is_official) e total de visualizações (-views_count).
+        # distinct=True em Count("reviews") evita duplicação de contagem gerada pelo join com StoreProduct.
         featured_stores = (
             Store.objects.filter(
                 is_active=True,
@@ -118,6 +124,7 @@ class ShowcaseHomeFeedView(APIView):
                         reviews__is_hidden=False,
                         reviews__is_deleted=False,
                     ),
+                    distinct=True,
                 ),
             )
             .distinct()
