@@ -74,4 +74,17 @@ describe('FollowStoreButton', () => {
       expect(screen.getByText('Seguir')).toBeTruthy();
     });
   });
+
+  it('exibe "Novo" e nenhuma nota numérica fictícia quando rating é null (RN-03)', async () => {
+    const storeWithoutRating: Store = {
+      ...mockStore,
+      rating: null as any,
+    };
+
+    const screen = await render(<StoreHero store={storeWithoutRating} />);
+
+    expect(screen.getByText('Novo')).toBeTruthy();
+    expect(screen.queryByText('4,8')).toBeNull();
+    expect(screen.queryByText('4.8')).toBeNull();
+  });
 });

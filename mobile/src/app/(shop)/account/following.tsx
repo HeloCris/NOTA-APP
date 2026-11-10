@@ -102,7 +102,9 @@ export default function FollowingStoresScreen() {
             <View style={styles.ratingBadge}>
               <MaterialIcons name="star" size={12} color="#D97706" />
               <Text style={styles.ratingText}>
-                {(item.rating || 5.0).toFixed(1).replace('.', ',')}
+                {item.rating !== null && item.rating !== undefined && item.rating > 0
+                  ? item.rating.toFixed(1).replace('.', ',')
+                  : 'Novo'}
               </Text>
             </View>
             <Text style={styles.dot}>•</Text>
