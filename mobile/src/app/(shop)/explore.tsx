@@ -16,7 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams, useGlobalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { storesService, Store, ProductDetails } from '../../services/stores';
+import { storesService, Store, ProductDetails, Brand, CatalogNotesResponse } from '../../services/stores';
+import { authService } from '../../services/auth';
 import Svg, {
   Rect,
   Defs,
@@ -24,8 +25,8 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-// --- Vector Perfume Bottle: Tom Ford Oud Wood Style ---
-function TomFordBottle() {
+// --- Generic dark perfume bottle illustration ---
+function DarkBottleIllustration() {
   return (
     <Svg width={70} height={110} viewBox="0 0 80 130">
       <Defs>
@@ -49,8 +50,8 @@ function TomFordBottle() {
   );
 }
 
-// --- Vector Perfume Bottle: Natura Style ---
-function NaturaBottle() {
+// --- Generic soft perfume bottle illustration ---
+function SoftBottleIllustration() {
   return (
     <Svg width={70} height={110} viewBox="0 0 80 130">
       <Defs>
@@ -97,9 +98,9 @@ function BottleIllustration({ family }: { family?: string }) {
     return <AmberBottle />;
   }
   if (fam.includes('floral') || fam.includes('cítrico') || fam.includes('citrico') || fam.includes('aquático') || fam.includes('aquatico')) {
-    return <NaturaBottle />;
+    return <SoftBottleIllustration />;
   }
-  return <TomFordBottle />;
+  return <DarkBottleIllustration />;
 }
 
 const FAMILIES_LIST = [
@@ -131,32 +132,41 @@ export default function ExploreScreen() {
     type?: string | string[];
     openNotes?: string | string[];
     tab?: string | string[];
+    brand?: string | string[];
   }>();
   const globalParams = useGlobalSearchParams<{
     family?: string | string[];
     type?: string | string[];
     openNotes?: string | string[];
     tab?: string | string[];
+    brand?: string | string[];
   }>();
 
   const paramFamily = getParam(localParams.family) || getParam(globalParams.family);
   const paramType = getParam(localParams.type) || getParam(globalParams.type);
   const paramOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
   const paramTab = getParam(localParams.tab) || getParam(globalParams.tab);
+  const paramBrand = getParam(localParams.brand) || getParam(globalParams.brand);
 
   // Estados principais de navegação e filtros (CA-03, CA-04, RN-05, RN-06, RN-07)
   const [activeTab, setActiveTab] = useState<'products' | 'stores'>(
     paramTab === 'stores' ? 'stores' : 'products'
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedFamily, setSelectedFamily] = useState<string>(paramFamily || '');
   const [selectedType, setSelectedType] = useState<string>(
     paramType === 'decant' ? 'decant' : ''
   );
+  const [selectedBrand, setSelectedBrand] = useState<string>(paramBrand);
   const [selectedTag, setSelectedTag] = useState<string>(
     paramType === 'decant' ? 'Decants' : (paramFamily || '')
   );
   const [selectedNote, setSelectedNote] = useState<string>('');
+  const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
+  const [notesCatalog, setNotesCatalog] = useState<CatalogNotesResponse | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [ordering, setOrdering] = useState<'popular' | 'price_asc' | 'price_desc'>('popular');
   const [isNotesModalOpen, setIsNotesModalOpen] = useState<boolean>(paramOpenNotes === '1');
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<ProductDetails[]>([]);
@@ -164,29 +174,30 @@ export default function ExploreScreen() {
 
   // Sincroniza parâmetros de rota (Deep links, Home push, Tab switches)
   useEffect(() => {
-    const currentTab = getParam(localParams.tab) || getParam(globalParams.tab);
-    if (currentTab === 'stores') {
-      setActiveTab('stores');
-    } else if (currentTab === 'products') {
-      setActiveTab('products');
-    }
+    const timeout = setTimeout(() => {
+      const currentTab = getParam(localParams.tab) || getParam(globalParams.tab);
+      if (currentTab === 'stores') setActiveTab('stores');
+      else if (currentTab === 'products') setActiveTab('products');
 
-    const currentFamily = getParam(localParams.family) || getParam(globalParams.family);
-    if (currentFamily) {
-      setSelectedFamily(currentFamily);
-      setSelectedTag(currentFamily);
-    }
+      const currentFamily = getParam(localParams.family) || getParam(globalParams.family);
+      if (currentFamily) {
+        setSelectedFamily(currentFamily);
+        setSelectedTag(currentFamily);
+      }
 
-    const currentType = getParam(localParams.type) || getParam(globalParams.type);
-    if (currentType === 'decant') {
-      setSelectedType('decant');
-      setSelectedTag('Decants');
-    }
+      const currentType = getParam(localParams.type) || getParam(globalParams.type);
+      if (currentType === 'decant') {
+        setSelectedType('decant');
+        setSelectedTag('Decants');
+      }
 
-    const currentOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
-    if (currentOpenNotes === '1') {
-      setIsNotesModalOpen(true);
-    }
+      const currentOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
+      if (currentOpenNotes === '1') setIsNotesModalOpen(true);
+
+      const currentBrand = getParam(localParams.brand) || getParam(globalParams.brand);
+      if (currentBrand) setSelectedBrand(currentBrand);
+    }, 0);
+    return () => clearTimeout(timeout);
   }, [
     localParams.tab,
     globalParams.tab,
@@ -196,17 +207,31 @@ export default function ExploreScreen() {
     globalParams.type,
     localParams.openNotes,
     globalParams.openNotes,
+    localParams.brand,
+    globalParams.brand,
   ]);
 
-  // Carrega produtos reais da API usando storesService.getProducts (Médio 3 / RN-05 a RN-07)
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  // Carrega produtos reais da API com o contrato de busca do RF-22.
   useEffect(() => {
     let isMounted = true;
+    // The loading state reflects the lifecycle of the external request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingProducts(true);
 
     storesService
       .getProducts({
-        search: searchQuery.trim() || undefined,
+        search: debouncedSearch || undefined,
         olfactory_family: selectedFamily || undefined,
+        brand: selectedBrand || undefined,
+        notes: selectedNotes.length ? selectedNotes.join(',') : undefined,
+        type: selectedType === 'decant' || selectedType === 'bottle' ? selectedType : undefined,
+        available_only: true,
+        ordering,
       })
       .then((data) => {
         if (isMounted) {
@@ -222,14 +247,26 @@ export default function ExploreScreen() {
     return () => {
       isMounted = false;
     };
-  }, [searchQuery, selectedFamily]);
+  }, [debouncedSearch, selectedFamily, selectedBrand, selectedNotes, selectedType, ordering]);
 
   // Carrega lojas reais
   useEffect(() => {
-    storesService
-      .getStores()
+    storesService.getStores(debouncedSearch || undefined)
       .then(setStores)
       .catch((error) => console.error('Erro ao carregar lojas:', error));
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    if (storesService.getCatalogNotes) {
+      storesService.getCatalogNotes()
+        .then(setNotesCatalog)
+        .catch((error) => console.error('Erro ao carregar notas do catálogo:', error));
+    }
+    if (storesService.getBrands) {
+      storesService.getBrands()
+        .then(setBrands)
+        .catch((error) => console.error('Erro ao carregar marcas:', error));
+    }
   }, []);
 
   const { width: windowWidth } = useWindowDimensions();
@@ -242,39 +279,39 @@ export default function ExploreScreen() {
       if (selectedType === 'decant') {
         const hasDecant =
           prod.available_volumes?.some((v) => v <= 15) ||
-          prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15) ||
-          (prod as any).has_decant;
+          prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15);
         if (!hasDecant) return false;
       }
+      if (selectedType === 'bottle') {
+        const hasBottle =
+          prod.available_volumes?.some((v) => v > 15) ||
+          prod.store_offers?.some((o) => (o.volume_ml ?? 0) > 15);
+        if (!hasBottle) return false;
+      }
 
-      // Filtro por nota olfativa
-      if (selectedNote) {
+      // Mantém a filtragem local para respostas legadas/mockadas sem ofertas.
+      if (selectedNotes.length || selectedNote) {
         const allNotes = [
           ...(prod.top_notes || []),
           ...(prod.heart_notes || []),
           ...(prod.base_notes || []),
         ].map((n) => n.toLowerCase());
-        if (!allNotes.some((n) => n.includes(selectedNote.toLowerCase()))) {
+        const notesToMatch = selectedNotes.length ? selectedNotes : [selectedNote];
+        if (!notesToMatch.some((note) => allNotes.some((n) => n.includes(note.toLowerCase())))) {
           return false;
         }
       }
 
       return true;
     });
-  }, [products, selectedType, selectedNote]);
+  }, [products, selectedType, selectedNote, selectedNotes]);
 
   // Filtragem de lojas na aba de Lojas
   const visibleStores = stores.filter((store) =>
     store.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
   );
 
-  const featuredBrands = [
-    'Yves Saint Laurent',
-    'Maison F. Kurkdjian',
-    'Tom Ford',
-    'Natura',
-    'Chanel',
-  ];
+  const featuredBrands = brands;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -416,7 +453,7 @@ export default function ExploreScreen() {
             /* ============================================================== */
             <View testID="products-tab-content">
               {/* FILTROS ATIVOS EM DESTAQUE */}
-              {(selectedFamily !== '' || selectedType !== '' || selectedNote !== '') && (
+              {(selectedFamily !== '' || selectedType !== '' || selectedNote !== '' || selectedNotes.length > 0 || selectedBrand !== '') && (
                 <View style={styles.activeFiltersRow} testID="active-filters-container">
                   {selectedFamily !== '' && (
                     <View style={styles.activeFilterChip} testID="active-family-filter">
@@ -443,6 +480,22 @@ export default function ExploreScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
+                  {selectedType === 'bottle' && (
+                    <View style={styles.activeFilterChip} testID="active-type-filter">
+                      <Text style={styles.activeFilterChipText}>Tipo: Frascos</Text>
+                      <TouchableOpacity onPress={() => setSelectedType('')} testID="clear-bottle-filter-btn">
+                        <Ionicons name="close-circle" size={16} color="#2C4659" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  {selectedBrand !== '' && (
+                    <View style={styles.activeFilterChip}>
+                      <Text style={styles.activeFilterChipText}>Marca selecionada</Text>
+                      <TouchableOpacity onPress={() => setSelectedBrand('')}>
+                        <Ionicons name="close-circle" size={16} color="#2C4659" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   {selectedNote !== '' && (
                     <View style={styles.activeFilterChip} testID="active-note-filter">
                       <Text style={styles.activeFilterChipText}>Nota: {selectedNote}</Text>
@@ -454,12 +507,23 @@ export default function ExploreScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
+                  {selectedNotes.length > 0 && (
+                    <View style={styles.activeFilterChip}>
+                      <Text style={styles.activeFilterChipText}>{selectedNotes.length} notas</Text>
+                      <TouchableOpacity onPress={() => setSelectedNotes([])}>
+                        <Ionicons name="close-circle" size={16} color="#2C4659" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={styles.clearAllBtn}
                     onPress={() => {
                       setSelectedFamily('');
                       setSelectedType('');
                       setSelectedNote('');
+                      setSelectedNotes([]);
+                      setSelectedBrand('');
+                      setSearchQuery('');
                       setSelectedTag('');
                     }}
                     testID="clear-all-filters-btn"
@@ -474,7 +538,7 @@ export default function ExploreScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.notesDiscoveryTitle}>Descoberta Olfativa</Text>
                   <Text style={styles.notesDiscoverySubtitle}>
-                    {selectedNote ? `Filtrando por: ${selectedNote}` : 'Filtre por suas notas favoritas'}
+                    {selectedNotes.length ? `${selectedNotes.length} notas selecionadas` : 'Filtre por suas notas favoritas'}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -485,12 +549,34 @@ export default function ExploreScreen() {
                 >
                   <Ionicons name="sparkles" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={styles.notesModalTriggerBtnText}>
-                    {selectedNote ? 'Alterar Nota' : 'Notas Olfativas'}
+                    {selectedNotes.length ? 'Alterar Notas' : 'Notas Olfativas'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* FAMÍLIAS OLFATIVAS - CHIPS RÁPIDOS (RN-05) */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Formato</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familiesScroll}>
+                  {[
+                    { label: 'Todos', value: '' },
+                    { label: '🧪 Decants', value: 'decant' },
+                    { label: '🍾 Frascos', value: 'bottle' },
+                  ].map((format) => (
+                    <TouchableOpacity
+                      key={format.label}
+                      style={[styles.familyChip, selectedType === format.value && styles.familyChipActive]}
+                      onPress={() => setSelectedType(format.value)}
+                      testID={`format-chip-${format.value || 'all'}`}
+                    >
+                      <Text style={[styles.familyChipText, selectedType === format.value && styles.familyChipTextActive]}>
+                        {format.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Famílias Olfativas</Text>
                 <ScrollView
@@ -605,22 +691,85 @@ export default function ExploreScreen() {
                 >
                   {featuredBrands.map((brand) => (
                     <TouchableOpacity
-                      key={brand}
-                      style={styles.brandCard}
+                      key={brand.id}
+                      style={[styles.brandCard, selectedBrand === String(brand.id) && styles.popularTagActive]}
                       activeOpacity={0.7}
-                      onPress={() => setSearchQuery(brand)}
+                      onPress={() => setSelectedBrand(selectedBrand === String(brand.id) ? '' : String(brand.id))}
                     >
-                      <Text style={styles.brandText}>{brand}</Text>
+                      <Text style={styles.brandText}>{brand.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
               </View>
 
+              <View style={styles.section} testID="explore-stores-section">
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>Lojas Encontradas</Text>
+                  <Text style={styles.storeCountBadge}>{visibleStores.length} lojas</Text>
+                </View>
+                {visibleStores.length === 0 ? (
+                  <Text style={styles.emptyStoreHint}>Nenhuma loja encontrada</Text>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.storesScroll}
+                  >
+                    {visibleStores.map((store) => (
+                      <TouchableOpacity
+                        key={store.id}
+                        style={styles.storeExploreCard}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/store/[id]' as never,
+                            params: { id: store.id.toString() },
+                          })
+                        }
+                        testID={`explore-store-item-${store.id}`}
+                      >
+                        <View style={styles.storeAvatarBox}>
+                          <Text style={styles.storeAvatarInitial}>
+                            {store.name.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.storeInfoBox}>
+                          <Text style={styles.storeNameText} numberOfLines={1}>
+                            {store.name}
+                          </Text>
+                          <Text style={styles.storeLocationText} numberOfLines={1}>
+                            {store.city && store.state
+                              ? `${store.city}/${store.state}`
+                              : 'Parceiro verificado'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
               {/* PRODUTOS DO CATÁLOGO / RESULTADOS */}
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Perfumes em Destaque</Text>
-                  <Text style={styles.productCountBadge}>{filteredProducts.length} itens</Text>
+                  <View>
+                    <Text style={styles.sectionTitle}>Perfumes Encontrados</Text>
+                    <Text style={styles.productCountBadge}>{filteredProducts.length} perfumes encontrados</Text>
+                  </View>
+                  <View style={styles.sortRow}>
+                    {[
+                      { label: 'Relevantes', value: 'popular' as const },
+                      { label: 'Menor R$', value: 'price_asc' as const },
+                      { label: 'Maior R$', value: 'price_desc' as const },
+                    ].map((option) => (
+                      <TouchableOpacity key={option.value} onPress={() => setOrdering(option.value)}>
+                        <Text style={[styles.sortText, ordering === option.value && styles.sortTextActive]}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
 
                 {loadingProducts ? (
@@ -633,6 +782,19 @@ export default function ExploreScreen() {
                     <Text style={styles.emptyStateText}>
                       Nenhum perfume encontrado com os filtros selecionados.
                     </Text>
+                    <TouchableOpacity
+                      style={styles.clearEmptyButton}
+                      onPress={() => {
+                        setSearchQuery('');
+                        setSelectedFamily('');
+                        setSelectedType('');
+                        setSelectedBrand('');
+                        setSelectedNote('');
+                        setSelectedNotes([]);
+                      }}
+                    >
+                      <Text style={styles.clearEmptyButtonText}>Limpar filtros</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <View style={styles.productsGrid}>
@@ -642,8 +804,7 @@ export default function ExploreScreen() {
                         : String(prod.brand || 'Marca');
                       const hasDecantOffer =
                         prod.available_volumes?.some((v) => v <= 15) ||
-                        prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15) ||
-                        (prod as any).has_decant;
+                        prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15);
                       const priceLabel = prod.min_price != null
                         ? `A partir de R$ ${prod.min_price.toFixed(2).replace('.', ',')}`
                         : 'Sob consulta';
@@ -742,19 +903,44 @@ export default function ExploreScreen() {
               </View>
 
               <Text style={styles.modalSubtitle}>
-                Selecione uma nota olfativa para filtrar as criações do catálogo:
+                Combine até 5 notas reais do catálogo:
               </Text>
+              <TouchableOpacity
+                style={styles.favoriteNotesButton}
+                onPress={async () => {
+                  try {
+                    const profile = await authService.getMe();
+                    const notes = Array.isArray(profile?.preferred_notes)
+                      ? profile.preferred_notes.slice(0, 5)
+                      : [];
+                    setSelectedNotes(notes);
+                    setSelectedNote(notes[0] || '');
+                  } catch (error) {
+                    console.error('Erro ao carregar notas favoritas:', error);
+                  }
+                }}
+              >
+                <Text style={styles.favoriteNotesButtonText}>✨ Usar minhas notas favoritas</Text>
+              </TouchableOpacity>
 
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 style={styles.modalNotesScroll}
               >
-                {Object.entries(POPULAR_NOTES_MAP).map(([pyramid, notes]) => (
+                {Object.entries(
+                  notesCatalog
+                    ? {
+                        'Notas de Saída': notesCatalog.top_notes,
+                        'Notas de Coração': notesCatalog.heart_notes,
+                        'Notas de Fundo': notesCatalog.base_notes,
+                      }
+                    : POPULAR_NOTES_MAP
+                ).map(([pyramid, notes]) => (
                   <View key={pyramid} style={styles.pyramidGroup}>
                     <Text style={styles.pyramidTitle}>{pyramid}</Text>
                     <View style={styles.notesGrid}>
                       {notes.map((note) => {
-                        const isSelected = selectedNote === note;
+                        const isSelected = selectedNotes.includes(note) || selectedNote === note;
                         return (
                           <TouchableOpacity
                             key={note}
@@ -764,7 +950,10 @@ export default function ExploreScreen() {
                             ]}
                             onPress={() => {
                               setSelectedNote(isSelected ? '' : note);
-                              setIsNotesModalOpen(false);
+                              setSelectedNotes((current) => {
+                                if (isSelected) return current.filter((item) => item !== note);
+                                return current.length >= 5 ? current : [...current, note];
+                              });
                             }}
                             activeOpacity={0.7}
                             testID={`note-option-${note}`}
@@ -972,6 +1161,19 @@ const styles = StyleSheet.create({
     color: '#78716C',
     fontWeight: '600',
   },
+  sortRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  sortText: {
+    fontSize: 10,
+    color: '#78716C',
+  },
+  sortTextActive: {
+    color: '#9E4732',
+    fontWeight: '700',
+  },
   storeCountBadge: {
     fontSize: 12,
     color: '#78716C',
@@ -1042,6 +1244,26 @@ const styles = StyleSheet.create({
   brandsScroll: {
     paddingHorizontal: 20,
     gap: 10,
+  },
+  storesScroll: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  storeExploreCard: {
+    width: 250,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#EFECE4',
+    gap: 10,
+  },
+  emptyStoreHint: {
+    paddingHorizontal: 20,
+    color: '#78716C',
+    fontSize: 13,
   },
   brandCard: {
     backgroundColor: '#FFFFFF',
@@ -1255,6 +1477,18 @@ const styles = StyleSheet.create({
     color: '#78716C',
     textAlign: 'center',
   },
+  clearEmptyButton: {
+    marginTop: 14,
+    backgroundColor: '#2C4659',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  clearEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   // --- Modal de Notas Olfativas ---
   modalOverlay: {
@@ -1289,6 +1523,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#78716C',
     marginBottom: 16,
+  },
+  favoriteNotesButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F5F3E9',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  favoriteNotesButtonText: {
+    color: '#9E4732',
+    fontSize: 12,
+    fontWeight: '700',
   },
   modalNotesScroll: {
     maxHeight: 380,

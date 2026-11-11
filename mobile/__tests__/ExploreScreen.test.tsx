@@ -200,8 +200,9 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
     const screen = await render(<ExploreScreen />);
 
     // Inicialmente na aba de perfumes
-    expect(screen.getByTestId('products-tab-content')).toBeTruthy();
-
+    await waitFor(() => {
+      expect(screen.getByTestId('products-tab-content')).toBeTruthy();
+    });
     // Toca na aba de lojas
     const storesTabBtn = screen.getByTestId('tab-stores');
     fireEvent.press(storesTabBtn);
@@ -218,4 +219,5 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
       expect(screen.getByTestId('products-tab-content')).toBeTruthy();
     });
   });
+
 });
