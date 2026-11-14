@@ -251,6 +251,24 @@ export interface CatalogNotesResponse {
   families: string[];
 }
 
+export interface Brand {
+  id: number;
+  name: string;
+  is_official?: boolean;
+}
+
+export interface ProductSearchParams {
+  search?: string;
+  olfactory_family?: string;
+  brand?: number | string;
+  notes?: string;
+  type?: 'decant' | 'bottle';
+  available_only?: boolean;
+  ordering?: 'popular' | 'price_asc' | 'price_desc';
+  min_price?: number;
+  max_price?: number;
+}
+
 export interface RecommendedProductsResponse {
   is_personalized: boolean;
   results: ProductDetails[];
@@ -278,8 +296,13 @@ export const storesService = {
     return response.data;
   },
 
-  getProducts: async (params?: { search?: string; olfactory_family?: string; brand?: number | string }): Promise<ProductDetails[]> => {
+  getProducts: async (params?: ProductSearchParams): Promise<ProductDetails[]> => {
     const response = await api.get('/products/', { params });
+    return Array.isArray(response.data) ? response.data : response.data?.results ?? [];
+  },
+
+  getBrands: async (): Promise<Brand[]> => {
+    const response = await api.get('/brands/');
     return Array.isArray(response.data) ? response.data : response.data?.results ?? [];
   },
 

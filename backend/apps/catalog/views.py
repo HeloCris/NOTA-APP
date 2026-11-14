@@ -1,5 +1,7 @@
+from decimal import Decimal, InvalidOperation
+
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import transaction
+from django.db import models, transaction
 
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.generics import ListAPIView
@@ -54,21 +56,143 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
         params = self.request.query_params
 
-        if search := params.get("search"):
-            queryset = queryset.filter(name__icontains=search)
+        search = params.get("search") or params.get("q")
+        if search:
+            search_filter = (
+                models.Q(name__icontains=search)
+                | models.Q(brand__name__icontains=search)
+                | models.Q(olfactory_family__icontains=search)
+                | models.Q(top_notes__icontains=search)
+                | models.Q(heart_notes__icontains=search)
+                | models.Q(base_notes__icontains=search)
+            )
+            queryset = queryset.filter(search_filter)
         if brand := params.get("brand"):
             queryset = queryset.filter(brand_id=brand)
-        if family := params.get("olfactory_family"):
+        family = params.get("olfactory_family") or params.get("family")
+        if family:
             queryset = queryset.filter(olfactory_family__iexact=family)
         if concentration := params.get("concentration"):
             queryset = queryset.filter(concentration__iexact=concentration)
         if gender := params.get("gender"):
             queryset = queryset.filter(gender__iexact=gender)
+        notes = [note.strip() for note in params.get("notes", "").split(",") if note.strip()]
+        if notes:
+            notes_filter = models.Q()
+            for note in notes:
+                notes_filter |= (
+                    models.Q(top_notes__icontains=note)
+                    | models.Q(heart_notes__icontains=note)
+                    | models.Q(base_notes__icontains=note)
+                )
+            queryset = queryset.filter(notes_filter)
+
         for field in ("top_notes", "heart_notes", "base_notes"):
             if note := params.get(field):
                 queryset = queryset.filter(**{f"{field}__icontains": note})
 
+        active_offer = models.Q(
+            store_products__is_available=True,
+            store_products__stock_quantity__gt=0,
+            store_products__store__is_active=True,
+        )
+        if params.get("available_only", "").lower() == "true":
+            queryset = queryset.filter(active_offer)
+
+        product_type = params.get("type") or params.get("format")
+        if product_type == "decant":
+            queryset = queryset.filter(active_offer, store_products__volume_ml__lte=15)
+        elif product_type == "bottle":
+            queryset = queryset.filter(active_offer, store_products__volume_ml__gt=15)
+
+        try:
+            min_price = Decimal(params["min_price"]) if params.get("min_price") else None
+        except (InvalidOperation, TypeError, ValueError):
+            min_price = None
+        try:
+            max_price = Decimal(params["max_price"]) if params.get("max_price") else None
+        except (InvalidOperation, TypeError, ValueError):
+            max_price = None
+        if min_price is not None:
+            queryset = queryset.filter(active_offer, store_products__price__gte=min_price)
+        if max_price is not None:
+            queryset = queryset.filter(active_offer, store_products__price__lte=max_price)
+
+        queryset = queryset.distinct()
+        ordering = params.get("ordering", "popular")
+        if ordering == "price_asc":
+            queryset = queryset.annotate(
+                search_min_price=models.Min("store_products__price", filter=active_offer)
+            ).order_by("search_min_price", "name")
+        elif ordering == "price_desc":
+            queryset = queryset.annotate(
+                search_min_price=models.Min("store_products__price", filter=active_offer)
+            ).order_by("-search_min_price", "name")
+        else:
+            if notes:
+                note_match_cases = [
+                    models.When(
+                        models.Q(top_notes__icontains=note)
+                        | models.Q(heart_notes__icontains=note)
+                        | models.Q(base_notes__icontains=note),
+                        then=models.Value(1),
+                    )
+                    for note in notes
+                ]
+                queryset = queryset.annotate(
+                    note_match_count=models.Sum(
+                        models.Case(
+                            *note_match_cases,
+                            default=models.Value(0),
+                            output_field=models.IntegerField(),
+                        )
+                    )
+                ).order_by("-note_match_count", "-sold_count", "name")
+            else:
+                queryset = queryset.order_by("-sold_count", "name")
+
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        user = request.user
+        requested_ordering = request.query_params.get("ordering", "popular")
+        user_families = getattr(user, "olfactory_families", []) or []
+        user_notes = getattr(user, "preferred_notes", []) or []
+
+        if (
+            requested_ordering == "popular"
+            and not request.query_params.get("notes")
+            and user.is_authenticated
+            and (user_families or user_notes)
+        ):
+            products = list(self.get_queryset())
+            followed_store_ids = set(
+                StoreFollower.objects.filter(user=user).values_list("store_id", flat=True)
+            )
+            for product in products:
+                match_data = calculate_olfactory_match(user, product, followed_store_ids)
+                product._calculated_match = match_data["match_percentage"] or 0
+
+            products.sort(
+                key=lambda product: (
+                    product._calculated_match,
+                    getattr(product, "sold_count", 0),
+                ),
+                reverse=True,
+            )
+            page = self.paginate_queryset(products)
+            if page is not None:
+                products = page
+            serializer = self.get_serializer(
+                products,
+                many=True,
+                context={"request": request, "followed_store_ids": followed_store_ids},
+            )
+            if page is not None:
+                return self.get_paginated_response(serializer.data)
+            return Response(serializer.data)
+
+        return super().list(request, *args, **kwargs)
 
 
 class ProductDetailView(generics.RetrieveAPIView):
