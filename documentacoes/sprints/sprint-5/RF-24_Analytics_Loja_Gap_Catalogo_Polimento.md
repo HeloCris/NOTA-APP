@@ -129,15 +129,12 @@ Criar `web/src/features/store/StoreAnalyticsSection.tsx` (acessado na aba `"📊
 4. **Ranking das Ofertas Campeãs da Loja (por Volumetria):**
    - Tabela com os produtos mais vendidos da própria loja, diferenciando Decants (`🧪 10ml`) e Frascos (`🍾 100ml`), estoque restante e receita acumulada.
 
-### RF-24.3: Busca Rápida na Topbar Web (`SellerHomePage.tsx` e `BrandHomePage.tsx`)
-- Conectar o input `"Pesquisar no painel..."` da Topbar: ao digitar um termo e pressionar `Enter` (ou clicar em buscar), alternar automaticamente para a aba `products` repassando o termo de busca para filtrar os produtos da loja, ou permitir limpar o filtro rapidamente.
-
-### RF-24.4: Modal de Edição de Dados Pessoais e Limpeza de Menu no Mobile (`account/index.tsx`)
+### RF-24.3: Modal de Edição de Dados Pessoais e Limpeza de Menu no Mobile (`account/index.tsx`)
 - Em `mobile/src/app/(shop)/account/index.tsx`:
   - Substituir o `router.push('/account/edit-profile')` (rota inexistente) por um **Modal nativo elegante** onde o usuário edita **Nome Completo** (`full_name`) e **Telefone** (`phone`), enviando `PATCH /api/v1/auth/me/` e atualizando o contexto `useAuth()`.
   - Remover o item `"Configurações"` (`icon: 'settings-outline'`, `onPress: () => {}`) da lista `menuItems`, mantendo apenas itens 100% funcionais (`Meus Pedidos`, `Lojas que Sigo`, `Dúvidas e Suporte` e `Sair da conta`).
 
-### RF-24.5: Enriquecimento do `seed_catalog.py`
+### RF-24.4: Enriquecimento do `seed_catalog.py`
 - Atualizar `backend/catalog/management/commands/seed_catalog.py` (ou comando equivalente) para garantir a criação idempotente de:
   - Pelo menos 2 lojas ativas (`Atelier des Décants` e `Maison NŌTA Parfums`);
   - Pelo menos 15 ofertas (`StoreProduct`) combinando Decants (`5ml`, `10ml`) e Frascos (`50ml`, `100ml`);

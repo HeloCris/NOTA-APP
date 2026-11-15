@@ -21,6 +21,7 @@ from .serializers import (
     FollowingStoreSerializer,
 )
 from .services import (
+    build_market_metrics,
     notify_store_followers_new_coupon,
     validate_and_calculate_coupon_discount,
 )
@@ -122,6 +123,28 @@ class StoreDashboardView(APIView):
             **build_dashboard(store, request.query_params.get("period", "7d")),
         }
         return Response(data)
+
+
+class StoreMarketMetricsView(APIView):
+    """
+    Retorna métricas agregadas de inteligência de mercado do ecossistema NŌTA (RF-23).
+    Acesso permitido para vendedores (SELLER) e donos de marca (BRAND_OWNER) com loja vinculada.
+    """
+    permission_classes = [IsStoreOwner]
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        store = Store.objects.filter(owner=user).first()
+        if not store and hasattr(user, "brands"):
+            brand = user.brands.filter(d2c_store__isnull=False).first()
+            if brand and brand.d2c_store:
+                store = brand.d2c_store
+
+        if store is None:
+            raise NotFound("Nenhuma loja encontrada para este usuário.")
+
+        data = build_market_metrics(store)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class StoreProductListView(generics.ListAPIView):
