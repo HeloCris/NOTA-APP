@@ -30,6 +30,11 @@ class ReturnStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Recusado'
 
 
+class PaymentMethod(models.TextChoices):
+    PIX = 'PIX', 'PIX'
+    CREDIT_CARD = 'CREDIT_CARD', 'Cartão de Crédito'
+
+
 class Order(models.Model):
     items: models.Manager['OrderItem']
     user = models.ForeignKey(
@@ -44,6 +49,13 @@ class Order(models.Model):
         max_length=30,
         choices=OrderStatus.choices,
         default=OrderStatus.PENDING,
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.PIX,
+        blank=True,
+        verbose_name='Forma de Pagamento',
     )
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     shipping_cost = models.DecimalField(

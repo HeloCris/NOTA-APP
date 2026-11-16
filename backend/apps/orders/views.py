@@ -174,6 +174,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                         coupon=applied_coupon,
                         discount_amount=discount_amount,
                         status=OrderStatus.PENDING,
+                        payment_method=data.get('payment_method', 'PIX'),
                     )
 
                     OrderPostPurchaseService.log_history(
@@ -297,7 +298,9 @@ def process_payment(request):
             for order in orders:
                 old_status = order.status
                 order.status = OrderStatus.PAID
-                order.save(update_fields=['status', 'updated_at'])
+                if payment_method:
+                    order.payment_method = payment_method
+                order.save(update_fields=['status', 'payment_method', 'updated_at'])
 
                 # Incremento atômico de used_count do cupom ao concluir o pagamento (RN-04)
                 if order.coupon_id:
@@ -306,12 +309,17 @@ def process_payment(request):
                         used_count=models.F('used_count') + 1
                     )
 
+                method_label = (
+                    "Cartão de Crédito"
+                    if str(payment_method).upper() == "CREDIT_CARD"
+                    else "PIX"
+                )
                 OrderPostPurchaseService.log_history(
                     order,
                     from_status=old_status,
                     to_status=OrderStatus.PAID,
                     actor=request.user,
-                    reason="Pagamento aprovado.",
+                    reason=f"Pagamento aprovado via {method_label}.",
                 )
                 updated_ids.append(order.id)
 
@@ -358,8 +366,13 @@ class StoreOrderListView(APIView):
 
         orders = (
             Order.objects.filter(store_id=store_id)
-            .select_related("user")
-            .prefetch_related("items__store_product__product")
+            .select_related("user", "coupon")
+            .prefetch_related(
+                "items__store_product__product__brand",
+                "status_history__actor",
+                "return_requests__items__order_item__store_product__product",
+                "return_requests__photos",
+            )
             .order_by("-created_at")
         )
         if status_filter != "ALL":
@@ -367,7 +380,7 @@ class StoreOrderListView(APIView):
 
         store = Store.objects.filter(pk=store_id).first()
         serializer = StoreOrderSerializer(
-            orders, many=True, context={"store": store}
+            orders, many=True, context={"store": store, "request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -671,7 +684,9 @@ class StoreOrderDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = StoreOrderDetailSerializer(order, context={'store': order.store})
+        serializer = StoreOrderDetailSerializer(
+            order, context={'store': order.store, 'request': request}
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

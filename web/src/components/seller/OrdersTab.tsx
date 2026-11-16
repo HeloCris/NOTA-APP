@@ -1,728 +1,857 @@
-import { useEffect, useState } from "react";
-import { toast } from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
-import { ShippingModal } from "../../features/store/ShippingModal";
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   storeOrderService,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_STYLES,
+  formatCurrencyBRL,
   type StoreOrder,
-  type StoreOrderStatus,
-} from "../../services/storeOrderService";
+} from '../../services/storeOrderService';
+import { ShippingModal } from '../../features/store/ShippingModal';
+import { StoreOrderDetailModal } from '../../features/store/StoreOrderDetail';
 
-type FilterKey = "ALL" | "PROCESSING" | "REQUESTS" | "DELAYED" | "SHIPPED";
+type FilterStatus =
+  | 'ALL'
+  | 'PENDING_SHIPMENT'
+  | 'IN_TRANSIT'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'POST_SALE';
 
-const statusStyles: Record<StoreOrderStatus, string> = {
-  PENDING: "bg-[#F5F3E9] text-[#5A6067]",
-  PAID: "bg-[#E9EDF0] text-[#354B5E]",
-  PROCESSING: "bg-[#F5E7DE] text-[#7E4228]",
-  SHIPPED: "bg-[#EDF0E7] text-[#454F3A]",
-  DELIVERED: "bg-[#F0F5EE] text-[#3A5C30]",
-  CANCELLED: "bg-[#FDF4F0] text-[#BA1A1A]",
-  CANCEL_REQUESTED: "bg-[#FFF3CD] text-[#856404] border-[#FFEEBA]",
-  DELIVERY_DISPUTED: "bg-[#F8D7DA] text-[#721C24] border-[#F5C6CB]",
-  REFUNDED: "bg-[#E2E3E5] text-[#383D41] border-[#D6D8DB]",
-};
-
-const statusLabels: Record<StoreOrderStatus, string> = {
-  PENDING: "Pendente",
-  PAID: "Pago",
-  PROCESSING: "Em separação",
-  SHIPPED: "Enviado",
-  DELIVERED: "Entregue",
-  CANCELLED: "Cancelado",
-  CANCEL_REQUESTED: "Cancelamento Solicitado",
-  DELIVERY_DISPUTED: "Entrega Contestada",
-  REFUNDED: "Reembolsado",
-};
+function getApiErrorMessage(err: unknown, fallback: string): string {
+  if (typeof err === 'object' && err !== null && 'response' in err) {
+    const response = (err as { response?: { data?: { error?: string; detail?: string } } }).response;
+    return response?.data?.error || response?.data?.detail || fallback;
+  }
+  return fallback;
+}
 
 export function OrdersTab() {
-  const navigate = useNavigate();
-  const [orders, setOrders] = useState<StoreOrder[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<FilterKey>("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [orderToShip, setOrderToShip] = useState<StoreOrder | null>(null);
+  const [allOrders, setAllOrders] = useState<StoreOrder[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState<number>(0);
 
-  // Estados para o Modal de Resposta de Cancelamento
+  // Filtros
+  const [activeFilter, setActiveFilter] = useState<FilterStatus>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [appliedSearch, setAppliedSearch] = useState<string>('');
+
+  // Modais
+  const [shippingModalOrder, setShippingModalOrder] = useState<StoreOrder | null>(null);
+  const [detailModalOrder, setDetailModalOrder] = useState<StoreOrder | null>(null);
   const [cancelModalOrder, setCancelModalOrder] = useState<StoreOrder | null>(null);
-  const [cancelRejectReason, setCancelRejectReason] = useState<string>("");
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [bannerFeedback, setBannerFeedback] = useState<string | null>(null);
 
-  // Estados para o Modal de Resolução de Contestação
-  const [disputeModalOrder, setDisputeModalOrder] = useState<StoreOrder | null>(null);
-  const [newTrackingCode, setNewTrackingCode] = useState<string>("");
+  useEffect(() => {
+    let active = true;
+    const fetchAllOrders = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const ordersData = await storeOrderService.getOrders('ALL');
+        if (active) {
+          setAllOrders(ordersData);
+        }
+      } catch {
+        if (active) {
+          setError('Não foi possível sincronizar os pedidos da loja no momento.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchAllOrders();
+    return () => {
+      active = false;
+    };
+  }, [refreshTick]);
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const summary = useMemo(() => {
+    let awaiting_shipment = 0;
+    let delayed_count = 0;
+    let in_transit = 0;
+    let completed_count = 0;
+    let cancelled_count = 0;
 
-  const loadOrders = async () => {
-    setLoading(true);
-    setLoadError("");
+    for (const o of allOrders) {
+      if (o.status === 'PAID' || o.status === 'PROCESSING') {
+        awaiting_shipment += 1;
+        if (o.urgency_status === 'DELAYED' || o.is_delayed) {
+          delayed_count += 1;
+        }
+      } else if (o.status === 'SHIPPED') {
+        in_transit += 1;
+      } else if (o.status === 'DELIVERED') {
+        completed_count += 1;
+      } else if (o.status === 'CANCELLED' || o.status === 'REFUNDED') {
+        cancelled_count += 1;
+      }
+    }
+
+    return {
+      awaiting_shipment,
+      delayed_count,
+      in_transit,
+      completed_count,
+      cancelled_count,
+    };
+  }, [allOrders]);
+
+  const filteredOrders = useMemo(() => {
+    const query = appliedSearch.toLowerCase();
+
+    return allOrders.filter((order) => {
+      if (activeFilter === 'PENDING_SHIPMENT') {
+        if (order.status !== 'PENDING' && order.status !== 'PAID' && order.status !== 'PROCESSING') {
+          return false;
+        }
+      } else if (activeFilter === 'IN_TRANSIT') {
+        if (order.status !== 'SHIPPED') return false;
+      } else if (activeFilter === 'COMPLETED') {
+        if (order.status !== 'DELIVERED') return false;
+      } else if (activeFilter === 'CANCELLED') {
+        if (order.status !== 'CANCELLED' && order.status !== 'REFUNDED') return false;
+      } else if (activeFilter === 'POST_SALE') {
+        const hasPendingReturns =
+          order.return_requests && order.return_requests.length > 0;
+        if (
+          order.status !== 'CANCEL_REQUESTED' &&
+          order.status !== 'DELIVERY_DISPUTED' &&
+          !hasPendingReturns
+        ) {
+          return false;
+        }
+      }
+
+      if (query) {
+        const idStr = String(order.id);
+        const codeStr = (order.code || '').toLowerCase();
+        const customerStr = (order.customer_name || '').toLowerCase();
+        const itemMatch = order.items?.some((item) =>
+          item.product_name.toLowerCase().includes(query),
+        );
+        if (
+          !idStr.includes(query.replace('#', '')) &&
+          !codeStr.includes(query) &&
+          !customerStr.includes(query) &&
+          !itemMatch
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allOrders, activeFilter, appliedSearch]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppliedSearch(searchQuery.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setAppliedSearch('');
+  };
+
+  const handleMoveToProcessing = async (orderId: number) => {
     try {
-      setOrders(await storeOrderService.getOrders());
-    } catch {
-      setLoadError("Não foi possível carregar os pedidos. Tente novamente.");
+      setActionLoadingId(orderId);
+      setError(null);
+      await storeOrderService.updateOrderStatus(orderId, 'PROCESSING');
+      setBannerFeedback(`Pedido #${orderId} movido para separação.`);
+      setRefreshTick((t) => t + 1);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao iniciar separação do pedido.'));
     } finally {
-      setLoading(false);
+      setActionLoadingId(null);
     }
   };
 
-  useEffect(() => {
-    void loadOrders();
-  }, []);
-
-  const delayedCount = orders.filter((order) => order.is_delayed).length;
-  const processingCount = orders.filter((order) => order.status === "PROCESSING").length;
-  const shippedCount = orders.filter((order) => order.status === "SHIPPED").length;
-  const requestsCount = orders.filter(
-    (order) =>
-      order.status === "CANCEL_REQUESTED" ||
-      order.status === "DELIVERY_DISPUTED" ||
-      order.return_requests?.some(
-        (r) => r.status === "REQUESTED" || r.status === "APPROVED"
-      )
-  ).length;
-
-  const visibleOrders = orders.filter((order) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (query) {
-      const normalizedNumberQuery = query.replace(/^#/, "");
-      const matchesId =
-        String(order.id).includes(normalizedNumberQuery) ||
-        `#${order.id}`.toLowerCase().includes(query) ||
-        Boolean(order.code && order.code.toLowerCase().includes(query));
-      const matchesCustomer = (order.customer_name || "")
-        .toLowerCase()
-        .includes(query);
-      if (!matchesId && !matchesCustomer) {
-        return false;
-      }
-    }
-
-    if (selectedFilter === "ALL") return true;
-    if (selectedFilter === "PROCESSING") return order.status === "PROCESSING";
-    if (selectedFilter === "DELAYED") return order.is_delayed;
-    if (selectedFilter === "SHIPPED") return order.status === "SHIPPED";
-    if (selectedFilter === "REQUESTS") {
-      return (
-        order.status === "CANCEL_REQUESTED" ||
-        order.status === "DELIVERY_DISPUTED" ||
-        order.return_requests?.some(
-          (r) => r.status === "REQUESTED" || r.status === "APPROVED"
-        )
-      );
-    }
-    return true;
-  });
-
-  function openShippingModal(order: StoreOrder) {
-    setOrderToShip(order);
-  }
-
-  function closeShippingModal() {
-    setOrderToShip(null);
-  }
-
-  async function startProcessing(order: StoreOrder) {
-    setBusyId(order.id);
+  const handleShipConfirm = async (carrier: string, trackingCode: string) => {
+    if (!shippingModalOrder) return;
     try {
-      const updated = await storeOrderService.updateOrderStatus(order.id, "PROCESSING");
-      setOrders((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item))
-      );
-      toast.success(`Pedido #${order.id} movido para Em Separação.`);
-    } catch {
-      toast.error("Não foi possível atualizar o status do pedido.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function confirmShipping(carrier: string, trackingCode: string) {
-    if (!orderToShip) return;
-    setBusyId(orderToShip.id);
-    try {
-      const updated = await storeOrderService.shipOrder(orderToShip.id, {
+      setActionLoadingId(shippingModalOrder.id);
+      setError(null);
+      await storeOrderService.shipOrder(shippingModalOrder.id, {
         carrier,
         tracking_code: trackingCode,
       });
-      setOrders((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item))
-      );
-      closeShippingModal();
-      toast.success(`Pedido #${updated.id} despachado com sucesso.`);
-    } catch {
-      toast.error("Não foi possível despachar o pedido.");
+      setBannerFeedback(`Pedido #${shippingModalOrder.id} despachado com sucesso.`);
+      setShippingModalOrder(null);
+      setRefreshTick((t) => t + 1);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao despachar pedido.'));
     } finally {
-      setBusyId(null);
+      setActionLoadingId(null);
     }
-  }
+  };
 
-  // Ação: Responder à Solicitação de Cancelamento
-  async function handleRespondCancel(approve: boolean) {
+  const handleDeliverConfirm = async (orderId: number) => {
+    try {
+      setActionLoadingId(orderId);
+      setError(null);
+      await storeOrderService.markDelivered(orderId);
+      setBannerFeedback(`Entrega do pedido #${orderId} confirmada.`);
+      setRefreshTick((t) => t + 1);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Erro ao confirmar entrega do pedido.'));
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleConfirmCancelOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!cancelModalOrder) return;
-    if (!approve && !cancelRejectReason.trim()) {
-      toast.error("Atenção: Informe o motivo da recusa.");
+    if (cancelReason.trim().length < 5) {
+      setCancelError('Informe o motivo do cancelamento (mínimo de 5 caracteres).');
       return;
     }
 
-    setBusyId(cancelModalOrder.id);
     try {
-      await storeOrderService.respondCancelRequest(
-        cancelModalOrder.id,
-        approve,
-        approve ? undefined : cancelRejectReason.trim()
-      );
-
-      if (approve) {
-        toast.success(`Solicitação APROVADA. Pedido #${cancelModalOrder.id} foi cancelado.`);
-      } else {
-        toast.success(`Solicitação RECUSADA. Pedido #${cancelModalOrder.id} retornou para Em Separação.`);
-      }
-
+      setActionLoadingId(cancelModalOrder.id);
+      setCancelError(null);
+      await storeOrderService.cancelOrder(cancelModalOrder.id, cancelReason.trim());
+      setBannerFeedback(`Pedido #${cancelModalOrder.id} cancelado e estoque restaurado.`);
       setCancelModalOrder(null);
-      setCancelRejectReason("");
-      await loadOrders();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Não foi possível processar a resposta de cancelamento.");
+      setCancelReason('');
+      setRefreshTick((t) => t + 1);
+    } catch (err: unknown) {
+      setCancelError(getApiErrorMessage(err, 'Erro ao cancelar o pedido.'));
     } finally {
-      setBusyId(null);
+      setActionLoadingId(null);
     }
-  }
+  };
+
+  const handleOrderUpdatedFromModal = (updated: StoreOrder) => {
+    setAllOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    setDetailModalOrder(updated);
+  };
 
   return (
-    <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="flex items-end justify-between gap-5 mb-7 flex-wrap">
-        <div>
-          <p className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#A85A38] mb-2">
-            Operação ao Vivo
-          </p>
-          <h1 className="font-jakarta text-[27px] font-extrabold text-[#263847] mb-1">
-            Pedidos e expedição
-          </h1>
-          <p className="text-[13px] text-[#5A6067]">
-            Acompanhe prazos de despacho, pedidos em atraso e informe o rastreio aos clientes.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-white border border-[#E6E1D2] rounded-full p-1 shadow-[0_1px_3px_rgba(35,40,45,0.06)] flex-wrap">
-          {(
-            [
-              ["ALL", "Todos"],
-              ["PROCESSING", `Aguardando (${processingCount})`],
-              ["REQUESTS", `Solicitações (${requestsCount})`],
-              ["DELAYED", `Em atraso (${delayedCount})`],
-              ["SHIPPED", `Enviados (${shippedCount})`],
-            ] as const
-          ).map(([filterKey, label]) => (
-            <button
-              key={filterKey}
-              type="button"
-              onClick={() => setSelectedFilter(filterKey as FilterKey)}
-              className={`px-4 py-2 rounded-full text-[12px] font-bold transition-colors ${
-                selectedFilter === filterKey
-                  ? filterKey === "DELAYED" && delayedCount > 0
-                    ? "bg-[#BA1A1A] text-white"
-                    : filterKey === "REQUESTS" && requestsCount > 0
-                    ? "bg-[#A85A38] text-white"
-                    : "bg-[#354B5E] text-white"
-                  : filterKey === "DELAYED" && delayedCount > 0
-                  ? "text-[#BA1A1A] hover:bg-[#FDF4F0]"
-                  : filterKey === "REQUESTS" && requestsCount > 0
-                  ? "text-[#A85A38] hover:bg-[#FDF4F0]"
-                  : "text-[#5A6067] hover:bg-[#F5F3E9]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Métricas ao vivo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-[#354B5E] text-white p-5 rounded-[18px]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#DCE5EA] mb-2">
-            Aguardando despacho
-          </p>
-          <p className="font-jakarta text-[30px] font-extrabold leading-none">
-            {processingCount}
-          </p>
-          <p className="text-[11.5px] text-[#DCE5EA]/80 mt-2">
-            Separação e empacotamento
-          </p>
-        </div>
-
-        <div
-          className={`p-5 rounded-[18px] border transition-colors ${
-            delayedCount > 0
-              ? "bg-[#FDF4F0] border-[#F0C4B0] text-[#7E2D11]"
-              : "bg-white border-[#EFEBDD] text-[#23282D] shadow-[0_1px_3px_rgba(35,40,45,0.06)]"
-          }`}
+    <div className="space-y-6">
+      {/* KPIs de Logística e Pós-Venda */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <button
+          type="button"
+          onClick={() => setActiveFilter('PENDING_SHIPMENT')}
+          className={`text-left bg-white p-5 rounded-2xl border transition-all cursor-pointer ${
+            activeFilter === 'PENDING_SHIPMENT'
+              ? 'border-[#354B5E] ring-2 ring-[#354B5E]/10'
+              : 'border-[#EFEBDD] hover:border-[#DCD6C8]'
+          } shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex items-center gap-4`}
         >
-          <div className="flex items-center justify-between">
-            <p
-              className={`text-[11px] font-bold uppercase tracking-[0.07em] mb-2 ${
-                delayedCount > 0 ? "text-[#BA1A1A]" : "text-[#93927F]"
-              }`}
-            >
-              Prazo Expirado / Atraso
-            </p>
-            {delayedCount > 0 && <span className="text-[14px]">⚠️</span>}
+          <div className="w-12 h-12 rounded-xl bg-[#FAF3EE] border border-[#EED9CE] flex items-center justify-center text-[#A24726] shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          <p
-            className={`font-jakarta text-[30px] font-extrabold leading-none ${
-              delayedCount > 0 ? "text-[#BA1A1A]" : "text-[#23282D]"
-            }`}
-          >
-            {delayedCount}
-          </p>
-          <p
-            className={`text-[11.5px] mt-2 ${
-              delayedCount > 0 ? "text-[#BA1A1A] font-medium" : "text-[#5A6067]"
-            }`}
-          >
-            {delayedCount === 0 ? "Todos os pedidos no prazo" : "Exigem despacho imediato"}
-          </p>
-        </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+              Aguardando Envio
+            </p>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <h4 className="font-['Plus_Jakarta_Sans'] text-2xl font-extrabold text-[#1A1A1A]">
+                {loading ? '—' : summary.awaiting_shipment}
+              </h4>
+              {!loading && summary.delayed_count > 0 && (
+                <span className="text-[11px] font-bold text-[#9E2A2B] bg-[#FCECEC] px-2 py-0.5 rounded-full">
+                  {summary.delayed_count} em atraso
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
 
-        <div className="bg-white border border-[#EFEBDD] p-5 rounded-[18px] shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
-          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[#93927F] mb-2">
-            Enviados com sucesso
-          </p>
-          <p className="font-jakarta text-[30px] font-extrabold leading-none text-[#454F3A]">
-            {shippedCount}
-          </p>
-          <p className="text-[11.5px] text-[#5A6067] mt-2">
-            Rastreio fornecido ao cliente
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveFilter('IN_TRANSIT')}
+          className={`text-left bg-white p-5 rounded-2xl border transition-all cursor-pointer ${
+            activeFilter === 'IN_TRANSIT'
+              ? 'border-[#354B5E] ring-2 ring-[#354B5E]/10'
+              : 'border-[#EFEBDD] hover:border-[#DCD6C8]'
+          } shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex items-center gap-4`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#EEF3F7] border border-[#CBD8E3] flex items-center justify-center text-[#354B5E] shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 17a2 2 0 100 4 2 2 0 000-4zm8 0a2 2 0 100 4 2 2 0 000-4zM3 5h11v10H3V5zm11 3h4l3 4v3h-7V8z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+              Em Trânsito
+            </p>
+            <h4 className="font-['Plus_Jakarta_Sans'] text-2xl font-extrabold text-[#1A1A1A] mt-0.5">
+              {loading ? '—' : summary.in_transit}
+            </h4>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilter('COMPLETED')}
+          className={`text-left bg-white p-5 rounded-2xl border transition-all cursor-pointer ${
+            activeFilter === 'COMPLETED'
+              ? 'border-[#354B5E] ring-2 ring-[#354B5E]/10'
+              : 'border-[#EFEBDD] hover:border-[#DCD6C8]'
+          } shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex items-center gap-4`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#EAF3E6] border border-[#B8D4AE] flex items-center justify-center text-[#3A6B2E] shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+              Entregues
+            </p>
+            <h4 className="font-['Plus_Jakarta_Sans'] text-2xl font-extrabold text-[#1A1A1A] mt-0.5">
+              {loading ? '—' : summary.completed_count}
+            </h4>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilter('CANCELLED')}
+          className={`text-left bg-white p-5 rounded-2xl border transition-all cursor-pointer ${
+            activeFilter === 'CANCELLED'
+              ? 'border-[#354B5E] ring-2 ring-[#354B5E]/10'
+              : 'border-[#EFEBDD] hover:border-[#DCD6C8]'
+          } shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex items-center gap-4`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-[#F4F1EA] border border-[#DCD6C8] flex items-center justify-center text-[#6E685F] shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8C857B]">
+              Cancelados / Estornados
+            </p>
+            <h4 className="font-['Plus_Jakarta_Sans'] text-2xl font-extrabold text-[#1A1A1A] mt-0.5">
+              {loading ? '—' : summary.cancelled_count}
+            </h4>
+          </div>
+        </button>
       </div>
 
-      {loading ? (
-        <div className="rounded-[20px] border border-[#EFEBDD] bg-white py-16 text-center text-[13px] text-[#5A6067]">
-          Carregando pedidos...
-        </div>
-      ) : loadError ? (
-        <div className="rounded-[20px] border border-[#F0C4B0] bg-white px-6 py-12 text-center">
-          <p className="mb-4 text-[13px] font-semibold text-[#BA1A1A]">{loadError}</p>
+      {/* Feedback de Sucesso / Erro */}
+      {bannerFeedback && (
+        <div className="p-4 rounded-2xl bg-[#EAF3E6] border border-[#B8D4AE] text-[#2E5425] text-sm font-medium flex items-center justify-between">
+          <span>{bannerFeedback}</span>
           <button
             type="button"
-            onClick={() => void loadOrders()}
-            className="rounded-full bg-[#354B5E] px-5 py-2.5 text-[12px] font-bold text-white"
+            onClick={() => setBannerFeedback(null)}
+            className="text-xs font-bold underline ml-4 cursor-pointer"
           >
-            Tentar novamente
+            Fechar
           </button>
         </div>
-      ) : (
-        <div className="bg-white border border-[#EFEBDD] rounded-[20px] overflow-hidden shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
-          <div className="px-6 py-5 border-b border-[#EFEBDD] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="font-jakarta text-[17px] font-extrabold text-[#23282D]">
-                Fila de pedidos
-              </h2>
-              <p className="text-[12px] text-[#93927F] mt-1">
-                Gerencie a preparação, confira o prazo limite de envio e informe o código de rastreamento.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-              <div className="relative flex items-center w-full sm:w-[290px]">
-                <svg
-                  className="w-4 h-4 text-[#93927F] absolute left-3.5 pointer-events-none"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar por cliente ou nº do pedido..."
-                  className="w-full rounded-full border border-[#E6E1D2] bg-[#FAF8F5] pl-9 pr-8 py-2 text-[12.5px] font-inter text-[#23282D] placeholder:text-[#93927F] outline-none focus:border-[#354B5E] focus:bg-white transition-colors"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Limpar busca"
-                    className="absolute right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[#93927F] hover:text-[#23282D] hover:bg-[#EFEBDD] text-[11px] cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              <span className="text-[12px] font-bold text-[#354B5E] whitespace-nowrap">
-                {visibleOrders.length} {visibleOrders.length === 1 ? "pedido" : "pedidos"}
-              </span>
-            </div>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-[#FCECEC] border border-[#E8B8B8] text-[#9E2A2B] text-sm font-medium flex items-center justify-between"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-xs font-bold underline ml-4 cursor-pointer"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Barra de Filtros + Busca */}
+      <div className="bg-white rounded-2xl border border-[#EFEBDD] p-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              { id: 'ALL', label: 'Todos os Pedidos' },
+              { id: 'PENDING_SHIPMENT', label: 'Para Despachar' },
+              { id: 'IN_TRANSIT', label: 'Em Trânsito' },
+              { id: 'POST_SALE', label: 'Pós-Venda / Solicitações' },
+              { id: 'COMPLETED', label: 'Concluídos' },
+              { id: 'CANCELLED', label: 'Cancelados' },
+            ] as { id: FilterStatus; label: string }[]
+          ).map((tab) => {
+            const isActive = activeFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveFilter(tab.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-[#354B5E] text-white shadow-2xs'
+                    : 'text-[#5A554E] hover:bg-[#FAF8F5] hover:text-[#1A1A1A]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full lg:w-auto">
+          <div className="relative flex-1 lg:w-72">
+            <svg
+              className="w-4 h-4 text-[#8C857B] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              placeholder="Buscar por #ID, cliente ou perfume..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-[#FAF8F5] border border-[#E2DEC9] text-xs font-medium text-[#1A1A1A] placeholder-[#8C857B] focus:outline-none focus:border-[#354B5E] focus:bg-white transition-all"
+            />
+            {(searchQuery || appliedSearch) && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Limpar busca"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8C857B] hover:text-[#1A1A1A] cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <div className="overflow-x-auto">
-            {visibleOrders.length === 0 ? (
-              <div className="p-12 text-center flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-[#FAF8F5] border border-[#EFEBDD] flex items-center justify-center text-[22px] mb-3 text-[#93927F]">
-                  📦
-                </div>
-                <h3 className="font-jakarta font-bold text-[15px] text-[#23282D] mb-1">
-                  Nenhum pedido encontrado
-                </h3>
-                <p className="text-[13px] text-[#5A6067] max-w-[340px]">
-                  {searchQuery.trim()
-                    ? `Não encontramos pedidos para "${searchQuery.trim()}". Verifique o nome do cliente ou o número do pedido.`
-                    : selectedFilter === "ALL"
-                    ? "Sua loja ainda não recebeu pedidos. Assim que um cliente finalizar uma compra, os dados aparecerão aqui para separação e despacho."
-                    : "Não há pedidos para a categoria selecionada no momento."}
-                </p>
-              </div>
-            ) : (
-              <table className="w-full min-w-[840px] border-collapse">
-                <thead>
-                  <tr className="bg-[#FCFBF7]">
-                    {[
-                      "Pedido",
-                      "Cliente",
-                      "Prazo de Despacho",
-                      "Itens",
-                      "Total",
-                      "Status",
-                      "Ação",
-                    ].map((label) => (
-                      <th
-                        key={label}
-                        className="px-6 py-3 text-left text-[10.5px] uppercase tracking-[0.07em] text-[#93927F] font-bold"
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleOrders.map((order) => {
-                    return (
-                      <tr
-                        key={order.id}
-                        className="border-t border-[#EFEBDD] hover:bg-[#FBFAF6] transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => navigate(`/seller/orders/${order.id}`)}
-                            className="font-bold text-[13px] text-[#354B5E] hover:underline cursor-pointer text-left"
-                          >
-                            #{order.id}
-                          </button>
-                          <p className="text-[11px] text-[#93927F] mt-1">
-                            {new Date(order.created_at).toLocaleDateString("pt-BR")}
-                          </p>
-                          {order.address_changed && (
-                            <span className="inline-block mt-1 text-[10px] font-bold text-[#8C6D1F] bg-[#FFF9E6] border border-[#F0D58A] px-1.5 py-0.5 rounded">
-                              ⚠️ Endereço alterado
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-[13px] font-semibold text-[#23282D]">
-                          {order.customer_name}
-                          {order.shipping_service && (
-                            <p className="text-[11px] text-[#5A6067] font-normal mt-0.5">
-                              {order.shipping_service}
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl bg-[#FAF8F5] border border-[#DCD6C8] text-xs font-semibold text-[#354B5E] hover:bg-[#EFEBDD] transition-colors cursor-pointer shrink-0"
+          >
+            Filtrar
+          </button>
+        </form>
+      </div>
+
+      {/* Tabela de Pedidos */}
+      <div className="bg-white rounded-2xl border border-[#EFEBDD] shadow-[0_2px_10px_rgba(0,0,0,0.02)] overflow-hidden">
+        <div className="overflow-x-auto orders-table-container">
+          <table className="w-full min-w-[760px] text-left border-collapse">
+            <thead>
+              <tr className="bg-[#FAF8F5] text-[#6E685F] text-[10.5px] uppercase tracking-wider border-b border-[#EFEBDD]">
+                <th className="py-2.5 pl-3.5 pr-1.5 font-bold">Pedido & Data</th>
+                <th className="py-2.5 px-2 font-bold">Cliente</th>
+                <th className="py-2.5 px-2 font-bold">Itens Adquiridos</th>
+                <th className="py-2.5 px-2 font-bold">Pagamento & Total</th>
+                <th className="py-2.5 px-2 font-bold text-center">Prazo de Despacho</th>
+                <th className="py-2.5 px-2 font-bold text-center">Status</th>
+                <th className="py-2.5 pl-1.5 pr-3.5 font-bold text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F2EFE6] text-sm">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-14 text-center text-[#8C857B]">
+                    <div className="w-6 h-6 border-2 border-[#354B5E] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    Carregando pedidos da vitrine...
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-14 text-center">
+                    <div className="max-w-sm mx-auto space-y-1.5">
+                      <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#EFEBDD] flex items-center justify-center mx-auto text-[#8C857B]">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </div>
+                      <p className="font-['Plus_Jakarta_Sans'] font-bold text-sm text-[#1A1A1A]">
+                        Nenhum pedido encontrado
+                      </p>
+                      <p className="text-xs text-[#8C857B]">
+                        Não há pedidos correspondentes aos filtros ou termos pesquisados.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((order) => {
+                  const statusMeta =
+                    ORDER_STATUS_STYLES[order.status] || ORDER_STATUS_STYLES.PENDING;
+                  const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status;
+                  const itemsCount =
+                    order.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
+                  const firstItem = order.items?.[0];
+                  const extraItemsCount = (order.items?.length || 0) - 1;
+                  const discountVal = Number(order.discount_amount || 0);
+                  const hasReturnRequest = Boolean(
+                    order.return_requests &&
+                      order.return_requests.some(
+                        (r) => r.status === 'REQUESTED' || r.status === 'APPROVED',
+                      ),
+                  );
+
+                  return (
+                    <tr
+                      key={order.id}
+                      onClick={() => setDetailModalOrder(order)}
+                      className="hover:bg-[#FAF8F5]/90 transition-colors cursor-pointer group"
+                    >
+                      {/* Pedido & Data */}
+                      <td className="py-2.5 pl-3.5 pr-1.5 align-middle whitespace-nowrap">
+                        <span className="font-['Plus_Jakarta_Sans'] font-bold text-[12.5px] text-[#354B5E] group-hover:underline">
+                          #{order.code || order.id}
+                        </span>
+                        <span className="block text-[10px] text-[#8C857B] mt-0.5">
+                          {new Date(order.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </td>
+
+                      {/* Cliente */}
+                      <td className="py-2.5 px-2 align-middle">
+                        <p className="font-semibold text-[#1A1A1A] text-[12px] truncate max-w-28 xl:max-w-36">
+                          {order.customer_name || 'Cliente NŌTA'}
+                        </p>
+                        {order.shipping_service ? (
+                          <span className="block text-[10px] text-[#6E685F] mt-0.5 truncate max-w-28 xl:max-w-36">
+                            Frete: {order.shipping_service}
+                          </span>
+                        ) : order.customer_email ? (
+                          <span className="block text-[10px] text-[#8C857B] truncate max-w-28 xl:max-w-36">
+                            {order.customer_email}
+                          </span>
+                        ) : null}
+                      </td>
+
+                      {/* Itens Adquiridos */}
+                      <td className="py-2.5 px-2 align-middle">
+                        {firstItem ? (
+                          <div className="max-w-36 xl:max-w-44">
+                            <p
+                              className="text-[11.5px] font-semibold text-[#1A1A1A] truncate"
+                              title={`${firstItem.quantity}x ${firstItem.product_name}`}
+                            >
+                              {firstItem.quantity}x {firstItem.product_name}
+                              {firstItem.volume_ml ? ` (${firstItem.volume_ml}ml)` : ''}
                             </p>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {order.dispatch_deadline ? (
-                            <div className="space-y-1">
-                              <p className="text-[12px] font-bold text-[#23282D]">
-                                {order.dispatch_deadline}
-                              </p>
-                              {order.urgency_status && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] border border-[#B8CFAF] bg-[#F0F5EE] text-[#3A5C30]">
-                                  {order.urgency_status === "DELAYED"
-                                    ? "Atrasado"
-                                    : order.urgency_status === "DUE_TODAY"
-                                    ? "Vence hoje"
-                                    : "No prazo"}
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[10px] text-[#6E685F] whitespace-nowrap">
+                                {itemsCount} {itemsCount === 1 ? 'un.' : 'uns.'}
+                              </span>
+                              {extraItemsCount > 0 && (
+                                <span className="text-[9.5px] font-bold px-1 py-0.2 rounded bg-[#FAF8F5] border border-[#E2DEC9] text-[#354B5E] whitespace-nowrap">
+                                  +{extraItemsCount}{' '}
+                                  {extraItemsCount === 1 ? 'item' : 'itens'}
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-[11px] text-[#93927F]">—</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[#8C857B]">Ver ficha</span>
+                        )}
+                      </td>
+
+                      {/* Pagamento & Total */}
+                      <td className="py-2.5 px-2 align-middle whitespace-nowrap">
+                        <p className="font-['Plus_Jakarta_Sans'] font-bold text-[12.5px] text-[#1A1A1A]">
+                          {formatCurrencyBRL(order.total_amount)}
+                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span
+                            className={`inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                              order.payment_method === 'CREDIT_CARD' || order.payment_method_label?.includes('Cartão')
+                                ? 'bg-[#EEF3F7] border-[#CBD8E3] text-[#354B5E]'
+                                : 'bg-[#FAF8F5] border-[#E2DEC9] text-[#4A4640]'
+                            }`}
+                          >
+                            {order.payment_method === 'CREDIT_CARD' || order.payment_method_label?.includes('Cartão')
+                              ? 'Cartão'
+                              : order.payment_method_label || 'PIX'}
+                          </span>
+                          {discountVal > 0 && (
+                            <span
+                              title={`Desconto: ${formatCurrencyBRL(discountVal)}`}
+                              className="text-[9.5px] font-bold text-[#5C6B4E] bg-[#F0F4EC] px-1 py-0.5 rounded border border-[#CED9C4]"
+                            >
+                              {order.coupon_code || 'Cupom'}
+                            </span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-[12px] text-[#5A6067]">
-                          {order.items.length} item(ns)
-                        </td>
-                        <td className="px-6 py-4 text-[13px] font-bold text-[#23282D]">
-                          {Number(order.total_amount).toLocaleString("pt-BR", {
-                            style: "currency",
-                            currency: "BRL",
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
-                          {(() => {
-                            const pendingReturn = order.return_requests?.find(
-                              (r) => r.status === "REQUESTED" || r.status === "APPROVED"
-                            );
+                        </div>
+                      </td>
 
-                            if (pendingReturn) {
-                              const isApproved = pendingReturn.status === "APPROVED";
-                              return (
-                                <div>
-                                  <span
-                                    className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${
-                                      isApproved
-                                        ? "bg-[#D1E7DD] text-[#0F5132]"
-                                        : "bg-[#FFF3CD] text-[#664D03] border border-[#FFEEBA]"
-                                    }`}
-                                  >
-                                    {isApproved ? "Devolução Aprovada" : "Devolução Solicitada"}
-                                  </span>
-                                  <p className="text-[10px] text-[#6B7280] mt-1">
-                                    Pedido {statusLabels[order.status] || order.status}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold ${
-                                  statusStyles[order.status] || "bg-[#EFEBDD] text-[#23282D]"
-                                }`}
-                              >
-                                {statusLabels[order.status] || order.status}
+                      {/* Prazo de Despacho */}
+                      <td className="py-2.5 px-2 align-middle text-center whitespace-nowrap">
+                        {order.urgency_status &&
+                        (order.status === 'PAID' || order.status === 'PROCESSING') ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                order.urgency_status === 'DELAYED'
+                                ? 'bg-[#FCECEC] text-[#9E2A2B] border-[#E8B8B8]'
+                                : order.urgency_status === 'DUE_TODAY'
+                                ? 'bg-[#FBF3E4] text-[#8B6220] border-[#E8D5B0]'
+                                : 'bg-[#EAF3E6] text-[#2E5425] border-[#B8D4AE]'
+                              }`}
+                            >
+                              {order.urgency_status === 'DELAYED'
+                                ? 'Em atraso'
+                                : order.urgency_status === 'DUE_TODAY'
+                                ? 'Enviar hoje'
+                                : 'No prazo'}
+                            </span>
+                            {order.dispatch_deadline && (
+                              <span className="block text-[10px] text-[#6E685F] mt-0.5">
+                                Até{' '}
+                                {new Date(order.dispatch_deadline).toLocaleDateString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                })}
                               </span>
-                            );
-                          })()}
-                          {order.tracking_code && (
-                            <p className="text-[11px] font-semibold text-[#5C6B4E] mt-2">
-                              {order.carrier}: {order.tracking_code}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {order.return_requests?.some((r) => r.status === "REQUESTED" || r.status === "APPROVED") ? (
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/store/orders/${order.id}`)}
-                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#664D03] bg-[#FFF3CD] border border-[#FFEEBA] px-3.5 py-1.5 rounded-full hover:bg-[#FFE8A1] transition-colors cursor-pointer"
-                            >
-                              📦 Ver Devolução &rarr;
-                            </button>
-                          ) : order.status === "PAID" ? (
-                            <button
-                              type="button"
-                              disabled={busyId === order.id}
-                              onClick={() => void startProcessing(order)}
-                              className="inline-flex items-center gap-2 bg-[#354B5E] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#263847] disabled:opacity-60 transition-colors"
-                            >
-                              Iniciar separação
-                            </button>
-                          ) : order.status === "PROCESSING" ? (
-                            <button
-                              type="button"
-                              onClick={() => openShippingModal(order)}
-                              className="inline-flex items-center gap-2 bg-[#A85A38] text-white rounded-full px-4 py-2 text-[12px] font-bold hover:bg-[#8F492D] transition-colors"
-                            >
-                              Despachar pedido
-                            </button>
-                          ) : order.status === "CANCEL_REQUESTED" ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCancelModalOrder(order);
-                                setCancelRejectReason("");
-                              }}
-                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#856404] bg-[#FFF3CD] border border-[#FFEEBA] px-3 py-1.5 rounded-full hover:bg-[#FFE8A1] transition-colors cursor-pointer"
-                            >
-                              ⚠️ Responder solicitação
-                            </button>
-                          ) : order.status === "DELIVERY_DISPUTED" ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDisputeModalOrder(order);
-                                setNewTrackingCode("");
-                              }}
-                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#721C24] bg-[#F8D7DA] border border-[#F5C6CB] px-3 py-1.5 rounded-full hover:bg-[#F1AEB5] transition-colors cursor-pointer"
-                            >
-                              🚨 Resolver contestação
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/store/orders/${order.id}`)}
-                              className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#354B5E] hover:underline"
-                            >
-                              Ver detalhes &rarr;
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
+                            )}
+                          </div>
+                        ) : order.tracking_code ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="font-mono text-[10px] font-bold text-[#354B5E] bg-[#EEF3F7] px-1.5 py-0.5 rounded border border-[#CBD8E3]">
+                              {order.tracking_code}
+                            </span>
+                            {order.carrier && (
+                              <span className="block text-[10px] text-[#6E685F] mt-0.5">
+                                {order.carrier}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[#8C857B]">—</span>
+                        )}
+                      </td>
 
-      {/* Modal de Despacho */}
-      {orderToShip && (
+                      {/* Status */}
+                      <td className="py-2.5 px-2 align-middle text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold border ${statusMeta.bg} ${statusMeta.text} ${statusMeta.border}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dot}`} />
+                          {order.status === 'PAID'
+                            ? 'Aprovado'
+                            : order.status === 'CANCEL_REQUESTED'
+                            ? 'Cancelamento'
+                            : order.status === 'DELIVERY_DISPUTED'
+                            ? 'Contestado'
+                            : statusLabel}
+                        </span>
+                      </td>
+
+                      {/* Ações */}
+                      <td
+                        className="py-2.5 pl-1.5 pr-3.5 align-middle text-center whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="inline-flex items-center justify-center gap-1">
+                          {order.status === 'PAID' && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={actionLoadingId === order.id}
+                                onClick={() => handleMoveToProcessing(order.id)}
+                                className="px-2 py-1 rounded-md bg-[#354B5E] text-white text-[10.5px] font-semibold hover:bg-[#283A49] transition-colors disabled:opacity-50 cursor-pointer"
+                              >
+                                {actionLoadingId === order.id ? '...' : 'Separar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCancelError(null);
+                                  setCancelReason('');
+                                  setCancelModalOrder(order);
+                                }}
+                                className="px-2 py-1 rounded-md bg-white border border-[#E8B8B8] text-[#9E2A2B] text-[10.5px] font-semibold hover:bg-[#FCECEC] transition-colors cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          )}
+
+                          {order.status === 'PROCESSING' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setShippingModalOrder(order)}
+                                className="px-2 py-1 rounded-md bg-[#354B5E] text-white text-[10.5px] font-semibold hover:bg-[#283A49] transition-colors cursor-pointer"
+                              >
+                                Despachar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCancelError(null);
+                                  setCancelReason('');
+                                  setCancelModalOrder(order);
+                                }}
+                                className="px-2 py-1 rounded-md bg-white border border-[#E8B8B8] text-[#9E2A2B] text-[10.5px] font-semibold hover:bg-[#FCECEC] transition-colors cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          )}
+
+                          {order.status === 'SHIPPED' && (
+                            <button
+                              type="button"
+                              disabled={actionLoadingId === order.id}
+                              onClick={() => handleDeliverConfirm(order.id)}
+                              className="px-2 py-1 rounded-md bg-[#5C6B4E] text-white text-[10.5px] font-semibold hover:bg-[#49563D] transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {actionLoadingId === order.id ? '...' : 'Entregue'}
+                            </button>
+                          )}
+
+                          {(order.status === 'CANCEL_REQUESTED' ||
+                            order.status === 'DELIVERY_DISPUTED' ||
+                            hasReturnRequest) && (
+                            <button
+                              type="button"
+                              onClick={() => setDetailModalOrder(order)}
+                              className="px-2 py-1 rounded-md bg-[#A24726] text-white text-[10.5px] font-semibold hover:bg-[#87381C] transition-colors cursor-pointer"
+                            >
+                              Analisar
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setDetailModalOrder(order)}
+                            className="px-2 py-1 rounded-md bg-[#FAF8F5] border border-[#E2DEC9] text-[#354B5E] text-[10.5px] font-semibold hover:bg-[#EFEBDD] transition-colors cursor-pointer"
+                          >
+                            Ver Ficha
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal de Despacho Rápido */}
+      {shippingModalOrder !== null && (
         <ShippingModal
-          order={orderToShip}
-          isSubmitting={busyId === orderToShip.id}
-          onCancel={closeShippingModal}
-          onSubmit={(carrier, code) => void confirmShipping(carrier, code)}
+          order={shippingModalOrder}
+          isSubmitting={actionLoadingId === shippingModalOrder.id}
+          onCancel={() => setShippingModalOrder(null)}
+          onSubmit={handleShipConfirm}
         />
       )}
 
-      {/* Modal de Resposta de Cancelamento */}
+      {/* Modal de Cancelamento Rápido pela Loja */}
       {cancelModalOrder && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex justify-center items-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[20px] p-6 max-w-md w-full space-y-4 shadow-xl border border-[#E6E1D2]">
-            <div className="flex items-center justify-between border-b border-[#EFEBDD] pb-3">
-              <h3 className="font-jakarta font-extrabold text-[16px] text-[#23282D]">
-                Solicitação de Cancelamento — Pedido #{cancelModalOrder.code || cancelModalOrder.id}
-              </h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4"
+          onClick={() => setCancelModalOrder(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-[#FAF8F5] border border-[#E2DEC9] shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 bg-white border-b border-[#EFEBDD] flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#9E2A2B]">
+                  Ação de Estorno
+                </span>
+                <h3 className="font-['Plus_Jakarta_Sans'] text-base font-bold text-[#1A1A1A]">
+                  Cancelar Pedido #{cancelModalOrder.code || cancelModalOrder.id}
+                </h3>
+              </div>
               <button
+                type="button"
                 onClick={() => setCancelModalOrder(null)}
-                className="text-[#93927F] hover:text-[#23282D] text-lg font-bold"
+                className="text-sm text-[#6E685F] hover:text-[#1A1A1A] cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-[12.5px] text-[#5A6067] leading-relaxed">
-              O cliente solicitou o cancelamento do pedido que está atualmente em separação. Escolha se deseja aprovar ou recusar o pedido:
-            </p>
+            <form onSubmit={handleConfirmCancelOrder} className="p-6 space-y-4">
+              {cancelError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-[#FCECEC] border border-[#E8B8B8] text-xs font-medium text-[#9E2A2B]"
+                >
+                  {cancelError}
+                </div>
+              )}
 
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-[#8C6D1F]">
-                Motivo da Recusa (obrigatório se for recusar):
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: Pedido já embalado e separado para a transportadora."
-                value={cancelRejectReason}
-                onChange={(e) => setCancelRejectReason(e.target.value)}
-                className="w-full border border-[#E6E1D2] p-2.5 text-[12.5px] rounded-xl focus:outline-none focus:border-[#A85A38] bg-[#FAF8F5]"
-              />
-            </div>
+              <p className="text-xs text-[#5A554E] bg-white p-3.5 rounded-xl border border-[#EFEBDD]">
+                Ao cancelar este pedido de <strong>{cancelModalOrder.customer_name}</strong> (
+                {formatCurrencyBRL(cancelModalOrder.total_amount)}), as unidades reservadas voltarão
+                automaticamente ao estoque da sua loja.
+              </p>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#EFEBDD]">
-              <button
-                type="button"
-                disabled={busyId === cancelModalOrder.id}
-                onClick={() => handleRespondCancel(false)}
-                className="px-4 py-2 text-[12px] text-white bg-[#BA1A1A] hover:bg-[#9E1414] rounded-full font-bold transition-colors disabled:opacity-60"
-              >
-                Recusar Cancelamento
-              </button>
+              <div>
+                <label
+                  htmlFor="seller-cancel-reason"
+                  className="block text-xs font-bold uppercase tracking-wider text-[#5A554E] mb-2"
+                >
+                  Motivo do Cancelamento
+                </label>
+                <textarea
+                  id="seller-cancel-reason"
+                  rows={3}
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Informe o motivo que será registrado no histórico do pedido..."
+                  className="w-full rounded-xl border border-[#DCD6C8] bg-white px-3.5 py-2.5 text-sm text-[#1A1A1A] focus:border-[#354B5E] focus:outline-none"
+                />
+              </div>
 
-              <button
-                type="button"
-                disabled={busyId === cancelModalOrder.id}
-                onClick={() => handleRespondCancel(true)}
-                className="px-4 py-2 text-[12px] text-white bg-[#3A5C30] hover:bg-[#2E4A26] rounded-full font-bold transition-colors disabled:opacity-60"
-              >
-                Aprovar Cancelamento
-              </button>
-            </div>
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#EFEBDD]">
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOrder(null)}
+                  className="px-4 py-2 text-xs font-semibold text-[#5A554E] bg-white border border-[#DCD6C8] rounded-xl hover:bg-[#F4F1EA] cursor-pointer"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoadingId === cancelModalOrder.id}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-[#9E2A2B] rounded-xl hover:bg-[#7E2021] disabled:opacity-50 cursor-pointer"
+                >
+                  {actionLoadingId === cancelModalOrder.id
+                    ? 'Cancelando...'
+                    : 'Confirmar Cancelamento'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Modal de Resolução de Contestação na Tabela */}
-      {disputeModalOrder && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex justify-center items-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[20px] p-6 max-w-md w-full space-y-4 shadow-xl border border-[#E6E1D2]">
-            <div className="flex items-center justify-between border-b border-[#EFEBDD] pb-3">
-              <h3 className="font-jakarta font-extrabold text-[16px] text-[#23282D]">
-                Contestação — Pedido #{disputeModalOrder.code || disputeModalOrder.id}
-              </h3>
-              <button
-                onClick={() => setDisputeModalOrder(null)}
-                className="text-[#93927F] hover:text-[#23282D] text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-[12.5px] text-[#5A6067] leading-relaxed">
-              O cliente alegou não ter recebido o pedido. Escolha se deseja reenviar informando o novo código de rastreio ou realizar o reembolso:
-            </p>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold uppercase tracking-[0.05em] text-[#354B5E]">
-                Novo Código de Rastreio (obrigatório para reenvio):
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: AA123456789BR"
-                value={newTrackingCode}
-                onChange={(e) => setNewTrackingCode(e.target.value)}
-                className="w-full border border-[#E6E1D2] p-2.5 text-[12.5px] rounded-xl focus:outline-none focus:border-[#354B5E] bg-[#FAF8F5]"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#EFEBDD]">
-              <button
-                type="button"
-                disabled={busyId === disputeModalOrder.id}
-                onClick={async () => {
-                  if (!window.confirm("Confirmar o reembolso do valor total ao cliente?")) return;
-                  try {
-                    setBusyId(disputeModalOrder.id);
-                    await storeOrderService.resolveDispute(disputeModalOrder.id, "refund");
-                    toast.success("Cliente reembolsado com sucesso.");
-                    setDisputeModalOrder(null);
-                    await loadOrders();
-                  } catch {
-                    toast.error("Erro ao reembolsar o cliente.");
-                  } finally {
-                    setBusyId(null);
-                  }
-                }}
-                className="px-4 py-2 text-[12px] text-white bg-[#BA1A1A] hover:bg-[#9E1414] rounded-full font-bold transition-colors disabled:opacity-60"
-              >
-                Reembolsar Cliente
-              </button>
-
-              <button
-                type="button"
-                disabled={busyId === disputeModalOrder.id}
-                onClick={async () => {
-                  if (!newTrackingCode.trim()) {
-                    toast.error("Informe o novo código de rastreio para o reenvio.");
-                    return;
-                  }
-                  try {
-                    setBusyId(disputeModalOrder.id);
-                    await storeOrderService.resolveDispute(
-                      disputeModalOrder.id,
-                      "reship",
-                      newTrackingCode.trim()
-                    );
-                    toast.success("Pedido reenviado! Status atualizado para ENVIADO.");
-                    setDisputeModalOrder(null);
-                    await loadOrders();
-                  } catch {
-                    toast.error("Erro ao reenviar o pedido.");
-                  } finally {
-                    setBusyId(null);
-                  }
-                }}
-                className="px-4 py-2 text-[12px] text-white bg-[#354B5E] hover:bg-[#263847] rounded-full font-bold transition-colors disabled:opacity-60"
-              >
-                Reenviar Pedido
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+      {/* Modal Completo de Ficha do Pedido (Itens, Valores, Forma de Pagamento, Pós-Venda) */}
+      <StoreOrderDetailModal
+        orderId={detailModalOrder ? detailModalOrder.id : null}
+        initialOrder={detailModalOrder}
+        onClose={() => setDetailModalOrder(null)}
+        onOrderUpdated={handleOrderUpdatedFromModal}
+      />
+    </div>
   );
 }
