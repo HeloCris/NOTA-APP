@@ -38,6 +38,7 @@ export function OrdersTab() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<FilterKey>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [orderToShip, setOrderToShip] = useState<StoreOrder | null>(null);
 
   // Estados para o Modal de Resposta de Cancelamento
@@ -81,6 +82,21 @@ export function OrdersTab() {
   ).length;
 
   const visibleOrders = orders.filter((order) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      const normalizedNumberQuery = query.replace(/^#/, "");
+      const matchesId =
+        String(order.id).includes(normalizedNumberQuery) ||
+        `#${order.id}`.toLowerCase().includes(query) ||
+        Boolean(order.code && order.code.toLowerCase().includes(query));
+      const matchesCustomer = (order.customer_name || "")
+        .toLowerCase()
+        .includes(query);
+      if (!matchesId && !matchesCustomer) {
+        return false;
+      }
+    }
+
     if (selectedFilter === "ALL") return true;
     if (selectedFilter === "PROCESSING") return order.status === "PROCESSING";
     if (selectedFilter === "DELAYED") return order.is_delayed;
@@ -297,7 +313,7 @@ export function OrdersTab() {
         </div>
       ) : (
         <div className="bg-white border border-[#EFEBDD] rounded-[20px] overflow-hidden shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
-          <div className="px-6 py-5 border-b border-[#EFEBDD] flex items-center justify-between gap-4">
+          <div className="px-6 py-5 border-b border-[#EFEBDD] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="font-jakarta text-[17px] font-extrabold text-[#23282D]">
                 Fila de pedidos
@@ -306,9 +322,43 @@ export function OrdersTab() {
                 Gerencie a preparação, confira o prazo limite de envio e informe o código de rastreamento.
               </p>
             </div>
-            <span className="text-[12px] font-bold text-[#354B5E]">
-              {visibleOrders.length} {visibleOrders.length === 1 ? "pedido" : "pedidos"}
-            </span>
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+              <div className="relative flex items-center w-full sm:w-[290px]">
+                <svg
+                  className="w-4 h-4 text-[#93927F] absolute left-3.5 pointer-events-none"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por cliente ou nº do pedido..."
+                  className="w-full rounded-full border border-[#E6E1D2] bg-[#FAF8F5] pl-9 pr-8 py-2 text-[12.5px] font-inter text-[#23282D] placeholder:text-[#93927F] outline-none focus:border-[#354B5E] focus:bg-white transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Limpar busca"
+                    className="absolute right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[#93927F] hover:text-[#23282D] hover:bg-[#EFEBDD] text-[11px] cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <span className="text-[12px] font-bold text-[#354B5E] whitespace-nowrap">
+                {visibleOrders.length} {visibleOrders.length === 1 ? "pedido" : "pedidos"}
+              </span>
+            </div>
           </div>
           <div className="overflow-x-auto">
             {visibleOrders.length === 0 ? (
@@ -320,7 +370,9 @@ export function OrdersTab() {
                   Nenhum pedido encontrado
                 </h3>
                 <p className="text-[13px] text-[#5A6067] max-w-[340px]">
-                  {selectedFilter === "ALL"
+                  {searchQuery.trim()
+                    ? `Não encontramos pedidos para "${searchQuery.trim()}". Verifique o nome do cliente ou o número do pedido.`
+                    : selectedFilter === "ALL"
                     ? "Sua loja ainda não recebeu pedidos. Assim que um cliente finalizar uma compra, os dados aparecerão aqui para separação e despacho."
                     : "Não há pedidos para a categoria selecionada no momento."}
                 </p>

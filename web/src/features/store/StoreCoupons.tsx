@@ -8,6 +8,7 @@ export function StoreCoupons() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Form states
   const [code, setCode] = useState("");
@@ -107,6 +108,18 @@ export function StoreCoupons() {
     setValidUntil("");
   };
 
+  const filteredCoupons = coupons.filter((coupon) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    const codeMatch = coupon.code.toLowerCase().includes(q);
+    const discountText =
+      coupon.discount_type === "PERCENTAGE"
+        ? `${Number(coupon.discount_value).toFixed(0)}%`
+        : `${Number(coupon.discount_value).toFixed(2)}`;
+    const statusText = coupon.is_active ? "ativo" : "pausado";
+    return codeMatch || discountText.toLowerCase().includes(q) || statusText.includes(q);
+  });
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-[20px] border border-[#E6E1D2] shadow-sm">
@@ -121,7 +134,7 @@ export function StoreCoupons() {
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-[#354B5E] text-white font-jakarta font-bold text-[14px] hover:bg-[#263847] transition-colors cursor-pointer shadow-sm"
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-[#354B5E] text-white font-jakarta font-bold text-[14px] hover:bg-[#263847] transition-colors cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -132,20 +145,69 @@ export function StoreCoupons() {
 
       {/* Lista de Cupons */}
       <div className="bg-white rounded-[20px] border border-[#E6E1D2] shadow-sm overflow-hidden">
+        {!isLoading && coupons.length > 0 && (
+          <div className="px-6 py-4 border-b border-[#EFEBDD] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <h3 className="font-jakarta text-[16px] font-bold text-[#23282D]">
+                Cupons cadastrados
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#F5F3E9] text-[#354B5E] font-jakarta text-[12px] font-bold">
+                {filteredCoupons.length} {filteredCoupons.length === 1 ? "cupom" : "cupons"}
+              </span>
+            </div>
+            <div className="relative flex items-center w-full sm:w-[310px]">
+              <svg
+                className="w-4 h-4 text-[#93927F] absolute left-3.5 pointer-events-none"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar por código ou desconto..."
+                className="w-full rounded-full border border-[#E6E1D2] bg-[#FAF8F5] pl-9 pr-8 py-2 text-[12.5px] font-inter text-[#23282D] placeholder:text-[#93927F] outline-none focus:border-[#354B5E] focus:bg-white transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Limpar busca"
+                  className="absolute right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[#93927F] hover:text-[#23282D] hover:bg-[#EFEBDD] text-[11px] cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="py-16 text-center text-[#93927F] font-jakarta text-[14px]">
             Carregando cupons...
           </div>
-        ) : coupons.length === 0 ? (
+        ) : filteredCoupons.length === 0 ? (
           <div className="py-16 px-4 text-center">
             <div className="w-16 h-16 mx-auto mb-4 bg-[#F5F3E9] rounded-full flex items-center justify-center text-[#354B5E]">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
               </svg>
             </div>
-            <h3 className="font-jakarta font-bold text-[16px] text-[#23282D]">Nenhum cupom ativo no momento</h3>
+            <h3 className="font-jakarta font-bold text-[16px] text-[#23282D]">
+              {searchQuery.trim() ? "Nenhum cupom encontrado" : "Nenhum cupom ativo no momento"}
+            </h3>
             <p className="text-[13px] text-[#717171] max-w-[380px] mx-auto mt-1">
-              Crie o primeiro cupom da sua loja para atrair clientes e impulsionar suas vendas!
+              {searchQuery.trim()
+                ? "Tente buscar por outro código promocional ou valor de desconto."
+                : "Crie o primeiro cupom da sua loja para atrair clientes e impulsionar suas vendas!"}
             </p>
           </div>
         ) : (
@@ -163,7 +225,7 @@ export function StoreCoupons() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EFEBDD] text-[13.5px]">
-                {coupons.map((coupon) => (
+                {filteredCoupons.map((coupon) => (
                   <tr key={coupon.id} className="hover:bg-[#FCFBF8] transition-colors">
                     <td className="py-4 px-6 font-mono font-bold text-[#354B5E] text-[14.5px]">
                       {coupon.code}

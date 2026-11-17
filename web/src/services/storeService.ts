@@ -1,5 +1,6 @@
 import { apiClient } from '../lib/apiClient';
 import type { Store, StoreUpdatePayload, DashboardData, StoreCoupon, StoreCouponCreatePayload } from '../types/store';
+import type { MarketMetricsData } from '../types/marketMetrics';
 
 export const storeService = {
   getStoreMe: async (): Promise<Store> => {
@@ -53,6 +54,11 @@ export const storeService = {
 
   registerView: async (storeId: number): Promise<void> => {
     await apiClient.post(`/stores/${storeId}/view/`);
+  },
+
+  getMarketMetrics: async (): Promise<MarketMetricsData> => {
+    const response = await apiClient.get<MarketMetricsData>('/stores/me/market-metrics/');
+    return response.data;
   },
 };
 
