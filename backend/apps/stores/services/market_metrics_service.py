@@ -89,33 +89,29 @@ def build_market_metrics(current_store: Optional[Store]) -> Dict[str, Any]:
 
     # Contagem de produtos aprovados por família em memória
     catalog_family_counts: Dict[str, int] = Counter()
-    all_families: Set[str] = set(OFFICIAL_FAMILIES)
     for prod in all_approved_prods:
-        if prod.olfactory_family:
-            matched_fam = prod.olfactory_family
-            for off in OFFICIAL_FAMILIES:
-                if matched_fam.lower() == off.lower():
-                    matched_fam = off
-                    break
-            all_families.add(matched_fam)
-            catalog_family_counts[matched_fam.lower()] += 1
+        if not prod.olfactory_family:
+            continue
+        matched_fam = next(
+            (off for off in OFFICIAL_FAMILIES if prod.olfactory_family.strip().lower() == off.lower()),
+            None,
+        )
+        if matched_fam:
+            catalog_family_counts[matched_fam] += 1
 
     family_demand: List[Dict[str, Any]] = []
-    for fam in all_families:
-        if not fam:
-            continue
+    for fam in OFFICIAL_FAMILIES:
         c_count = family_counts.get(fam, 0)
         share_pct = (
             round((c_count / total_users_families) * 100)
             if total_users_families > 0
             else 0
         )
-        cat_count = catalog_family_counts.get(fam.lower(), 0)
         family_demand.append({
             "family": fam,
             "customers_count": c_count,
             "share_pct": share_pct,
-            "catalog_products_count": cat_count,
+            "catalog_products_count": catalog_family_counts.get(fam, 0),
         })
 
     family_demand.sort(
@@ -123,6 +119,7 @@ def build_market_metrics(current_store: Optional[Store]) -> Dict[str, Any]:
             x["share_pct"],
             x["customers_count"],
             x["catalog_products_count"],
+            x["family"],
         ),
         reverse=True,
     )
@@ -147,12 +144,10 @@ def build_market_metrics(current_store: Optional[Store]) -> Dict[str, Any]:
 
     # Fallback inteligente (RN-03): se houver menos de 5 clientes com notas preenchidas,
     # complementa com notas da pirâmide dos perfumes mais vendidos
-    fallback_products_count = 0
     if total_users_notes < 5:
         top_sold_prods = sorted(
             all_approved_prods, key=lambda p: p.sold_count or 0, reverse=True
         )[:10]
-        fallback_products_count = len(top_sold_prods)
         for prod in top_sold_prods:
             seen_for_prod = set()
             all_prod_notes = (
@@ -168,15 +163,11 @@ def build_market_metrics(current_store: Optional[Store]) -> Dict[str, Any]:
                         note_user_counts[clean_note] += 1
 
     sorted_notes = note_user_counts.most_common(10)
-    denom_notes = (
-        max(total_users_notes, 1)
-        if total_users_notes >= 5
-        else max(total_users_notes + fallback_products_count, 1)
-    )
+    denom_notes = max(total_customers_with_profile, 1)
 
     top_notes_demand: List[Dict[str, Any]] = []
     for note, count in sorted_notes:
-        pct = min(max(round((count / denom_notes) * 100), 5), 100)
+        pct = min(round((count / denom_notes) * 100), 100)
         top_notes_demand.append({
             "note": note,
             "customers_count": count,
@@ -265,7 +256,7 @@ def build_market_metrics(current_store: Optional[Store]) -> Dict[str, Any]:
             )
         )
 
-        for my_offer in my_offers[:8]:
+        for my_offer in my_offers:
             my_effective_price = _get_effective_price(my_offer)
             target_name = my_offer.product.name.lower()
             target_brand = my_offer.product.brand.name.lower()

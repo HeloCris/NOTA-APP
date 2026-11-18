@@ -3,14 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import { MarketMetricsSection } from "./MarketMetricsSection";
 import { storeService } from "../../services/storeService";
 import type { MarketMetricsData } from "../../types/marketMetrics";
+import type { StoreAnalyticsData } from "../../types/storeAnalytics";
 
 vi.mock("../../services/storeService", () => ({
   storeService: {
     getMarketMetrics: vi.fn(),
+    getStoreAnalytics: vi.fn(),
   },
 }));
 
 const getMarketMetrics = vi.mocked(storeService.getMarketMetrics);
+const getStoreAnalytics = vi.mocked(storeService.getStoreAnalytics);
 
 const mockMetricsData: MarketMetricsData = {
   summary: {
@@ -87,9 +90,36 @@ const mockMetricsData: MarketMetricsData = {
   ],
 };
 
+const mockAnalyticsData: StoreAnalyticsData = {
+  period: "30d",
+  funnel: {
+    store_views: 100,
+    followers_count: 5,
+    new_followers_in_period: 2,
+    paid_orders_count: 3,
+    conversion_rate_pct: 3,
+  },
+  format_mix: {
+    decants_units_sold: 4,
+    decants_revenue: "200.00",
+    bottles_units_sold: 1,
+    bottles_revenue: "500.00",
+  },
+  coupons_performance: {
+    active_coupons_count: 1,
+    orders_with_coupon: 1,
+    total_discount_granted: "10.00",
+    revenue_with_coupon: "90.00",
+    top_coupon_code: "BEMVINDO10",
+  },
+  top_store_offers: [],
+  catalog_gaps: [],
+};
+
 describe("MarketMetricsSection", () => {
   it("renderiza o cabeçalho e as abas de sub-navegação RF-23 e RF-24", async () => {
     getMarketMetrics.mockResolvedValue(mockMetricsData);
+    getStoreAnalytics.mockResolvedValue(mockAnalyticsData);
     render(<MarketMetricsSection />);
 
     expect(screen.getByText("Métricas & Inteligência")).toBeInTheDocument();
@@ -109,12 +139,15 @@ describe("MarketMetricsSection", () => {
 
   it("alterna para a sub-aba RF-24 e volta para RF-23", async () => {
     getMarketMetrics.mockResolvedValue(mockMetricsData);
+    getStoreAnalytics.mockResolvedValue(mockAnalyticsData);
     render(<MarketMetricsSection />);
 
-    fireEvent.click(screen.getByText("Desempenho da Minha Loja"));
-    expect(screen.getByText("Módulo em Construção")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByText("Desempenho da Minha Loja")[0]);
+    await waitFor(() =>
+      expect(screen.getByText("Diagnóstico de Gap de Catálogo")).toBeInTheDocument()
+    );
 
-    fireEvent.click(screen.getByText("← Voltar para Inteligência de Mercado"));
+    fireEvent.click(screen.getByText("Inteligência de Mercado"));
     await waitFor(() =>
       expect(screen.getByText("Mapa de Demanda por Família Olfativa")).toBeInTheDocument()
     );

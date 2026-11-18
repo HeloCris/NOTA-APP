@@ -263,6 +263,40 @@ def test_me_patch_updates_personal_data(api_client, customer):
 
 
 @pytest.mark.django_db
+def test_patch_auth_me_updates_customer_name_and_phone(api_client, customer):
+    login_response = api_client.post(
+        reverse("users:token_obtain_pair"),
+        {"email": customer.email, "password": "senha_segura_123"},
+        format="json",
+    )
+    api_client.credentials(
+        HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}",
+    )
+
+    original_email = customer.email
+    response = api_client.patch(
+        reverse("users:me"),
+        {
+            "first_name": "Ana Beatriz",
+            "last_name": "Souza",
+            "phone": "11999887654",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["first_name"] == "Ana Beatriz"
+    assert response.data["last_name"] == "Souza"
+    assert response.data["phone"] == "11999887654"
+    assert response.data["email"] == original_email
+
+    customer.refresh_from_db()
+    assert f"{customer.first_name} {customer.last_name}" == "Ana Beatriz Souza"
+    assert customer.phone == "11999887654"
+    assert customer.email == original_email
+
+
+@pytest.mark.django_db
 def test_me_patch_rejects_duplicate_email(api_client, customer, seller):
     login_response = api_client.post(
         reverse("users:token_obtain_pair"),
