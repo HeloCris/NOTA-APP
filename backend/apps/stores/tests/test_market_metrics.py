@@ -27,7 +27,14 @@ def test_market_metrics_requires_seller_or_brand_authentication():
     )
     client.force_authenticate(customer)
     resp_customer = client.get("/api/v1/stores/me/market-metrics/")
-    assert resp_customer.status_code in (403, 404)
+    assert resp_customer.status_code == 403
+
+    # Cliente com loja vinculada também não pode acessar métricas de mercado
+    Store.objects.create(
+        owner=customer, name="Loja do Cliente", cnpj="99887766000155"
+    )
+    resp_customer_with_store = client.get("/api/v1/stores/me/market-metrics/")
+    assert resp_customer_with_store.status_code == 403
 
 
 @pytest.mark.django_db
@@ -193,6 +200,8 @@ def test_market_metrics_decants_vs_bottles_split():
     data = response.json()
 
     thermometer = data["format_thermometer"]
+    assert thermometer["decants"]["active_offers_count"] == 1
+    assert thermometer["bottles"]["active_offers_count"] == 1
     # 3 decants de 4 total = 75%
     assert thermometer["decants"]["units_sold"] == 3
     assert thermometer["decants"]["sales_share_pct"] == 75
@@ -317,8 +326,14 @@ def test_market_metrics_accessible_by_brand_owner():
         role=CustomUser.Roles.BRAND_OWNER,
         first_name="Brand Owner",
     )
+    another_user = CustomUser.objects.create_user(
+        email="store_admin_metrics@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Administrador",
+    )
     store = Store.objects.create(
-        owner=brand_owner,
+        owner=another_user,
         name="Loja Oficial D2C",
         cnpj="55667788000155",
         is_official=True,
@@ -338,4 +353,151 @@ def test_market_metrics_accessible_by_brand_owner():
     assert "summary" in data
     assert "family_demand" in data
     assert "format_thermometer" in data
+
+
+@pytest.mark.django_db
+def test_market_metrics_position_rules_and_promotional_price():
+    seller = CustomUser.objects.create_user(
+        email="positions_seller@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Lojista Posições",
+    )
+    store = Store.objects.create(owner=seller, name="Posições", cnpj="66778899000122")
+    competitor = CustomUser.objects.create_user(
+        email="positions_competitor@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Concorrente",
+    )
+    competitor_store = Store.objects.create(
+        owner=competitor, name="Concorrente Posições", cnpj="77889900000133"
+    )
+    competitor2 = CustomUser.objects.create_user(
+        email="positions_competitor2@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Concorrente 2",
+    )
+    competitor2_store = Store.objects.create(
+        owner=competitor2, name="Concorrente 2 Posições", cnpj="88990011000166"
+    )
+    brand = Brand.objects.create(name="Marca Posições")
+
+    def make_product(name):
+        return Product.objects.create(
+            brand=brand,
+            name=name,
+            olfactory_family=Product.OlfactoryFamily.WOODY,
+            is_approved=True,
+        )
+
+    def make_offer(target_store, product, price, promotional_price=None):
+        return StoreProduct.objects.create(
+            store=target_store,
+            product=product,
+            volume_ml=10,
+            price=Decimal(price),
+            promotional_price=(
+                Decimal(promotional_price) if promotional_price is not None else None
+            ),
+            stock_quantity=5,
+        )
+
+    lowest = make_product("Lowest")
+    make_offer(store, lowest, "100.00", "80.00")
+    make_offer(competitor_store, lowest, "100.00")
+
+    competitive = make_product("Competitive")
+    make_offer(store, competitive, "100.00")
+    make_offer(competitor_store, competitive, "110.00")
+    make_offer(competitor2_store, competitive, "95.00")
+
+    above = make_product("Above")
+    make_offer(store, above, "200.00")
+    make_offer(competitor_store, above, "100.00")
+
+    exclusive = make_product("Exclusive")
+    make_offer(store, exclusive, "50.00")
+
+    client = APIClient()
+    client.force_authenticate(seller)
+    response = client.get("/api/v1/stores/me/market-metrics/")
+
+    assert response.status_code == 200
+    positions = {
+        item["product_name"]: item
+        for item in response.json()["catalog_price_comparison"]
+    }
+    assert positions["Lowest"]["position"] == "lowest"
+    assert positions["Lowest"]["my_price"] == "80.00"
+    assert positions["Competitive"]["position"] == "competitive"
+    assert positions["Above"]["position"] == "above_market"
+    assert positions["Exclusive"]["position"] == "exclusive"
+
+
+@pytest.mark.django_db
+def test_market_metrics_returns_every_active_store_offer():
+    seller = CustomUser.objects.create_user(
+        email="many_offers_seller@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Lojista Many",
+    )
+    store = Store.objects.create(owner=seller, name="Many", cnpj="88990011000144")
+    brand = Brand.objects.create(name="Marca Many")
+
+    for index in range(10):
+        product = Product.objects.create(
+            brand=brand,
+            name=f"Perfume {index}",
+            olfactory_family=Product.OlfactoryFamily.FLORAL,
+            is_approved=True,
+        )
+        StoreProduct.objects.create(
+            store=store,
+            product=product,
+            volume_ml=10,
+            price=Decimal("100.00"),
+            stock_quantity=3,
+        )
+
+    client = APIClient()
+    client.force_authenticate(seller)
+    response = client.get("/api/v1/stores/me/market-metrics/")
+
+    assert response.status_code == 200
+    assert len(response.json()["catalog_price_comparison"]) == 10
+
+
+@pytest.mark.django_db
+def test_market_metrics_normalizes_notes_without_artificial_floor():
+    seller = CustomUser.objects.create_user(
+        email="notes_seller@example.com",
+        password="secret",
+        role=CustomUser.Roles.SELLER,
+        first_name="Lojista Notas",
+    )
+    Store.objects.create(owner=seller, name="Notas", cnpj="99001122000155")
+
+    for index in range(8):
+        note = "sândalo" if index == 0 else f"Nota {index}"
+        CustomUser.objects.create_user(
+            email=f"notes_customer_{index}@example.com",
+            password="secret",
+            role=CustomUser.Roles.CUSTOMER,
+            first_name=f"Cliente {index}",
+            preferred_notes=[note],
+        )
+
+    client = APIClient()
+    client.force_authenticate(seller)
+    response = client.get("/api/v1/stores/me/market-metrics/")
+
+    assert response.status_code == 200
+    notes = response.json()["top_notes_demand"]
+    assert len(notes) == 8
+    note_map = {item["note"]: item for item in notes}
+    assert note_map["Sândalo"]["customers_count"] == 1
+    assert note_map["Sândalo"]["share_pct"] == 12
 

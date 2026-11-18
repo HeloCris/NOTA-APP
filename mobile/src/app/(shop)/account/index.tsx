@@ -8,24 +8,31 @@ import {
   useWindowDimensions,
   Modal,
   Platform,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../../context/AuthContext';
 import { useUnreadNotifications } from '../../../hooks/use-unread-notifications';
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateProfile } = useAuth();
   const { unreadCount } = useUnreadNotifications();
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [fullNameInput, setFullNameInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
 
   // Leitura dinâmica dos dados do usuário no AuthContext
   const displayEmail = user?.email || '';
@@ -44,6 +51,37 @@ export default function AccountScreen() {
     setShowLogoutModal(false);
     await signOut();
     router.replace('/(auth)/login' as any);
+  };
+
+  const openEditProfile = () => {
+    setFullNameInput([user?.first_name, user?.last_name].filter(Boolean).join(' '));
+    setPhoneInput(user?.phone ?? '');
+    setProfileError(null);
+    setShowEditProfileModal(true);
+  };
+
+  const saveEditProfile = async () => {
+    const nameParts = fullNameInput.trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length === 0) {
+      setProfileError('Informe seu nome completo.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setProfileError(null);
+    try {
+      await updateProfile({
+        first_name: nameParts[0],
+        last_name: nameParts.slice(1).join(' '),
+        phone: phoneInput.trim(),
+      });
+      setShowEditProfileModal(false);
+      setProfileSuccess('Dados pessoais atualizados com sucesso.');
+    } catch {
+      setProfileError('Não foi possível salvar seus dados. Tente novamente.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const menuItems = [
@@ -70,18 +108,6 @@ export default function AccountScreen() {
       label: 'Lojas que Sigo',
       icon: <Ionicons name="heart-outline" size={20} color="#4A6072" />,
       onPress: () => router.push('/(shop)/account/following' as any),
-    },
-    {
-      id: 'settings',
-      label: 'Configurações',
-      icon: (
-        <MaterialCommunityIcons
-          name="cog-outline"
-          size={20}
-          color="#4A6072"
-        />
-      ),
-      onPress: () => {},
     },
   ];
 
@@ -191,11 +217,18 @@ export default function AccountScreen() {
             <View style={styles.personalSection}>
               <View style={styles.personalHeading}>
                 <Text style={styles.personalTitle}>Dados Pessoais</Text>
-                <TouchableOpacity onPress={() => router.push('/(shop)/account/edit-profile' as any)}>
+                <TouchableOpacity
+                  onPress={openEditProfile}
+                  accessibilityRole="button"
+                  accessibilityLabel="Editar dados pessoais"
+                >
                   <Text style={styles.editText}>Editar</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.personalEmail}>{displayEmail}</Text>
+              {profileSuccess ? (
+                <Text style={styles.profileSuccess}>{profileSuccess}</Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -272,6 +305,81 @@ export default function AccountScreen() {
                 onPress={confirmSignOut}
               >
                 <Text style={styles.modalConfirmText}>Sim, sair</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showEditProfileModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, styles.editProfileCard]}>
+            <Text style={styles.modalTitle}>Editar dados pessoais</Text>
+            <Text style={styles.modalDesc}>
+              Atualize seu nome e telefone para receber suas compras NŌTA.
+            </Text>
+
+            <Text style={styles.inputLabel}>Nome completo</Text>
+            <TextInput
+              style={styles.textInput}
+              value={fullNameInput}
+              onChangeText={setFullNameInput}
+              placeholder="Ana Ferreira"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="words"
+              editable={!isSavingProfile}
+            />
+
+            <Text style={styles.inputLabel}>E-mail</Text>
+            <TextInput
+              style={[styles.textInput, styles.readOnlyInput]}
+              value={displayEmail}
+              editable={false}
+            />
+
+            <Text style={styles.inputLabel}>Telefone</Text>
+            <TextInput
+              style={styles.textInput}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+              placeholder="(11) 99999-0000"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              editable={!isSavingProfile}
+            />
+
+            {profileError ? (
+              <Text style={styles.profileError}>{profileError}</Text>
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                activeOpacity={0.7}
+                disabled={isSavingProfile}
+                onPress={() => setShowEditProfileModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                activeOpacity={0.88}
+                disabled={isSavingProfile}
+                onPress={saveEditProfile}
+                accessibilityRole="button"
+                accessibilityLabel="Salvar dados pessoais"
+              >
+                {isSavingProfile ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Salvar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -451,6 +559,12 @@ const styles = StyleSheet.create({
   personalTitle: { color: '#273847', fontSize: 16, fontWeight: '800' },
   editText: { color: '#A85A38', fontSize: 13, fontWeight: '700' },
   personalEmail: { color: '#78716C', fontSize: 13 },
+  profileSuccess: {
+    color: '#3A5C30',
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginTop: 8,
+  },
 
   // --- Menu Card ---
   menuCard: {
@@ -591,5 +705,37 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  editProfileCard: {
+    alignItems: 'stretch',
+    maxWidth: 380,
+  },
+  inputLabel: {
+    color: '#273847',
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  textInput: {
+    backgroundColor: '#F9F7F1',
+    borderColor: '#E6E1D2',
+    borderRadius: 12,
+    borderWidth: 1,
+    color: '#1C252E',
+    fontSize: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+  },
+  readOnlyInput: {
+    color: '#78716C',
+    opacity: 0.8,
+  },
+  profileError: {
+    color: '#A85A38',
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginTop: 12,
   },
 });

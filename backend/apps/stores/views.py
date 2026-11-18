@@ -3,12 +3,12 @@ from django.db import models
 from django.db.models import Q, F
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
 # pyrefly: ignore [missing-import]
-from apps.core.permissions import IsStoreOwner
+from apps.core.permissions import IsSeller, IsStoreOwner
 
 from .models import Store, StoreFollower, StoreCoupon
 from apps.inventory.models import StoreProduct
@@ -22,10 +22,20 @@ from .serializers import (
 )
 from .services import (
     build_market_metrics,
+    build_store_analytics,
     notify_store_followers_new_coupon,
     validate_and_calculate_coupon_discount,
 )
 
+
+
+def _get_current_store(user) -> Store | None:
+    store = Store.objects.filter(owner=user).first()
+    if store is None and hasattr(user, "brands"):
+        brand = user.brands.filter(d2c_store__isnull=False).first()
+        if brand and brand.d2c_store:
+            store = brand.d2c_store
+    return store
 
 
 class StoreListView(generics.ListCreateAPIView):
@@ -97,13 +107,7 @@ class StoreDashboardView(APIView):
     permission_classes = [IsStoreOwner]
 
     def get(self, request, *args, **kwargs):
-        user = self.request.user
-        store = Store.objects.filter(owner=user).first()  # type: ignore[misc]
-        if not store and hasattr(user, 'brands'):
-            brand = user.brands.filter(d2c_store__isnull=False).first()
-            if brand and brand.d2c_store:
-                store = brand.d2c_store
-
+        store = _get_current_store(self.request.user)
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
 
@@ -130,20 +134,34 @@ class StoreMarketMetricsView(APIView):
     Retorna métricas agregadas de inteligência de mercado do ecossistema NŌTA (RF-23).
     Acesso permitido para vendedores (SELLER) e donos de marca (BRAND_OWNER) com loja vinculada.
     """
-    permission_classes = [IsStoreOwner]
+    permission_classes = [permissions.IsAuthenticated, IsSeller]
 
     def get(self, request, *args, **kwargs):
-        user = self.request.user
-        store = Store.objects.filter(owner=user).first()
-        if not store and hasattr(user, "brands"):
-            brand = user.brands.filter(d2c_store__isnull=False).first()
-            if brand and brand.d2c_store:
-                store = brand.d2c_store
-
+        store = _get_current_store(self.request.user)
         if store is None:
             raise NotFound("Nenhuma loja encontrada para este usuário.")
 
         data = build_market_metrics(store)
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class StoreAnalyticsView(APIView):
+    """
+    Analytics internos da loja e diagnóstico de gaps de catálogo (RF-24).
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsSeller]
+
+    def get(self, request, *args, **kwargs):
+        period = request.query_params.get("period", "30d")
+        if period not in ("7d", "30d", "all"):
+            raise ValidationError({"period": "Use 7d, 30d ou all."})
+
+        store = _get_current_store(self.request.user)
+        if store is None:
+            raise NotFound("Nenhuma loja encontrada para este usuário.")
+
+        data = build_store_analytics(store, period)
         return Response(data, status=status.HTTP_200_OK)
 
 

@@ -1,51 +1,53 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { MarketMetricsData } from "../../types/marketMetrics";
 import { storeService } from "../../services/storeService";
+import { StoreAnalyticsSection } from "./StoreAnalyticsSection";
 
-export const MarketMetricsSection: React.FC = () => {
+interface MarketMetricsSectionProps {
+  onGoToProducts?: (term?: string) => void;
+}
+
+export const MarketMetricsSection: React.FC<MarketMetricsSectionProps> = ({
+  onGoToProducts,
+}) => {
   const [activeSubTab, setActiveSubTab] = useState<"market" | "store">("market");
   const [data, setData] = useState<MarketMetricsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchMetrics = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError(null);
       const result = await storeService.getMarketMetrics();
-      setData(result);
+      if (isMountedRef.current) {
+        setData(result);
+      }
     } catch {
-      setError("Não foi possível carregar os dados de mercado. Verifique sua conexão e tente novamente.");
+      if (isMountedRef.current) {
+        setError("Não foi possível carregar os dados de mercado. Verifique sua conexão e tente novamente.");
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    storeService
-      .getMarketMetrics()
-      .then((result) => {
-        if (isMounted) {
-          setData(result);
-          setError(null);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setError("Não foi possível carregar os dados de mercado. Verifique sua conexão e tente novamente.");
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    const timer = window.setTimeout(() => {
+      void fetchMetrics();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchMetrics]);
 
   const summary = data?.summary;
   const familyDemand = data?.family_demand ?? [];
@@ -54,8 +56,8 @@ export const MarketMetricsSection: React.FC = () => {
   const catalogComparison = data?.catalog_price_comparison ?? [];
   const trendingProducts = data?.trending_products ?? [];
 
-  const decantShare = thermometer?.decants?.sales_share_pct ?? 50;
-  const bottleShare = thermometer?.bottles?.sales_share_pct ?? 50;
+  const decantShare = thermometer?.decants?.sales_share_pct ?? 0;
+  const bottleShare = thermometer?.bottles?.sales_share_pct ?? 0;
 
   return (
     <div className="space-y-[22px] animate-in fade-in slide-in-from-bottom-2 duration-300 font-inter text-[#23282D] min-w-0">
@@ -107,29 +109,7 @@ export const MarketMetricsSection: React.FC = () => {
 
       {/* Conteúdo Condicional: Loja (Em breve) vs Mercado */}
       {activeSubTab === "store" ? (
-        <div className="bg-white border border-[#EFEBDD] rounded-[20px] py-[64px] px-[30px] text-center max-w-2xl mx-auto shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
-          <div className="w-[64px] h-[64px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-4">
-            <svg className="w-[30px] h-[30px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          </div>
-          <span className="inline-block text-[11px] font-bold tracking-[0.06em] uppercase px-3 py-1 rounded-full bg-[#F5F3E9] border border-[#E6E1D2] text-[#5A6067] mb-3">
-            Módulo em Construção
-          </span>
-          <h3 className="font-jakarta text-[20px] font-extrabold text-[#23282D] mb-2">
-            Desempenho da Minha Loja & Diagnóstico de Catálogo
-          </h3>
-          <p className="text-[13.5px] text-[#5A6067] max-w-md mx-auto leading-[1.6] mb-6">
-            Em breve você poderá acompanhar a conversão exclusiva da sua vitrine, evolução de receita por período e o diagnóstico de oportunidades frente ao catálogo global.
-          </p>
-          <button
-            type="button"
-            onClick={() => setActiveSubTab("market")}
-            className="font-jakarta font-bold text-[13.5px] rounded-full px-6 py-3 bg-[#354B5E] text-white hover:bg-[#263847] transition-colors cursor-pointer"
-          >
-            ← Voltar para Inteligência de Mercado
-          </button>
-        </div>
+        <StoreAnalyticsSection onGoToProducts={onGoToProducts} />
       ) : (
         <div className="space-y-[22px]">
           {/* Alerta de Erro */}
@@ -314,7 +294,7 @@ export const MarketMetricsSection: React.FC = () => {
                         </div>
                       ))}
                     </div>
-                  ) : familyDemand.length === 0 ? (
+                  ) : !error && familyDemand.length === 0 ? (
                     <div className="py-12 text-center text-[#93927F] text-[13px] border-2 border-dashed border-[#E6E1D2] rounded-2xl">
                       Nenhum dado de preferência olfativa registrado ainda.
                     </div>
@@ -328,6 +308,7 @@ export const MarketMetricsSection: React.FC = () => {
                           "bg-[#7E4228]",
                           "bg-[#6E7E85]",
                           "bg-[#8B947E]",
+                          "bg-[#A24726]",
                         ];
                         const barClass = barColors[idx % barColors.length];
                         return (
@@ -358,7 +339,7 @@ export const MarketMetricsSection: React.FC = () => {
                               {item.share_pct > 0 && (
                                 <div
                                   className={`h-full ${barClass} rounded-full transition-all duration-500`}
-                                  style={{ width: `${Math.min(Math.max(item.share_pct, 4), 100)}%` }}
+                                  style={{ width: `${Math.min(Math.max(item.share_pct, 0), 100)}%` }}
                                 />
                               )}
                             </div>
@@ -408,7 +389,7 @@ export const MarketMetricsSection: React.FC = () => {
                         <div key={i} className="h-9 bg-[#F5F3E9] rounded-xl animate-pulse" />
                       ))}
                     </div>
-                  ) : topNotes.length === 0 ? (
+                  ) : !error && topNotes.length === 0 ? (
                     <div className="py-12 text-center text-[#93927F] text-[13px] border-2 border-dashed border-[#E6E1D2] rounded-2xl">
                       Nenhuma nota registrada nos perfis de usuários.
                     </div>
@@ -489,21 +470,31 @@ export const MarketMetricsSection: React.FC = () => {
             <div className="p-[22px_24px] space-y-5">
               {/* Barra Segmentada Clean */}
               <div className="space-y-2.5">
-                <div className="h-8 w-full rounded-xl overflow-hidden flex bg-[#F5F3E9] p-1 border border-[#E6E1D2] gap-1">
-                  <div
-                    className="h-full bg-[#354B5E] text-white text-[11px] font-jakarta font-bold flex items-center justify-center transition-all duration-500 rounded-lg"
-                    style={{ width: `${Math.max(decantShare, 10)}%` }}
-                    title={`Decants: ${thermometer?.decants?.sales_share_pct ?? 0}% das vendas`}
-                  >
-                    {decantShare >= 15 && `Decants · ${thermometer?.decants?.sales_share_pct ?? 0}%`}
-                  </div>
-                  <div
-                    className="h-full bg-[#5C6B4E] text-white text-[11px] font-jakarta font-bold flex items-center justify-center transition-all duration-500 rounded-lg"
-                    style={{ width: `${Math.max(bottleShare, 10)}%` }}
-                    title={`Frascos: ${thermometer?.bottles?.sales_share_pct ?? 0}% das vendas`}
-                  >
-                    {bottleShare >= 15 && `Frascos · ${thermometer?.bottles?.sales_share_pct ?? 0}%`}
-                  </div>
+                <div className="h-8 w-full rounded-xl overflow-hidden flex bg-[#F5F3E9] p-1 border border-[#E6E1D2]">
+                  {isLoading || !thermometer ? (
+                    <div className="h-full w-full bg-[#F5F3E9] rounded-lg animate-pulse" />
+                  ) : (
+                    <>
+                      {decantShare > 0 && (
+                        <div
+                          className="h-full shrink-0 bg-[#354B5E] text-white text-[11px] font-jakarta font-bold flex items-center justify-center transition-all duration-500"
+                          style={{ width: `${Math.min(decantShare, 100)}%` }}
+                          title={`Decants: ${decantShare}% das vendas`}
+                        >
+                          {decantShare >= 15 && `Decants · ${decantShare}%`}
+                        </div>
+                      )}
+                      {bottleShare > 0 && (
+                        <div
+                          className="h-full shrink-0 bg-[#5C6B4E] text-white text-[11px] font-jakarta font-bold flex items-center justify-center transition-all duration-500"
+                          style={{ width: `${Math.min(bottleShare, 100)}%` }}
+                          title={`Frascos: ${bottleShare}% das vendas`}
+                        >
+                          {bottleShare >= 15 && `Frascos · ${bottleShare}%`}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between text-[12px] text-[#5A6067] px-1">
@@ -672,7 +663,7 @@ export const MarketMetricsSection: React.FC = () => {
                             Analisando competitividade do seu catálogo...
                           </td>
                         </tr>
-                      ) : catalogComparison.length === 0 ? (
+                      ) : !error && catalogComparison.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="py-10 px-6 text-center text-[#93927F]">
                             Cadastre ofertas na aba &quot;Meus Perfumes&quot; para comparar seus preços por volumetria com o mercado.
@@ -832,7 +823,7 @@ export const MarketMetricsSection: React.FC = () => {
                             Carregando produtos em alta...
                           </td>
                         </tr>
-                      ) : trendingProducts.length === 0 ? (
+                      ) : !error && trendingProducts.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="py-10 text-center text-[#93927F]">
                             Nenhum perfume publicado ainda.

@@ -3,10 +3,15 @@ import { brandService } from '../../services/brandService';
 import type { Product } from '../../types/catalog';
 import { ProductFormModal } from './ProductFormModal';
 
-export function BrandPortfolioTab() {
+interface BrandPortfolioTabProps {
+  initialSearch?: string;
+}
+
+export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [search, setSearch] = useState(initialSearch);
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -36,6 +41,23 @@ export function BrandPortfolioTab() {
     }
   };
 
+  const term = search.trim().toLowerCase();
+  const filteredProducts = term
+    ? products.filter((p) =>
+        [
+          p.name,
+          p.brand?.name ?? "",
+          p.olfactory_family,
+          ...(p.top_notes ?? []),
+          ...(p.heart_notes ?? []),
+          ...(p.base_notes ?? []),
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+      )
+    : products;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -49,7 +71,11 @@ export function BrandPortfolioTab() {
       <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-[27px] font-extrabold text-[#263847] mb-1 tracking-[-0.01em] font-jakarta">Meu Portfólio</h1>
-          <p className="text-[13px] text-[#5A6067] m-0">{products.length} perfumes cadastrados</p>
+          <p className="text-[13px] text-[#5A6067] m-0">
+            {term
+              ? `${filteredProducts.length} perfume${filteredProducts.length === 1 ? "" : "s"} encontrado${filteredProducts.length === 1 ? "" : "s"}`
+              : `${products.length} perfumes cadastrados`}
+          </p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
@@ -62,14 +88,31 @@ export function BrandPortfolioTab() {
         </button>
       </div>
 
-      {products.length === 0 ? (
+      <div className="flex justify-end mb-4">
+        <label className="relative">
+          <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><use href="#ic-search" /></svg>
+          <input
+            className="border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E] w-[260px]"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar no meu portfólio..."
+            type="search"
+            value={search}
+          />
+        </label>
+      </div>
+
+      {filteredProducts.length === 0 ? (
         <div className="bg-white border border-dashed border-[#E6E1D2] rounded-[20px] py-[70px] px-[30px] text-center shadow-[0_1px_3px_rgba(35,40,45,0.06)]">
           <div className="w-[56px] h-[56px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-5">
             <svg className="w-[26px] h-[26px]"><use href="#ic-flask" /></svg>
           </div>
-          <h3 className="text-[18px] font-extrabold text-[#23282D] mb-2">Nenhum perfume cadastrado</h3>
+          <h3 className="text-[18px] font-extrabold text-[#23282D] mb-2">
+            {term ? "Nenhum perfume encontrado" : "Nenhum perfume cadastrado"}
+          </h3>
           <p className="text-[13px] text-[#5A6067] max-w-[360px] mx-auto leading-[1.6]">
-            Comece a montar o portfólio oficial da sua marca para que os lojistas possam vender seus produtos.
+            {term
+              ? `Não encontramos perfumes que correspondam a "${search.trim()}".`
+              : "Comece a montar o portfólio oficial da sua marca para que os lojistas possam vender seus produtos."}
           </p>
           <button 
             onClick={() => setIsModalOpen(true)}
@@ -93,7 +136,7 @@ export function BrandPortfolioTab() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
+                {filteredProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-[#FBFAF6] transition-colors border-b border-[#EFEBDD] last:border-0">
                     <td className="p-[14px_22px] align-middle">
                       <div className="w-[42px] h-[56px] rounded-lg bg-[#F5F3E9] overflow-hidden flex items-center justify-center border border-[#E6E1D2]">
