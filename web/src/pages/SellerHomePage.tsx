@@ -156,39 +156,36 @@ export function SellerHomePage() {
         <header className="sticky top-0 z-30 h-[76px] bg-white/92 backdrop-blur-[10px] border-b border-[#E6E1D2] flex items-center justify-between px-6 xl:px-[30px] gap-4">
           <div className="flex-1" />
 
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-3.5 flex-shrink-0">
             <NotificationBell />
 
             {store && (
               <div
-                className={`h-[34px] px-[15px] rounded-full flex items-center gap-[7px] border font-inter font-bold text-[12.5px] whitespace-nowrap ${store.vacation_mode
-                  ? "bg-[#FDF4F0] border-[#F0C4B0] text-[#7E2D11]"
-                  : storeActive
-                    ? "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]"
-                    : "bg-[#F5F3F0] border-[#E6E1D2] text-[#5A6067]"
-                  }`}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${store.vacation_mode
-                    ? "bg-[#A24726]"
+                className={`h-10 px-4 rounded-full flex items-center gap-2 border font-inter font-bold text-[12.5px] whitespace-nowrap shadow-sm transition-all select-none ${
+                  store.vacation_mode
+                    ? "bg-[#FDF4F0] border-[#F0C4B0] text-[#7E2D11]"
                     : storeActive
-                      ? "bg-[#5C6B4E]"
-                      : "bg-[#93927F]"
+                      ? "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]"
+                      : "bg-[#F5F3F0] border-[#E6E1D2] text-[#5A6067]"
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  {storeActive && !store.vacation_mode && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5C6B4E] opacity-75"></span>
+                  )}
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      store.vacation_mode
+                        ? "bg-[#A24726]"
+                        : storeActive
+                          ? "bg-[#5C6B4E]"
+                          : "bg-[#93927F]"
                     }`}
-                ></span>
+                  ></span>
+                </span>
                 {store.vacation_mode ? "Loja de Férias" : storeActive ? "Loja Ativa" : "Loja Pausada"}
               </div>
             )}
-
-            <button
-              onClick={() => changeTab("catalog")}
-              className="font-jakarta font-bold text-[13.5px] rounded-full px-5 py-[10px] border-2 border-transparent inline-flex items-center gap-2 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors cursor-pointer"
-            >
-              <svg className="w-[16px] h-[16px]">
-                <use href="#ic-plus" />
-              </svg>
-              Novo Perfume
-            </button>
           </div>
         </header>
 

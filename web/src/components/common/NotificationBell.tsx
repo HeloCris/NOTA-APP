@@ -196,9 +196,9 @@ export function NotificationBell() {
         aria-label="Notificações"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
-        className="relative w-[46px] h-[46px] rounded-full border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] cursor-pointer"
+        className="relative w-10 h-10 rounded-full border border-[#E6E1D2] bg-white hover:bg-[#F9F8F3] hover:border-[#D6CEBC] transition-all flex items-center justify-center text-[#5A6067] hover:text-[#263847] shadow-sm cursor-pointer"
       >
-        <svg className="w-[22px] h-[22px]">
+        <svg className="w-5 h-5">
           <use href="#ic-bell" />
         </svg>
         {unreadCount > 0 && (
@@ -215,7 +215,7 @@ export function NotificationBell() {
         <div
           role="dialog"
           aria-label="Central de notificações"
-          className="absolute right-0 top-[56px] w-[360px] bg-white border border-[#E6E1D2] rounded-2xl shadow-xl z-50 overflow-hidden"
+          className="absolute right-0 top-[48px] w-[360px] bg-white border border-[#E6E1D2] rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#EFEBDD]">
             <strong className="text-[14px] text-[#263847]">
