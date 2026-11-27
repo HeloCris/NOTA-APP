@@ -20,7 +20,7 @@ const STATUS_OPTIONS = [
     { value: "", label: "Status: Todos" },
     { value: "active", label: "Ativos" },
     { value: "inactive", label: "Inativos" },
-    { value: "low_stock", label: "Estoque baixo (<3)" },
+    { value: "low_stock", label: "Estoque baixo" },
 ];
 
 const SEARCH_FILTER_OPTIONS = [
