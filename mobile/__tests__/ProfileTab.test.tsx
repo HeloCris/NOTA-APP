@@ -1,10 +1,11 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import ProfileScreen from '@/app/(shop)/account/index';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockUpdateProfile = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -22,7 +23,7 @@ jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
     user: mockUser,
     signOut: jest.fn(),
-    updateProfile: jest.fn(),
+    updateProfile: mockUpdateProfile,
   }),
 }));
 
@@ -30,6 +31,7 @@ describe('Aba Minha Conta - RF-07', () => {
   afterEach(() => {
     jest.clearAllMocks();
     mockUser = null;
+    mockUpdateProfile.mockResolvedValue(undefined);
   });
 
   it('sem perfil olfativo → CTA de preenchimento renderizado', async () => {
@@ -86,5 +88,61 @@ describe('Aba Minha Conta - RF-07', () => {
     expect(getByText('Editar')).toBeTruthy();
     expect(getAllByText('ana@email.com').length).toBeGreaterThan(0);
     expect(getByText('Sair')).toBeTruthy();
+  });
+
+  it('edita nome completo e telefone em modal e persiste via updateProfile', async () => {
+    mockUser = {
+      first_name: 'Ana',
+      last_name: 'Ferreira',
+      email: 'ana@email.com',
+      phone: '11999990000',
+      olfactory_families: [],
+      preferred_notes: [],
+    };
+
+    const renderResult = await render(<ProfileScreen />);
+    const { getByText, getByPlaceholderText, queryByText, getByLabelText } = renderResult;
+
+    expect(queryByText('Configurações')).toBeNull();
+
+    await fireEvent.press(getByLabelText('Editar dados pessoais'));
+    expect(getByText('Editar dados pessoais')).toBeTruthy();
+    expect(getByPlaceholderText('Ana Ferreira').props.value).toBe('Ana Ferreira');
+    expect(getByPlaceholderText('(11) 99999-0000').props.value).toBe('11999990000');
+
+    await fireEvent.changeText(getByPlaceholderText('Ana Ferreira'), 'Ana Beatriz Souza');
+    await fireEvent.changeText(getByPlaceholderText('(11) 99999-0000'), '11988887777');
+    await fireEvent.press(getByLabelText('Salvar dados pessoais'));
+
+    await waitFor(() =>
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        first_name: 'Ana',
+        last_name: 'Beatriz Souza',
+        phone: '11988887777',
+      })
+    );
+    await waitFor(() =>
+      expect(getByText('Dados pessoais atualizados com sucesso.')).toBeTruthy()
+    );
+  });
+
+  it('exibe erro quando o salvamento do perfil falha', async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error('Network Error'));
+    mockUser = {
+      first_name: 'Ana',
+      last_name: 'Ferreira',
+      email: 'ana@email.com',
+      phone: '11999990000',
+      olfactory_families: [],
+      preferred_notes: [],
+    };
+
+    const { getByText, getByLabelText } = await render(<ProfileScreen />);
+    await fireEvent.press(getByLabelText('Editar dados pessoais'));
+    await fireEvent.press(getByLabelText('Salvar dados pessoais'));
+
+    await waitFor(() =>
+      expect(getByText('Não foi possível salvar seus dados. Tente novamente.')).toBeTruthy()
+    );
   });
 });

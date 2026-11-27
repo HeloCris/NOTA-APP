@@ -1,6 +1,7 @@
 import { apiClient } from '../lib/apiClient';
 import type { Store, StoreUpdatePayload, DashboardData, StoreCoupon, StoreCouponCreatePayload } from '../types/store';
 import type { MarketMetricsData } from '../types/marketMetrics';
+import type { AnalyticsPeriod, StoreAnalyticsData } from '../types/storeAnalytics';
 
 export const storeService = {
   getStoreMe: async (): Promise<Store> => {
@@ -58,6 +59,13 @@ export const storeService = {
 
   getMarketMetrics: async (): Promise<MarketMetricsData> => {
     const response = await apiClient.get<MarketMetricsData>('/stores/me/market-metrics/');
+    return response.data;
+  },
+
+  getStoreAnalytics: async (period: AnalyticsPeriod = '30d'): Promise<StoreAnalyticsData> => {
+    const response = await apiClient.get<StoreAnalyticsData>('/stores/me/analytics/', {
+      params: { period },
+    });
     return response.data;
   },
 };

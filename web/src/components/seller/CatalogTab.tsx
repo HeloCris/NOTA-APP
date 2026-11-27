@@ -12,6 +12,7 @@ import { ProductAutoComplete } from "./ProductAutoComplete";
 
 interface CatalogTabProps {
     store: Store | null;
+    initialSearch?: string;
 }
 
 const statusSelectBg = {
@@ -21,13 +22,13 @@ const statusSelectBg = {
     backgroundSize: "13px",
 };
 
-export function CatalogTab({ store }: CatalogTabProps) {
+export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [items, setItems] = useState<StoreProduct[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
     const [status, setStatus] = useState("");
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(initialSearch);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [addInitialProduct, setAddInitialProduct] = useState<Product | null>(null);
 

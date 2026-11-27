@@ -6,6 +6,7 @@ from .views import (
     StoreMeView, 
     StoreDashboardView,
     StoreMarketMetricsView,
+    StoreAnalyticsView,
     StoreProductListView,
     StoreFollowToggleView,
     StoreShippingQuoteView,
@@ -22,6 +23,7 @@ urlpatterns = [
     path("me/", StoreMeView.as_view(), name="store-me"),
     path("me/dashboard/", StoreDashboardView.as_view(), name="store-dashboard"),
     path("me/market-metrics/", StoreMarketMetricsView.as_view(), name="store-market-metrics"),
+    path("me/analytics/", StoreAnalyticsView.as_view(), name="store-analytics"),
     path("dashboard/", StoreDashboardView.as_view(), name="store-dashboard-legacy"),
     
     # Cupons e Configurações Comerciais do Lojista (RF-19.3)
