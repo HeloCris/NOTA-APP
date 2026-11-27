@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,11 +37,12 @@ export default function EditOlfactoryProfileScreen() {
   const router = useRouter();
   const { user, updateOlfactoryProfile } = useAuth();
 
+  const hasUserEditedRef = useRef(false);
   const [selectedFamilies, setSelectedFamilies] = useState<string[]>(
-    user?.olfactory_families ?? []
+    user?.olfactory_families ?? [],
   );
   const [selectedNotes, setSelectedNotes] = useState<string[]>(
-    user?.preferred_notes ?? []
+    user?.preferred_notes ?? [],
   );
 
   const [familiesList, setFamiliesList] = useState<string[]>(FALLBACK_FAMILIES);
@@ -50,6 +51,16 @@ export default function EditOlfactoryProfileScreen() {
 
   const [isFetchingNotes, setIsFetchingNotes] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || hasUserEditedRef.current) return;
+    if (Array.isArray(user.olfactory_families)) {
+      setSelectedFamilies(user.olfactory_families);
+    }
+    if (Array.isArray(user.preferred_notes)) {
+      setSelectedNotes(user.preferred_notes);
+    }
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +72,7 @@ export default function EditOlfactoryProfileScreen() {
 
         if (data.families && data.families.length > 0) {
           const mergedFamilies = Array.from(
-            new Set([...FALLBACK_FAMILIES, ...data.families])
+            new Set([...FALLBACK_FAMILIES, ...data.families]),
           );
           setFamiliesList(mergedFamilies);
         }
@@ -107,14 +118,16 @@ export default function EditOlfactoryProfileScreen() {
   }, []);
 
   const toggleFamily = (family: string) => {
+    hasUserEditedRef.current = true;
     setSelectedFamilies((prev) =>
       prev.includes(family)
         ? prev.filter((f) => f !== family)
-        : [...prev, family]
+        : [...prev, family],
     );
   };
 
   const toggleNote = (note: string) => {
+    hasUserEditedRef.current = true;
     setSelectedNotes((prev) => {
       if (prev.includes(note)) {
         return prev.filter((n) => n !== note);
@@ -122,7 +135,7 @@ export default function EditOlfactoryProfileScreen() {
       if (prev.length >= 10) {
         Alert.alert(
           'Limite Atingido',
-          'Você pode selecionar no máximo 10 notas favoritas.'
+          'Você pode selecionar no máximo 10 notas favoritas.',
         );
         return prev;
       }
@@ -158,7 +171,7 @@ export default function EditOlfactoryProfileScreen() {
       Alert.alert(
         'Erro',
         (firstErrorKey && errorData[firstErrorKey]?.[0]) ||
-          'Não foi possível salvar seu perfil olfativo. Tente novamente.'
+          'Não foi possível salvar seu perfil olfativo. Tente novamente.',
       );
     } finally {
       setLoading(false);
@@ -168,10 +181,8 @@ export default function EditOlfactoryProfileScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
-      {/* Oculta o cabeçalho nativo do Expo Router Stack para evitar duplicação */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Header Customizado Único */}
       <View style={styles.headerBar}>
         <TouchableOpacity
           onPress={() =>
@@ -198,7 +209,6 @@ export default function EditOlfactoryProfileScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* 1. Famílias Olfativas */}
           <Text style={styles.sectionTitle}>
             1. Famílias olfativas que te conquistam
           </Text>
@@ -206,7 +216,6 @@ export default function EditOlfactoryProfileScreen() {
             Escolha uma ou mais famílias olfativas de sua preferência.
           </Text>
 
-          {/* Grid de 2 colunas com suporte ao flex/width nativo */}
           <View style={styles.familyGrid}>
             {familiesList.map((family) => (
               <View key={family} style={styles.familyCardWrapper}>
@@ -219,7 +228,6 @@ export default function EditOlfactoryProfileScreen() {
             ))}
           </View>
 
-          {/* 2. Suas Notas Favoritas */}
           <View style={styles.notesHeaderRow}>
             <Text style={styles.sectionTitle}>2. Suas notas favoritas</Text>
             <Text style={styles.counterBadgeText}>
@@ -250,7 +258,6 @@ export default function EditOlfactoryProfileScreen() {
         </ScrollView>
       )}
 
-      {/* Footer Fixo */}
       <View style={styles.footer}>
         <Text style={styles.counterText}>
           {selectedNotes.length === 0 && selectedFamilies.length === 0
@@ -346,8 +353,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#546347',
   },
-
-  // Grid de 2 Colunas Corrigida
   familyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -356,13 +361,11 @@ const styles = StyleSheet.create({
     rowGap: 12,
     marginBottom: 20,
   },
-
   familyCardWrapper: {
     width: '48%',
     flexGrow: 0,
     flexShrink: 0,
   },
-
   categoryContainer: {
     marginBottom: 16,
   },

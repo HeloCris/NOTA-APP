@@ -14,10 +14,6 @@ export const authService = {
     const response = await api.post('/auth/google/', { id_token: idToken });
     return response.data;
   },
-  googleAuth: async (idToken: string) => {
-    const response = await api.post('/auth/google/', { id_token: idToken });
-    return response.data;
-  },
   refreshToken: async (refresh: string) => {
     const response = await api.post('/auth/token/refresh/', { refresh });
     return response.data;
@@ -32,10 +28,6 @@ export const authService = {
     const response = await api.get('/auth/me/');
     return response.data;
   },
-  getMe: async () => {
-    const response = await api.get('/auth/me/');
-    return response.data;
-  },
   updateProfile: async (data: {
     first_name?: string;
     last_name?: string;
@@ -45,8 +37,11 @@ export const authService = {
     const response = await api.patch('/auth/me/', data);
     return response.data;
   },
-  updateOlfactoryProfile: async (data: { olfactory_families: string[], preferred_notes: string[] }) => {
+  updateOlfactoryProfile: async (data: {
+    olfactory_families: string[];
+    preferred_notes: string[];
+  }) => {
     const response = await api.patch('/auth/me/olfactory-profile/', data);
     return response.data;
-  }
+  },
 };

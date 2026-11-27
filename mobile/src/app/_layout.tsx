@@ -3,7 +3,6 @@ import { ActivityIndicator, View } from 'react-native';
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { CartProvider } from '../context/CartContext';
-import { useTheme } from '../hooks/use-theme';
 
 export default function RootLayout() {
   return (
@@ -20,7 +19,6 @@ function RootNavigator() {
   const router = useRouter();
   const segments = useSegments();
   const pathname = usePathname();
-  const colors = useTheme();
 
   useEffect(() => {
     if (isLoading) {
@@ -46,10 +44,10 @@ function RootNavigator() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: colors.background,
+          backgroundColor: '#F4F1EA',
         }}
       >
-        <ActivityIndicator size="large" color={colors.text} />
+        <ActivityIndicator size="large" color="#354B5E" />
       </View>
     );
   }
@@ -58,7 +56,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: '#F4F1EA' },
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -68,6 +66,7 @@ function RootNavigator() {
       <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="checkout" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
     </Stack>
   );
 }

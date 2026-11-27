@@ -2,9 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Alert,
   Animated,
-  Modal,
   Platform,
-  Pressable,
   RefreshControl,
   View,
   Text,
@@ -13,8 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { storesService, Store, StoreProduct } from '@/services/stores';
@@ -25,11 +22,10 @@ import { FamilyFilterChips } from '@/components/common/FamilyFilterChips';
 import { ProductCard } from '@/components/product/ProductCard';
 import { SkeletonLoader } from '@/components/common/SkeletonLoader';
 
-const SafeModal: React.ComponentType<any> = (Modal as any) || View;
-
 export default function StoreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [scrollY] = useState(() => new Animated.Value(0));
 
   const [store, setStore] = useState<Store | null>(null);
@@ -37,22 +33,27 @@ export default function StoreScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showReviewsModal, setShowReviewsModal] = useState<boolean>(false);
-  const [showContactModal, setShowContactModal] = useState<boolean>(false);
-  const viewRegistered = useRef(false);
-  
+  const viewRegisteredForId = useRef<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [selectedFamily, setSelectedFamily] = useState<string>('');
 
-  const handleContactStore = async () => {
-    if (!store) {
-      return;
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(shop)' as never);
     }
+  };
+
+  const handleContactStore = async () => {
+    if (!store) return;
 
     try {
       const conversation = await startConversation(store.id);
       router.push({
-        pathname: '/(shop)/chat/[id]' as any,
+        pathname: '/(shop)/chat/[id]' as never,
         params: { id: String(conversation.id) },
       });
     } catch (error) {
@@ -74,8 +75,6 @@ export default function StoreScreen() {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Agrupa os itens para que cada perfume apareça apenas uma vez no catálogo da loja
-  // e exibe o menor preço disponível caso haja variações de volume/preço
   const groupedProducts = useMemo(() => {
     const map = new Map<string, { product: StoreProduct; minPrice: number; hasMultipleVariations: boolean }>();
 
@@ -111,41 +110,10 @@ export default function StoreScreen() {
     }));
   }, [products]);
 
-  const loadData = useCallback(async (showSkeleton = true) => {
-    if (!id) return;
-    if (showSkeleton) setIsLoading(true);
-    try {
-      const [storeData, productsData] = await Promise.all([
-        storesService.getStore(id),
-        storesService.getStoreProducts(id, {
-          search: debouncedSearch || undefined,
-          olfactory_family: selectedFamily || undefined,
-        }),
-      ]);
-      if (!viewRegistered.current) {
-        viewRegistered.current = true;
-        void storesService.registerView(storeData.id);
-      }
-      setStore(storeData);
-      setProducts(productsData);
-    } catch (error) {
-      console.error('Erro ao carregar dados da loja:', error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [id, debouncedSearch, selectedFamily]);
-
-  const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    loadData(false);
-  }, [loadData]);
-
-  useEffect(() => {
-    let isMounted = true;
-    if (!id) return;
-
-    (async () => {
+  const loadData = useCallback(
+    async (showSkeleton = true, isMountedCheck?: () => boolean) => {
+      if (!id) return;
+      if (showSkeleton) setIsLoading(true);
       try {
         const [storeData, productsData] = await Promise.all([
           storesService.getStore(id),
@@ -154,23 +122,40 @@ export default function StoreScreen() {
             olfactory_family: selectedFamily || undefined,
           }),
         ]);
-        if (!isMounted) return;
+        if (isMountedCheck && !isMountedCheck()) return;
+
+        if (viewRegisteredForId.current !== String(storeData.id)) {
+          viewRegisteredForId.current = String(storeData.id);
+          void storesService.registerView(storeData.id);
+        }
         setStore(storeData);
         setProducts(productsData);
       } catch (error) {
-        console.error('Erro ao carregar dados da loja:', error);
+        if (!isMountedCheck || isMountedCheck()) {
+          console.error('Erro ao carregar dados da loja:', error);
+        }
       } finally {
-        if (isMounted) {
+        if (!isMountedCheck || isMountedCheck()) {
           setIsLoading(false);
           setIsRefreshing(false);
         }
       }
-    })();
+    },
+    [id, debouncedSearch, selectedFamily],
+  );
 
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    void loadData(false);
+  }, [loadData]);
+
+  useEffect(() => {
+    let isMounted = true;
+    void loadData(true, () => isMounted);
     return () => {
       isMounted = false;
     };
-  }, [id, debouncedSearch, selectedFamily]);
+  }, [loadData]);
 
   if (isLoading && !store) {
     return (
@@ -180,19 +165,41 @@ export default function StoreScreen() {
     );
   }
 
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [80, 150],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const topOffset = Math.max(insets.top, 12);
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <StatusBar style="light" />
       <View style={styles.content}>
+        <Animated.View
+          style={[
+            styles.stickyHeader,
+            {
+              paddingTop: topOffset,
+              height: topOffset + 52,
+              opacity: headerOpacity,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.stickyHeaderTitle} numberOfLines={1}>
+            {store?.name || 'Loja'}
+          </Text>
+        </Animated.View>
+
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Voltar para busca"
+          accessibilityLabel="Voltar"
           activeOpacity={0.7}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          onPress={() => {
-            router.navigate('/(shop)/explore' as never);
-          }}
-          style={styles.floatingBackButton}
+          onPress={handleGoBack}
+          style={[styles.floatingBackButton, { top: topOffset + 6 }]}
         >
           <MaterialIcons name="arrow-back" size={20} color="#1C252E" />
         </TouchableOpacity>
@@ -221,7 +228,7 @@ export default function StoreScreen() {
                   productsCount={groupedProducts.length}
                   onOpenReviews={() => {
                     router.push({
-                      pathname: '/store/[id]/reviews' as any,
+                      pathname: '/store/[id]/reviews' as never,
                       params: {
                         id: store.id.toString(),
                         storeName: store.name,
@@ -264,7 +271,7 @@ export default function StoreScreen() {
           renderItem={({ item }) => (
             <ProductCard
               product={item}
-              hasMultipleVariations={(item as any).hasMultipleVariations}
+              hasMultipleVariations={item.hasMultipleVariations}
               onPress={() =>
                 router.push({
                   pathname: '/product/[id]' as never,
@@ -284,37 +291,12 @@ export default function StoreScreen() {
           contentContainerStyle={styles.listContent}
         />
 
-        {/* Modal informativo: Falar com a loja dentro da plataforma */}
-        <SafeModal visible={showContactModal} transparent animationType="fade">
-          <Pressable style={styles.contactModalOverlay} onPress={() => setShowContactModal(false)}>
-            <View style={styles.contactModalCard}>
-              <View style={styles.contactModalIconWrap}>
-                <MaterialIcons name="chat-bubble" size={28} color="#2C4659" />
-              </View>
-              <Text style={styles.contactModalTitle}>Falar com a loja</Text>
-              <Text style={styles.contactModalStoreName}>Atendimento Oficial • {store?.name}</Text>
-              <Text style={styles.contactModalDesc}>
-                O chat direto entre você e o lojista dentro da plataforma NOTA estará disponível em breve.
-                Todas as mensagens e transações serão mantidas com segurança e suporte por aqui.
-              </Text>
-              <TouchableOpacity
-                style={styles.contactModalButton}
-                onPress={() => setShowContactModal(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.contactModalButtonText}>Entendi</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </SafeModal>
-
-        {/* Modal de Avaliações da Loja */}
         <StoreReviewsModal
           visible={showReviewsModal}
           onClose={() => setShowReviewsModal(false)}
           storeId={store?.id}
           storeName={store?.name}
-          rating={store?.rating}
+          rating={typeof store?.rating === 'string' ? parseFloat(store.rating) : store?.rating}
           reviewsCount={store?.reviews_count}
         />
       </View>
@@ -325,12 +307,9 @@ export default function StoreScreen() {
 export function StoreEmptyState({ onClearFilters }: { onClearFilters: () => void }) {
   return (
     <View style={styles.emptyState}>
-      <Image
-        source={{
-          uri: 'https://illustrations.popertee.com/illustrations/empty-search.svg',
-        }}
-        style={styles.emptyIllustration}
-      />
+      <View style={styles.emptyIconCircle}>
+        <MaterialIcons name="search-off" size={36} color="#9CA3AF" />
+      </View>
       <Text style={styles.emptyTitle}>Nenhum perfume encontrado</Text>
       <Text style={styles.emptyMessage}>
         Nenhum perfume encontrado para este filtro.
@@ -355,15 +334,37 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 9990,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 64,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  stickyHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
   floatingBackButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 48 : 36,
     left: 16,
     zIndex: 9999,
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -375,37 +376,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 40,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 14,
-    backgroundColor: '#EAE6DD',
-    padding: 3,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: 'center',
-    borderRadius: 11,
-  },
-  tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  tabTextActive: {
-    color: '#1C252E',
-    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -460,15 +430,19 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 64,
+    paddingVertical: 48,
   },
-  emptyIllustration: {
-    width: 128,
-    height: 128,
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#EAE6DD',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#1C252E',
     textAlign: 'center',
@@ -488,66 +462,6 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  contactModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  contactModalCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  contactModalIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E4EAEF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  contactModalTitle: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#1C252E',
-    marginBottom: 4,
-  },
-  contactModalStoreName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2C4659',
-    marginBottom: 12,
-  },
-  contactModalDesc: {
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  contactModalButton: {
-    width: '100%',
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2C4659',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contactModalButtonText: {
-    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },

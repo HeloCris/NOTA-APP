@@ -1,69 +1,92 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { storesService, FollowingStore } from '@/services/stores';
 
 export default function FollowingStoresScreen() {
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const containerWidth = Math.min(windowWidth, 460);
+
   const [stores, setStores] = useState<FollowingStore[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    storesService
-      .getFollowingStores()
-      .then((data) => {
-        if (isMounted) {
-          setStores(data);
-        }
-      })
-      .catch((err) => {
-        console.error('Erro ao carregar lojas seguidas:', err);
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
+  const loadFollowing = useCallback(async (isMountedCheck?: () => boolean) => {
     try {
       const data = await storesService.getFollowingStores();
-      setStores(data);
+      if (!isMountedCheck || isMountedCheck()) {
+        setStores(data);
+      }
     } catch (err) {
-      console.error('Erro ao carregar lojas seguidas:', err);
+      if (!isMountedCheck || isMountedCheck()) {
+        console.error('Erro ao carregar lojas seguidas:', err);
+      }
     } finally {
-      setIsRefreshing(false);
+      if (!isMountedCheck || isMountedCheck()) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      void loadFollowing(() => isMounted);
+      return () => {
+        isMounted = false;
+      };
+    }, [loadFollowing]),
+  );
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    void loadFollowing();
   };
 
-  const handleUnfollow = async (storeId: number) => {
-    try {
-      await storesService.toggleFollow(storeId);
-      setStores((prev) => prev.filter((s) => s.store_id !== storeId));
-    } catch (err) {
-      console.error('Erro ao deixar de seguir:', err);
+  const confirmUnfollow = (store: FollowingStore) => {
+    const executeUnfollow = async () => {
+      const snapshot = stores;
+      setStores((prev) => prev.filter((s) => s.store_id !== store.store_id));
+      try {
+        await storesService.toggleFollow(store.store_id);
+      } catch (err) {
+        console.error('Erro ao deixar de seguir:', err);
+        setStores(snapshot);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Deixar de seguir ${store.name}?`)) {
+        void executeUnfollow();
+      }
+      return;
     }
+
+    Alert.alert(
+      'Deixar de seguir',
+      `Deseja deixar de seguir ${store.name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Deixar de seguir', style: 'destructive', onPress: () => void executeUnfollow() },
+      ],
+    );
   };
 
   const renderItem = ({ item }: { item: FollowingStore }) => (
@@ -71,11 +94,21 @@ export default function FollowingStoresScreen() {
       <TouchableOpacity
         style={styles.cardContent}
         activeOpacity={0.7}
-        onPress={() => router.push(`/store/${item.store_id}` as any)}
+        onPress={() =>
+          router.push({
+            pathname: '/store/[id]' as never,
+            params: { id: String(item.store_id) },
+          })
+        }
       >
         <View style={styles.logoWrapper}>
           {item.logo_url ? (
-            <Image source={{ uri: item.logo_url }} style={styles.logo} contentFit="cover" />
+            <Image
+              source={{ uri: item.logo_url }}
+              style={styles.logo}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
           ) : (
             <View style={styles.placeholderLogo}>
               <Text style={styles.placeholderText}>
@@ -91,10 +124,7 @@ export default function FollowingStoresScreen() {
               {item.name}
             </Text>
             {item.is_official && (
-              <View style={styles.badgeOfficial}>
-                <MaterialIcons name="verified" size={13} color="#D4AF37" />
-                <Text style={styles.badgeOfficialText}>Oficial</Text>
-              </View>
+              <MaterialIcons name="verified" size={16} color="#1D9BF0" />
             )}
           </View>
 
@@ -102,8 +132,8 @@ export default function FollowingStoresScreen() {
             <View style={styles.ratingBadge}>
               <MaterialIcons name="star" size={12} color="#D97706" />
               <Text style={styles.ratingText}>
-                {item.rating !== null && item.rating !== undefined && item.rating > 0
-                  ? item.rating.toFixed(1).replace('.', ',')
+                {item.rating !== null && item.rating !== undefined && Number(item.rating) > 0
+                  ? Number(item.rating).toFixed(1).replace('.', ',')
                   : 'Novo'}
               </Text>
             </View>
@@ -118,7 +148,12 @@ export default function FollowingStoresScreen() {
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={styles.viewStoreBtn}
-          onPress={() => router.push(`/store/${item.store_id}` as any)}
+          onPress={() =>
+            router.push({
+              pathname: '/store/[id]' as never,
+              params: { id: String(item.store_id) },
+            })
+          }
           activeOpacity={0.7}
         >
           <Text style={styles.viewStoreText}>Ver Loja</Text>
@@ -126,7 +161,7 @@ export default function FollowingStoresScreen() {
 
         <TouchableOpacity
           style={styles.unfollowBtn}
-          onPress={() => handleUnfollow(item.store_id)}
+          onPress={() => confirmUnfollow(item)}
           activeOpacity={0.7}
         >
           <Feather name="check" size={13} color="#4A6072" />
@@ -139,58 +174,70 @@ export default function FollowingStoresScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={22} color="#1C252E" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lojas que Sigo</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#354B5E" />
-          <Text style={styles.loadingText}>Carregando lojas...</Text>
-        </View>
-      ) : stores.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="heart-outline" size={36} color="#4A6072" />
-          </View>
-          <Text style={styles.emptyTitle}>Nenhuma loja seguida ainda</Text>
-          <Text style={styles.emptySubtitle}>
-            Siga suas perfumarias favoritas para acompanhar lançamentos e receber cupons de desconto exclusivos!
-          </Text>
+      <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
+        {/* Header */}
+        <View style={styles.header}>
           <TouchableOpacity
-            style={styles.exploreBtn}
-            onPress={() => router.push('/(shop)/explore' as any)}
-            activeOpacity={0.8}
+            style={styles.backBtn}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(shop)/account' as never);
+              }
+            }}
+            activeOpacity={0.7}
           >
-            <Text style={styles.exploreBtnText}>Explorar Vitrine</Text>
+            <Ionicons name="arrow-back" size={21} color="#1C252E" />
           </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Lojas que Sigo</Text>
+            <Text style={styles.headerSubtitle}>
+              {stores.length} {stores.length === 1 ? 'loja seguida' : 'lojas seguidas'}
+            </Text>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
-      ) : (
-        <FlatList
-          data={stores}
-          keyExtractor={(item) => String(item.store_id)}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor="#354B5E"
-            />
-          }
-        />
-      )}
+
+        {isLoading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#354B5E" />
+            <Text style={styles.loadingText}>Carregando lojas...</Text>
+          </View>
+        ) : stores.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="heart-outline" size={36} color="#4A6072" />
+            </View>
+            <Text style={styles.emptyTitle}>Nenhuma loja seguida ainda</Text>
+            <Text style={styles.emptySubtitle}>
+              Siga suas perfumarias favoritas para acompanhar lançamentos e receber cupons de desconto exclusivos!
+            </Text>
+            <TouchableOpacity
+              style={styles.exploreBtn}
+              onPress={() => router.push('/(shop)/explore' as never)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exploreBtnText}>Explorar Vitrine</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={stores}
+            keyExtractor={(item) => String(item.store_id)}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor="#354B5E"
+              />
+            }
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -199,30 +246,49 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F1EA',
+    alignItems: 'center',
+  },
+  mainWrapper: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: Platform.OS === 'android' ? 16 : 10,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E6E1D2',
+    borderBottomColor: '#EBE7DE',
     backgroundColor: '#F4F1EA',
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#EBE6DA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 17.5,
+    fontWeight: '800',
     color: '#1C252E',
-    fontFamily: Platform.select({ ios: 'System', default: 'sans-serif' }),
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#78716C',
+    marginTop: 1,
   },
   centerContainer: {
     flex: 1,
@@ -288,29 +354,13 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   storeName: {
     fontSize: 15,
     fontWeight: '700',
     color: '#1C252E',
     flexShrink: 1,
-  },
-  badgeOfficial: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: '#FEF9E7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#F3E5AB',
-  },
-  badgeOfficialText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#8A6D1C',
   },
   metaRow: {
     flexDirection: 'row',

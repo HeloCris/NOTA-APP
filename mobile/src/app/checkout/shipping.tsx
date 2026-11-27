@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -41,57 +42,52 @@ export default function CheckoutShippingScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  const { items: cartItems, subtotal } = useCart();
+  const { items: cartItems, subtotal, totalItemsCount } = useCart();
   const discountAmount = Number(params.discount_amount || 0);
 
-  const items = cartItems.length > 0
-    ? cartItems.map((c) => ({
+  const items = useMemo(
+    () =>
+      cartItems.map((c) => ({
         ...c,
-        storeProductId: Number(c.storeProductId || (c.productId === 7 ? 14 : c.productId === 8 ? 12 : 4)),
+        storeProductId: Number(c.storeProductId || 0),
         storeId: c.storeId || 1,
-      }))
-    : [
-        {
-          id: '1',
-          productId: 3,
-          storeProductId: 16,
-          brandName: 'Decants & Co. Perfumaria',
-          productName: 'Perseus',
-          volume: 'DECANT • 10 ML',
-          volumeMl: 10,
-          quantity: 1,
-          price: 15.0,
-          storeId: 2,
-        },
-      ];
+      })),
+    [cartItems],
+  );
 
-  const primaryStoreId = items[0]?.storeId || 2;
-
-  // Agrupa os itens por loja
+  // Agrupa os itens por storeId real
   const storeGroups = useMemo(() => {
     const map = new Map<
-      string,
+      number,
       {
+        storeId: number;
         storeName: string;
         storeIsOfficial?: boolean;
         items: typeof items;
+        subtotal: number;
       }
     >();
 
     items.forEach((item) => {
-      const key = item.storeName || item.brandName || 'Loja Parceira';
-      if (!map.has(key)) {
-        map.set(key, {
-          storeName: key,
+      const storeId = item.storeId || 1;
+      if (!map.has(storeId)) {
+        map.set(storeId, {
+          storeId,
+          storeName: item.storeName || item.brandName || 'Loja Parceira',
           storeIsOfficial: item.storeIsOfficial,
           items: [],
+          subtotal: 0,
         });
       }
-      map.get(key)!.items.push(item);
+      const g = map.get(storeId)!;
+      g.items.push(item);
+      g.subtotal += item.price * item.quantity;
     });
 
     return Array.from(map.values());
   }, [items]);
+
+  const primaryStoreId = storeGroups[0]?.storeId || 1;
 
   // Endereços
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
@@ -117,14 +113,14 @@ export default function CheckoutShippingScreen() {
       id: 'express',
       title: 'SEDEX',
       badge: 'Expresso',
-      estimate: 'Chega entre sex, 23 e seg, 26 out',
+      estimate: 'Chega em 1 a 3 dias úteis',
       price: 12.92,
     },
     {
       id: 'standard',
       title: 'PAC',
       badge: 'Econômico',
-      estimate: 'Chega entre ter, 27 e sex, 30 out',
+      estimate: 'Chega em 3 a 5 dias úteis',
       price: 9.5,
     },
   ]);
@@ -142,46 +138,79 @@ export default function CheckoutShippingScreen() {
   const currentShippingCost = selectedShippingOption?.price || 0;
   const total = Math.max(0, subtotal - discountAmount) + currentShippingCost;
 
-  const fetchShippingForCep = async (cleanCep: string, uf: string) => {
-    setIsLoadingShipping(true);
-    try {
-      const quote = await storesService.calculateShippingQuote(primaryStoreId, {
-        postal_code: cleanCep,
-        cart_subtotal: subtotal,
-        state: uf,
-      });
+  const fetchShippingForCep = useCallback(
+    async (cleanCep: string, uf: string) => {
+      if (storeGroups.length === 0) return;
+      setIsLoadingShipping(true);
+      try {
+        const quotes = await Promise.all(
+          storeGroups.map((group) =>
+            storesService.calculateShippingQuote(group.storeId, {
+              postal_code: cleanCep,
+              cart_subtotal: group.subtotal,
+              state: uf,
+            }),
+          ),
+        );
 
-      const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
-      const pacMethod = quote.methods.find((m) => m.id === 'PAC');
+        let totalSedex = 0;
+        let totalPac = 0;
+        let sedexMin = 1;
+        let sedexMax = 3;
+        let pacMin = 3;
+        let pacMax = 5;
 
-      setShippingOptions([
-        {
-          id: 'express',
-          title: 'SEDEX',
-          badge: 'Expresso',
-          estimate: `Chega em ${sedexMethod?.total_delivery_days_min || 1} a ${sedexMethod?.total_delivery_days_max || 3} dias úteis`,
-          price: sedexMethod?.price ?? 12.92,
-        },
-        {
-          id: 'standard',
-          title: 'PAC',
-          badge: 'Econômico',
-          estimate: `Chega em ${pacMethod?.total_delivery_days_min || 3} a ${pacMethod?.total_delivery_days_max || 5} dias úteis`,
-          price: pacMethod?.price ?? 9.5,
-        },
-      ]);
-    } catch (err) {
-      console.warn('Usando cotação de frete padrão regional');
-    } finally {
-      setIsLoadingShipping(false);
-    }
-  };
+        quotes.forEach((quote) => {
+          const sedexMethod = quote.methods.find((m) => m.id === 'SEDEX');
+          const pacMethod = quote.methods.find((m) => m.id === 'PAC');
+
+          totalSedex += sedexMethod?.price ?? 12.92;
+          totalPac += pacMethod?.price ?? 9.5;
+
+          if (sedexMethod?.total_delivery_days_min) {
+            sedexMin = Math.max(sedexMin, sedexMethod.total_delivery_days_min);
+          }
+          if (sedexMethod?.total_delivery_days_max) {
+            sedexMax = Math.max(sedexMax, sedexMethod.total_delivery_days_max);
+          }
+          if (pacMethod?.total_delivery_days_min) {
+            pacMin = Math.max(pacMin, pacMethod.total_delivery_days_min);
+          }
+          if (pacMethod?.total_delivery_days_max) {
+            pacMax = Math.max(pacMax, pacMethod.total_delivery_days_max);
+          }
+        });
+
+        setShippingOptions([
+          {
+            id: 'express',
+            title: 'SEDEX',
+            badge: 'Expresso',
+            estimate: `Chega em ${sedexMin} a ${sedexMax} dias úteis`,
+            price: Number(totalSedex.toFixed(2)),
+          },
+          {
+            id: 'standard',
+            title: 'PAC',
+            badge: 'Econômico',
+            estimate: `Chega em ${pacMin} a ${pacMax} dias úteis`,
+            price: Number(totalPac.toFixed(2)),
+          },
+        ]);
+      } catch {
+        console.warn('Usando cotação de frete padrão regional');
+      } finally {
+        setIsLoadingShipping(false);
+      }
+    },
+    [storeGroups],
+  );
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        let list = await getSavedAddresses();
+        const list = await getSavedAddresses();
 
         if (!isMounted) return;
         setSavedAddresses(list);
@@ -189,7 +218,7 @@ export default function CheckoutShippingScreen() {
           const def = list.find((a) => a.isDefault) || list[0];
           setSelectedAddressId(def.id || '');
           if (def.cep) {
-            fetchShippingForCep(def.cep.replace(/\D/g, ''), def.stateUf || 'GO');
+            void fetchShippingForCep(def.cep.replace(/\D/g, ''), def.stateUf || 'GO');
           }
         }
       } catch (err) {
@@ -200,12 +229,12 @@ export default function CheckoutShippingScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [fetchShippingForCep]);
 
   const handleSelectAddress = (addr: UserAddress) => {
     setSelectedAddressId(addr.id || '');
     if (addr.cep) {
-      fetchShippingForCep(addr.cep.replace(/\D/g, ''), addr.stateUf || 'GO');
+      void fetchShippingForCep(addr.cep.replace(/\D/g, ''), addr.stateUf || 'GO');
     }
   };
 
@@ -230,7 +259,9 @@ export default function CheckoutShippingScreen() {
           setCity(data.localidade || '');
           setStateUf(data.uf || '');
         } else {
-          setAddressError('CEP não encontrado. Por favor, verifique ou preencha os dados manualmente.');
+          setAddressError(
+            'CEP não encontrado. Por favor, verifique ou preencha os dados manualmente.',
+          );
         }
       } catch {
         // Fallback gracioso caso sem conexão
@@ -264,6 +295,10 @@ export default function CheckoutShippingScreen() {
       setAddressError('Preencha CEP válido (8 dígitos), Rua e Número para continuar.');
       return;
     }
+    if (!city.trim() || stateUf.trim().length < 2) {
+      setAddressError('Informe a Cidade e a UF do endereço.');
+      return;
+    }
 
     const newAddr: UserAddress = {
       id: Date.now().toString(),
@@ -272,23 +307,47 @@ export default function CheckoutShippingScreen() {
       number: number.trim(),
       complement: complement.trim() || undefined,
       neighborhood: neighborhood.trim() || 'Centro',
-      city: city.trim() || 'Goiânia',
-      stateUf: stateUf.trim().toUpperCase() || 'GO',
+      city: city.trim(),
+      stateUf: stateUf.trim().toUpperCase(),
       cep: cep.trim(),
       isDefault: isDefault || savedAddresses.length === 0,
     };
 
-    await addOrUpdateAddress(newAddr);
-    const updated = await getSavedAddresses();
+    const updated = await addOrUpdateAddress(newAddr);
     setSavedAddresses(updated);
     setIsAddressModalVisible(false);
     resetAddressForm();
-    setSelectedAddressId(newAddr.id || '');
-    fetchShippingForCep(newAddr.cep.replace(/\D/g, ''), newAddr.stateUf || 'GO');
+    const created = updated.find((a) => a.cep === newAddr.cep && a.number === newAddr.number) || updated[0];
+    setSelectedAddressId(created?.id || '');
+    void fetchShippingForCep(newAddr.cep.replace(/\D/g, ''), newAddr.stateUf);
   };
 
   const handleContinueToPayment = () => {
-    const selectedAddr = savedAddresses.find((a) => a.id === selectedAddressId) || savedAddresses[0];
+    if (items.length === 0) {
+      Alert.alert('Sacola vazia', 'Adicione itens ao carrinho antes de continuar.');
+      router.replace('/(shop)/cart' as any);
+      return;
+    }
+
+    const selectedAddr =
+      savedAddresses.find((a) => a.id === selectedAddressId) || savedAddresses[0];
+
+    if (!selectedAddr) {
+      Alert.alert(
+        'Endereço obrigatório',
+        'Cadastre ou selecione um endereço de entrega antes de ir para o pagamento.',
+      );
+      return;
+    }
+
+    const invalidItem = items.find((i) => !i.storeProductId || i.storeProductId <= 0);
+    if (invalidItem) {
+      Alert.alert(
+        'Item inválido',
+        `O item "${invalidItem.productName}" precisa ser readicionado ao carrinho.`,
+      );
+      return;
+    }
 
     const payloadItems = items.map((i) => ({
       store_product_id: Number(i.storeProductId),
@@ -304,10 +363,13 @@ export default function CheckoutShippingScreen() {
         store_id: String(primaryStoreId),
         total_amount: total.toFixed(2),
         discount_amount: String(discountAmount.toFixed(2)),
+        items_count: String(totalItemsCount || items.length),
         coupons: params.coupons ? String(params.coupons) : undefined,
         coupon_code: params.coupon_code ? String(params.coupon_code) : undefined,
         shipping_cost: String(currentShippingCost.toFixed(2)),
         shipping_service: selectedShipping === 'express' ? 'SEDEX' : 'PAC',
+        shipping_estimate:
+          selectedShippingOption?.estimate.replace(/^Chega em\s+/i, '') || '1 a 3 dias úteis',
         address: JSON.stringify(selectedAddr),
         cartItems: JSON.stringify(payloadItems),
       },
@@ -379,7 +441,11 @@ export default function CheckoutShippingScreen() {
                 </View>
 
                 {isSelected && (
-                  <TouchableOpacity style={styles.editIconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <TouchableOpacity
+                    style={styles.editIconBtn}
+                    onPress={() => router.push('/(shop)/account/addresses' as any)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <Feather name="edit-2" size={14} color="#8A867E" />
                   </TouchableOpacity>
                 )}
@@ -387,7 +453,7 @@ export default function CheckoutShippingScreen() {
             );
           })}
 
-          {/* Botão Adicionar novo endereço (visível se já houver pelo menos 1 endereço) */}
+          {/* Botão Adicionar novo endereço */}
           {savedAddresses.length > 0 && (
             <TouchableOpacity
               style={styles.addAddressButton}
@@ -399,7 +465,7 @@ export default function CheckoutShippingScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Se o usuário NÃO tiver nenhum endereço cadastrado, o formulário já fica aberto direto na tela com o padrão de Meus Endereços */}
+          {/* Formulário inline se não houver endereço cadastrado */}
           {savedAddresses.length === 0 && (
             <View style={styles.newAddressBox}>
               <Text style={styles.newAddressTitle}>Cadastre seu endereço de entrega</Text>
@@ -414,7 +480,6 @@ export default function CheckoutShippingScreen() {
                 </View>
               ) : null}
 
-              {/* Identificador (Casa, Trabalho, Outro) */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Identificador</Text>
                 <View style={styles.tagSelectorRow}>
@@ -440,7 +505,6 @@ export default function CheckoutShippingScreen() {
                 </View>
               </View>
 
-              {/* CEP com Busca Automática e Spinner */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>CEP</Text>
                 <View style={styles.inputWithIcon}>
@@ -459,7 +523,6 @@ export default function CheckoutShippingScreen() {
                 </View>
               </View>
 
-              {/* Rua / Logradouro */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Rua / Logradouro</Text>
                 <TextInput
@@ -474,15 +537,13 @@ export default function CheckoutShippingScreen() {
                 />
               </View>
 
-              {/* Número & Complemento */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <Text style={styles.formLabel}>Número</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="123"
+                    placeholder="123 ou S/N"
                     placeholderTextColor="#9CA3AF"
-                    keyboardType="numeric"
                     value={number}
                     onChangeText={(t) => {
                       setNumber(t);
@@ -502,7 +563,6 @@ export default function CheckoutShippingScreen() {
                 </View>
               </View>
 
-              {/* Bairro */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Bairro</Text>
                 <TextInput
@@ -514,7 +574,6 @@ export default function CheckoutShippingScreen() {
                 />
               </View>
 
-              {/* Cidade & UF */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={[styles.formGroup, { flex: 2 }]}>
                   <Text style={styles.formLabel}>Cidade</Text>
@@ -540,7 +599,6 @@ export default function CheckoutShippingScreen() {
                 </View>
               </View>
 
-              {/* Checkbox: Definir como padrão */}
               <TouchableOpacity
                 style={styles.checkboxRow}
                 activeOpacity={0.7}
@@ -566,29 +624,43 @@ export default function CheckoutShippingScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Seu pedido</Text>
             <Text style={styles.itemCountText}>
-              {items.length} {items.length === 1 ? 'item' : 'itens'}
+              {totalItemsCount || items.length}{' '}
+              {(totalItemsCount || items.length) === 1 ? 'item' : 'itens'}
             </Text>
           </View>
 
           <View style={styles.card}>
             {storeGroups.map((group, groupIdx) => (
               <View
-                key={group.storeName}
-                style={groupIdx > 0 ? { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F5F2EB' } : undefined}
+                key={`store-${group.storeId}`}
+                style={
+                  groupIdx > 0
+                    ? {
+                        marginTop: 14,
+                        paddingTop: 14,
+                        borderTopWidth: 1,
+                        borderTopColor: '#F5F2EB',
+                      }
+                    : undefined
+                }
               >
                 <View style={styles.storeHeader}>
                   <Ionicons name="storefront-outline" size={16} color="#1C252E" />
                   <Text style={styles.storeName}>{group.storeName}</Text>
                   {group.storeIsOfficial && (
-                    <Ionicons name="checkmark-circle" size={15} color="#1B8754" />
+                    <Ionicons name="checkmark-circle" size={15} color="#1D9BF0" />
                   )}
                 </View>
 
                 {group.items.map((item, idx) => (
-                  <View key={idx} style={[styles.itemRow, idx > 0 && { marginTop: 10 }]}>
+                  <View key={item.id} style={[styles.itemRow, idx > 0 && { marginTop: 10 }]}>
                     <View style={styles.imageBox}>
                       {item.imageUrl ? (
-                        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} contentFit="contain" />
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={styles.itemImage}
+                          contentFit="contain"
+                        />
                       ) : (
                         <Ionicons name="flask-outline" size={22} color="#A8A29E" />
                       )}
@@ -648,6 +720,17 @@ export default function CheckoutShippingScreen() {
               <Text style={styles.summaryValue}>R$ {formatBRL(subtotal)}</Text>
             </View>
 
+            {discountAmount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: '#2E7D32' }]}>
+                  Desconto de cupom
+                </Text>
+                <Text style={[styles.summaryValue, { color: '#2E7D32', fontWeight: '700' }]}>
+                  -R$ {formatBRL(discountAmount)}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 Frete ({selectedShipping === 'express' ? 'SEDEX' : 'PAC'})
@@ -670,7 +753,12 @@ export default function CheckoutShippingScreen() {
             onPress={handleContinueToPayment}
           >
             <Text style={styles.continueButtonText}>Continuar para o pagamento</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color="#FFFFFF"
+              style={{ marginLeft: 6 }}
+            />
           </TouchableOpacity>
 
           <View style={{ height: 28 }} />
@@ -685,7 +773,6 @@ export default function CheckoutShippingScreen() {
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalCard, { maxWidth: containerWidth - 32 }]}>
-              {/* Header do Modal exatamente igual a Meus Endereços */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Novo Endereço</Text>
                 <TouchableOpacity
@@ -696,7 +783,6 @@ export default function CheckoutShippingScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Erro inline */}
               {addressError ? (
                 <View style={styles.addressErrorBox}>
                   <Feather name="alert-circle" size={14} color="#DC2626" />
@@ -704,165 +790,163 @@ export default function CheckoutShippingScreen() {
                 </View>
               ) : null}
 
-              {/* Inputs sem scroll: cabe perfeitamente na janela do modal */}
-              <View style={styles.modalBody}>
-                {/* Identificador (Casa, Trabalho, Outro) */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Identificador</Text>
-                  <View style={styles.tagSelectorRow}>
-                    {['Casa', 'Trabalho', 'Outro'].map((tagOption) => (
-                      <TouchableOpacity
-                        key={tagOption}
-                        style={[
-                          styles.tagOptionBtn,
-                          newTag === tagOption && styles.tagOptionBtnActive,
-                        ]}
-                        onPress={() => setNewTag(tagOption)}
-                      >
-                        <Text
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.modalBody}>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Identificador</Text>
+                    <View style={styles.tagSelectorRow}>
+                      {['Casa', 'Trabalho', 'Outro'].map((tagOption) => (
+                        <TouchableOpacity
+                          key={tagOption}
                           style={[
-                            styles.tagOptionText,
-                            newTag === tagOption && styles.tagOptionTextActive,
+                            styles.tagOptionBtn,
+                            newTag === tagOption && styles.tagOptionBtnActive,
                           ]}
+                          onPress={() => setNewTag(tagOption)}
                         >
-                          {tagOption}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <Text
+                            style={[
+                              styles.tagOptionText,
+                              newTag === tagOption && styles.tagOptionTextActive,
+                            ]}
+                          >
+                            {tagOption}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                </View>
 
-                {/* CEP */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>CEP</Text>
-                  <View style={styles.inputWithIcon}>
-                    <TextInput
-                      style={styles.innerInput}
-                      placeholder="00000-000"
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="numeric"
-                      value={cep}
-                      onChangeText={handleCepSearch}
-                      maxLength={9}
-                    />
-                    {isLoadingCep && (
-                      <ActivityIndicator size="small" color="#2C4659" style={{ marginRight: 6 }} />
-                    )}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>CEP</Text>
+                    <View style={styles.inputWithIcon}>
+                      <TextInput
+                        style={styles.innerInput}
+                        placeholder="00000-000"
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="numeric"
+                        value={cep}
+                        onChangeText={handleCepSearch}
+                        maxLength={9}
+                      />
+                      {isLoadingCep && (
+                        <ActivityIndicator
+                          size="small"
+                          color="#2C4659"
+                          style={{ marginRight: 6 }}
+                        />
+                      )}
+                    </View>
                   </View>
-                </View>
 
-                {/* Rua / Logradouro */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Rua / Logradouro</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: Av. Paulista"
-                    placeholderTextColor="#9CA3AF"
-                    value={street}
-                    onChangeText={(t) => {
-                      setStreet(t);
-                      if (addressError) setAddressError('');
-                    }}
-                  />
-                </View>
-
-                {/* Número & Complemento */}
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Número</Text>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Rua / Logradouro</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="123"
+                      placeholder="Ex: Av. Paulista"
                       placeholderTextColor="#9CA3AF"
-                      keyboardType="numeric"
-                      value={number}
+                      value={street}
                       onChangeText={(t) => {
-                        setNumber(t);
+                        setStreet(t);
                         if (addressError) setAddressError('');
                       }}
                     />
                   </View>
-                  <View style={[styles.formGroup, { flex: 1.4 }]}>
-                    <Text style={styles.formLabel}>Complemento</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Número</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="123 ou S/N"
+                        placeholderTextColor="#9CA3AF"
+                        value={number}
+                        onChangeText={(t) => {
+                          setNumber(t);
+                          if (addressError) setAddressError('');
+                        }}
+                      />
+                    </View>
+                    <View style={[styles.formGroup, { flex: 1.4 }]}>
+                      <Text style={styles.formLabel}>Complemento</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Apto, Bloco..."
+                        placeholderTextColor="#9CA3AF"
+                        value={complement}
+                        onChangeText={setComplement}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Bairro</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Apto, Bloco..."
+                      placeholder="Bairro"
                       placeholderTextColor="#9CA3AF"
-                      value={complement}
-                      onChangeText={setComplement}
+                      value={neighborhood}
+                      onChangeText={setNeighborhood}
                     />
                   </View>
-                </View>
 
-                {/* Bairro */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Bairro</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Bairro"
-                    placeholderTextColor="#9CA3AF"
-                    value={neighborhood}
-                    onChangeText={setNeighborhood}
-                  />
-                </View>
-
-                {/* Cidade & UF */}
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={[styles.formGroup, { flex: 2 }]}>
-                    <Text style={styles.formLabel}>Cidade</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Cidade"
-                      placeholderTextColor="#9CA3AF"
-                      value={city}
-                      onChangeText={setCity}
-                    />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={[styles.formGroup, { flex: 2 }]}>
+                      <Text style={styles.formLabel}>Cidade</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Cidade"
+                        placeholderTextColor="#9CA3AF"
+                        value={city}
+                        onChangeText={setCity}
+                      />
+                    </View>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>UF</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="SP"
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={2}
+                        autoCapitalize="characters"
+                        value={stateUf}
+                        onChangeText={(t) => setStateUf(t.toUpperCase())}
+                      />
+                    </View>
                   </View>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>UF</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="SP"
-                      placeholderTextColor="#9CA3AF"
-                      maxLength={2}
-                      autoCapitalize="characters"
-                      value={stateUf}
-                      onChangeText={(t) => setStateUf(t.toUpperCase())}
-                    />
-                  </View>
-                </View>
 
-                {/* Checkbox: Definir como padrão */}
-                <TouchableOpacity
-                  style={styles.checkboxRow}
-                  activeOpacity={0.7}
-                  onPress={() => setIsDefault(!isDefault)}
-                >
-                  <View style={[styles.checkboxBox, isDefault && styles.checkboxBoxActive]}>
-                    {isDefault && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Definir como endereço padrão</Text>
-                </TouchableOpacity>
-
-                {/* Botões do Modal idênticos a Meus Endereços */}
-                <View style={styles.modalActions}>
                   <TouchableOpacity
-                    style={styles.modalCancelBtn}
+                    style={styles.checkboxRow}
                     activeOpacity={0.7}
-                    onPress={() => setIsAddressModalVisible(false)}
+                    onPress={() => setIsDefault(!isDefault)}
                   >
-                    <Text style={styles.modalCancelText}>Cancelar</Text>
+                    <View
+                      style={[styles.checkboxBox, isDefault && styles.checkboxBoxActive]}
+                    >
+                      {isDefault && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Definir como endereço padrão</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.modalSaveBtn}
-                    activeOpacity={0.88}
-                    onPress={handleSaveNewAddress}
-                  >
-                    <Text style={styles.modalSaveText}>Salvar Endereço</Text>
-                  </TouchableOpacity>
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.modalCancelBtn}
+                      activeOpacity={0.7}
+                      onPress={() => setIsAddressModalVisible(false)}
+                    >
+                      <Text style={styles.modalCancelText}>Cancelar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalSaveBtn}
+                      activeOpacity={0.88}
+                      onPress={handleSaveNewAddress}
+                    >
+                      <Text style={styles.modalSaveText}>Salvar Endereço</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>

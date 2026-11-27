@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,9 @@ export default function CheckoutBagScreen() {
   const containerWidth = Math.min(windowWidth, 460);
 
   const { items, updateQuantity, removeItem, subtotal, totalItemsCount } = useCart();
-  const [appliedCoupons, setAppliedCoupons] = useState<Record<number, CouponValidationResponse>>({});
+  const [appliedCoupons, setAppliedCoupons] = useState<
+    Record<number, CouponValidationResponse>
+  >({});
 
   const formatBRL = (val: number) => {
     return val.toLocaleString('pt-BR', {
@@ -33,22 +35,31 @@ export default function CheckoutBagScreen() {
     });
   };
 
-  // Agrupa os itens por loja
+  // Agrupa os itens por storeId real
   const storeGroups = useMemo(() => {
-    const map = new Map<string, { storeId: number; storeName: string; storeIsOfficial?: boolean; items: CartItem[]; subtotal: number }>();
+    const map = new Map<
+      number,
+      {
+        storeId: number;
+        storeName: string;
+        storeIsOfficial?: boolean;
+        items: CartItem[];
+        subtotal: number;
+      }
+    >();
 
     items.forEach((item) => {
-      const key = item.storeName || item.brandName || 'Loja Parceira';
-      if (!map.has(key)) {
-        map.set(key, {
-          storeId: item.storeId || 1,
-          storeName: key,
+      const storeId = item.storeId || 1;
+      if (!map.has(storeId)) {
+        map.set(storeId, {
+          storeId,
+          storeName: item.storeName || item.brandName || 'Loja Parceira',
           storeIsOfficial: item.storeIsOfficial,
           items: [],
           subtotal: 0,
         });
       }
-      const g = map.get(key)!;
+      const g = map.get(storeId)!;
       g.items.push(item);
       g.subtotal += item.price * item.quantity;
     });
@@ -56,10 +67,32 @@ export default function CheckoutBagScreen() {
     return Array.from(map.values());
   }, [items]);
 
+  // Remove cupons de lojas que ficaram vazias ou cujo subtotal caiu abaixo do mínimo exigido
+  useEffect(() => {
+    setAppliedCoupons((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      const groupByStore = new Map(storeGroups.map((g) => [g.storeId, g]));
+
+      Object.entries(prev).forEach(([storeIdStr, coupon]) => {
+        const storeId = Number(storeIdStr);
+        const group = groupByStore.get(storeId);
+        const minOrder = Number((coupon as any)?.min_order_value || 0);
+
+        if (!group || group.subtotal <= 0 || (minOrder > 0 && group.subtotal < minOrder)) {
+          delete next[storeId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [storeGroups]);
+
   const totalCouponDiscount = useMemo(() => {
     return Object.values(appliedCoupons).reduce(
       (acc, c) => acc + (c?.valid ? Number(c.applied_discount || 0) : 0),
-      0
+      0,
     );
   }, [appliedCoupons]);
 
@@ -80,7 +113,8 @@ export default function CheckoutBagScreen() {
     router.push({
       pathname: '/checkout/shipping' as any,
       params: {
-        discount_amount: totalCouponDiscount > 0 ? String(totalCouponDiscount.toFixed(2)) : undefined,
+        discount_amount:
+          totalCouponDiscount > 0 ? String(totalCouponDiscount.toFixed(2)) : undefined,
         coupons: hasCoupons ? JSON.stringify(couponsMap) : undefined,
         coupon_code: hasCoupons ? Object.values(couponsMap)[0] : undefined,
       },
@@ -121,13 +155,13 @@ export default function CheckoutBagScreen() {
           </View>
 
           {/* Cards agrupados por loja */}
-          {storeGroups.map((group, groupIdx) => (
-            <View key={groupIdx} style={styles.card}>
+          {storeGroups.map((group) => (
+            <View key={`store-${group.storeId}`} style={styles.card}>
               <View style={styles.storeHeader}>
                 <Ionicons name="storefront-outline" size={16} color="#1C252E" />
                 <Text style={styles.storeName}>{group.storeName}</Text>
                 {group.storeIsOfficial && (
-                  <Ionicons name="checkmark-circle" size={15} color="#1B8754" />
+                  <Ionicons name="checkmark-circle" size={15} color="#1D9BF0" />
                 )}
               </View>
 
@@ -135,7 +169,11 @@ export default function CheckoutBagScreen() {
                 <View key={item.id} style={styles.itemRow}>
                   <View style={styles.imageBox}>
                     {item.imageUrl ? (
-                      <Image source={{ uri: item.imageUrl }} style={styles.itemImage} contentFit="contain" />
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={styles.itemImage}
+                        contentFit="contain"
+                      />
                     ) : (
                       <Ionicons name="flask-outline" size={24} color="#A8A29E" />
                     )}
@@ -185,7 +223,7 @@ export default function CheckoutBagScreen() {
                 </View>
               ))}
 
-              {/* Cupom da loja (RF-19 / RN-01) */}
+              {/* Cupom da loja */}
               <View style={styles.storeCouponContainer}>
                 <CouponInput
                   storeId={group.storeId}
@@ -217,7 +255,9 @@ export default function CheckoutBagScreen() {
 
             {totalCouponDiscount > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: '#2E7D32' }]}>Desconto de cupom</Text>
+                <Text style={[styles.summaryLabel, { color: '#2E7D32' }]}>
+                  Desconto de cupom
+                </Text>
                 <Text style={[styles.summaryValue, { color: '#2E7D32', fontWeight: '700' }]}>
                   -R$ {formatBRL(totalCouponDiscount)}
                 </Text>
@@ -244,7 +284,12 @@ export default function CheckoutBagScreen() {
             onPress={handleContinue}
           >
             <Text style={styles.continueButtonText}>Continuar para a entrega</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color="#FFFFFF"
+              style={{ marginLeft: 6 }}
+            />
           </TouchableOpacity>
 
           <View style={{ height: 28 }} />
@@ -343,6 +388,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+    marginBottom: 10,
   },
   imageBox: {
     width: 58,
@@ -416,28 +462,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   storeCouponContainer: {
-    marginTop: 12,
+    marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F0E6',
-  },
-  couponButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#C7C2B6',
-    backgroundColor: '#FDFCFA',
-    borderRadius: 12,
-    paddingVertical: 12,
-    gap: 8,
-    marginBottom: 12,
-  },
-  couponButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E2B37',
   },
   summaryCard: {
     backgroundColor: '#FFFFFF',

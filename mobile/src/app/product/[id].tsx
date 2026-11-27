@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Platform,
-  ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -11,9 +12,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Svg, { Rect, Defs, LinearGradient, Stop, Path } from 'react-native-svg';
 import {
@@ -29,7 +31,6 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { StoreReviewsModal } from '@/components/store/StoreReviewsSection';
 import { formatProductVolume } from '@/utils/productUtils';
 
-// --- Ilustração de frasco luxuoso quando não houver foto cadastrada ---
 function LuxuryBottleIllustration({ family }: { family?: string }) {
   const isWoody = family?.toLowerCase().includes('amadeirad');
   const isCitrus =
@@ -56,11 +57,8 @@ function LuxuryBottleIllustration({ family }: { family?: string }) {
         </LinearGradient>
       </Defs>
 
-      {/* Tampa */}
       <Rect x="54" y="10" width="32" height="26" rx="5" fill="url(#goldCapGrad)" />
-      {/* Gargalo */}
       <Rect x="62" y="36" width="16" height="8" fill="#9A6B29" />
-      {/* Corpo de Vidro */}
       <Rect
         x="24"
         y="44"
@@ -69,12 +67,10 @@ function LuxuryBottleIllustration({ family }: { family?: string }) {
         rx="18"
         fill="url(#bottleAmberGrad)"
       />
-      {/* Reflexo no vidro */}
       <Path
         d="M 34 54 Q 38 48 46 48 L 46 166 Q 38 166 34 160 Z"
         fill="rgba(255, 255, 255, 0.15)"
       />
-      {/* Placa de rótulo */}
       <Rect
         x="42"
         y="84"
@@ -83,7 +79,6 @@ function LuxuryBottleIllustration({ family }: { family?: string }) {
         rx="4"
         fill="rgba(255, 255, 255, 0.94)"
       />
-      {/* Linhas simulando tipografia nobre */}
       <Rect x="50" y="96" width="40" height="4.5" rx="2" fill="#2C4659" />
       <Rect x="56" y="106" width="28" height="3" rx="1.5" fill="#8C7A6B" />
       <Rect x="58" y="115" width="24" height="2" rx="1" fill="#C5A880" />
@@ -91,12 +86,43 @@ function LuxuryBottleIllustration({ family }: { family?: string }) {
   );
 }
 
+function resolveBrandName(brand: ProductDetails['brand']): string {
+  if (!brand) return '';
+  if (typeof brand === 'object') return brand.name || '';
+  return String(brand);
+}
+
+function getEffectiveOfferPrice(offer: ProductStoreOffer): number {
+  const promo = offer.promotional_price ? Number(offer.promotional_price) : NaN;
+  if (!Number.isNaN(promo) && promo > 0) return promo;
+  const base = Number(offer.price);
+  return Number.isNaN(base) ? Number.MAX_SAFE_INTEGER : base;
+}
+
+function pickBestOffer(offers: ProductStoreOffer[], volume?: number): ProductStoreOffer | null {
+  const candidates = volume !== undefined
+    ? offers.filter((o) => o.volume_ml === volume)
+    : offers;
+  if (candidates.length === 0) return null;
+
+  const sorted = [...candidates].sort((a, b) => {
+    const aInStock = (a.stock_quantity ?? 1) > 0 ? 1 : 0;
+    const bInStock = (b.stock_quantity ?? 1) > 0 ? 1 : 0;
+    if (aInStock !== bInStock) return bInStock - aInStock;
+    return getEffectiveOfferPrice(a) - getEffectiveOfferPrice(b);
+  });
+
+  return sorted[0];
+}
+
 export default function ProductDetailScreen() {
   const { id, storeId } = useLocalSearchParams<{ id: string; storeId?: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { addItem, totalItemsCount } = useCart();
   const { width: windowWidth } = useWindowDimensions();
-  const maxWidth = Math.min(windowWidth, 480);
+  const maxWidth = Math.min(windowWidth, 460);
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   const handleGoBack = () => {
     if (router.canGoBack()) {
@@ -118,37 +144,73 @@ export default function ProductDetailScreen() {
   const [error, setError] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
 
-  // Volumetria selecionada (número em ml, ex: 10, 75, 100, 125)
   const [selectedVolume, setSelectedVolume] = useState<number | null>(null);
-
-  // Oferta de loja selecionada
   const [selectedOffer, setSelectedOffer] = useState<ProductStoreOffer | null>(null);
 
-  // Simulador de CEP e cálculo real de frete
   const [cep, setCep] = useState('');
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<ShippingQuoteResponse | null>(null);
   const [shippingError, setShippingError] = useState<string | null>(null);
 
-  // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Avaliações do perfume
   const [reviews, setReviews] = useState<ApiStoreReview[]>([]);
   const [reviewsSummary, setReviewsSummary] = useState<StoreReviewsSummary | null>(null);
-  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [showAllReviewsModal, setShowAllReviewsModal] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
   const showToast = (msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 2500);
+  };
+
+  const handleShareProduct = async () => {
+    if (!product) return;
+    const shareText = `Confira ${product.name} na NŌTA!`;
+    try {
+      if (Platform.OS === 'web') {
+        const url = typeof window !== 'undefined' ? window.location.href : shareText;
+        await Clipboard.setStringAsync(url);
+        showToast('Link do perfume copiado!');
+      } else {
+        await Share.share({
+          message: shareText,
+          title: product.name,
+        });
+      }
+    } catch {
+      await Clipboard.setStringAsync(shareText);
+      showToast('Link do perfume copiado!');
+    }
   };
 
   useEffect(() => {
     let isMounted = true;
     if (!id) return;
 
-    const loadData = async () => {
+    setIsLoading(true);
+    setIsLoadingReviews(true);
+    setError(false);
+    setShowFullDesc(false);
+    setShippingQuote(null);
+    setShippingError(null);
+
+    const loadReviews = async () => {
       try {
         const revData = await storesService.getProductReviews(id, { storeId });
         if (isMounted) {
@@ -158,6 +220,7 @@ export default function ProductDetailScreen() {
       } catch {
         if (isMounted) {
           setReviews([]);
+          setReviewsSummary(null);
         }
       } finally {
         if (isMounted) {
@@ -166,7 +229,7 @@ export default function ProductDetailScreen() {
       }
     };
 
-    void loadData();
+    void loadReviews();
 
     Promise.all([
       storesService.getProduct(id),
@@ -179,27 +242,32 @@ export default function ProductDetailScreen() {
         setIsPersonalized(recData.is_personalized || false);
         setError(false);
 
-        // Se storeId foi fornecido (ex: vindo da vitrine de uma loja específica),
-        // filtra ou prioriza as ofertas e volumetrias dessa loja específica!
         const offers = prodData.store_offers || [];
         const storeOffers = storeId
           ? offers.filter((o) => o.store_id.toString() === storeId.toString())
           : [];
         const relevantOffers = storeOffers.length > 0 ? storeOffers : offers;
 
-        // Volumes disponíveis para a loja do contexto (ou gerais caso não haja contexto de loja)
         const relevantVolumes = storeOffers.length > 0
           ? Array.from(new Set(storeOffers.map((o) => o.volume_ml))).sort((a, b) => a - b)
           : (prodData.available_volumes || []);
 
         if (relevantVolumes.length > 0) {
-          const firstVol = relevantVolumes[0];
-          setSelectedVolume(firstVol);
-          const offer = relevantOffers.find((o) => o.volume_ml === firstVol);
-          setSelectedOffer(offer || relevantOffers[0] || null);
+          const volumeWithStock = relevantVolumes.find((vol) => {
+            const best = pickBestOffer(relevantOffers, vol);
+            return best && (best.stock_quantity ?? 1) > 0;
+          });
+          const initialVol = volumeWithStock ?? relevantVolumes[0];
+          setSelectedVolume(initialVol);
+          const bestOffer = pickBestOffer(relevantOffers, initialVol) || pickBestOffer(relevantOffers);
+          setSelectedOffer(bestOffer);
         } else if (relevantOffers.length > 0) {
-          setSelectedOffer(relevantOffers[0]);
-          setSelectedVolume(relevantOffers[0].volume_ml);
+          const bestOffer = pickBestOffer(relevantOffers);
+          setSelectedOffer(bestOffer);
+          setSelectedVolume(bestOffer?.volume_ml ?? null);
+        } else {
+          setSelectedVolume(null);
+          setSelectedOffer(null);
         }
       })
       .catch((err) => {
@@ -218,73 +286,75 @@ export default function ProductDetailScreen() {
     };
   }, [id, storeId]);
 
-  // Ao trocar o volume selecionado
+  const calculateRealShipping = useCallback(
+    async (targetCep: string, offerToUse = selectedOffer) => {
+      const cleanCep = targetCep.replace(/\D/g, '');
+      if (!cleanCep || cleanCep.length !== 8) {
+        setShippingError('Informe um CEP válido com 8 dígitos.');
+        setShippingQuote(null);
+        return;
+      }
+
+      const storeIdToUse = offerToUse?.store_id || product?.store_offers?.[0]?.store_id;
+      if (!storeIdToUse) {
+        setShippingError('Nenhuma loja disponível para calcular o frete deste perfume.');
+        setShippingQuote(null);
+        return;
+      }
+
+      const price = offerToUse
+        ? getEffectiveOfferPrice(offerToUse)
+        : Number(product?.min_price || 0);
+
+      try {
+        setIsCalculatingShipping(true);
+        setShippingError(null);
+        const quote = await storesService.calculateShippingQuote(storeIdToUse, {
+          postal_code: cleanCep,
+          cart_subtotal: price,
+        });
+        setShippingQuote(quote);
+      } catch (err: any) {
+        console.error('Erro ao calcular frete no backend:', err);
+        const serverMsg = err.response?.data?.error || err.response?.data?.detail;
+        setShippingError(serverMsg || 'Não foi possível calcular o frete para este CEP.');
+        setShippingQuote(null);
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    },
+    [selectedOffer, product],
+  );
+
   const handleSelectVolume = (vol: number) => {
     setSelectedVolume(vol);
     if (!product?.store_offers) return;
-    // Se storeId estiver presente, busca a oferta deste volume da loja selecionada primeiro
-    const matchingOffer = (storeId
-      ? product.store_offers.find((o) => o.store_id.toString() === storeId.toString() && o.volume_ml === vol)
-      : undefined) || product.store_offers.find((o) => o.volume_ml === vol);
+    const storeScopedOffers = storeId
+      ? product.store_offers.filter((o) => o.store_id.toString() === storeId.toString())
+      : [];
+    const matchingOffer =
+      pickBestOffer(storeScopedOffers, vol) || pickBestOffer(product.store_offers, vol);
+
     if (matchingOffer) {
       setSelectedOffer(matchingOffer);
-      // Se já houver CEP calculado, recalcula com a nova oferta
       if (cep.replace(/\D/g, '').length === 8) {
-        calculateRealShipping(cep, matchingOffer);
+        void calculateRealShipping(cep, matchingOffer);
       }
     }
   };
 
-  // Cálculo de frete real conectado ao backend
-  const calculateRealShipping = async (targetCep: string, offerToUse = selectedOffer) => {
-    const cleanCep = targetCep.replace(/\D/g, '');
-    if (!cleanCep || cleanCep.length !== 8) {
-      setShippingError('Informe um CEP válido com 8 dígitos.');
-      setShippingQuote(null);
-      return;
-    }
-
-    const storeIdToUse = offerToUse?.store_id || product?.store_offers?.[0]?.store_id;
-    if (!storeIdToUse) {
-      setShippingError('Nenhuma loja disponível para calcular o frete deste perfume.');
-      setShippingQuote(null);
-      return;
-    }
-
-    const price = offerToUse ? Number(offerToUse.price) : (product?.min_price || 0);
-
-    try {
-      setIsCalculatingShipping(true);
-      setShippingError(null);
-      const quote = await storesService.calculateShippingQuote(storeIdToUse, {
-        postal_code: cleanCep,
-        cart_subtotal: price,
-      });
-      setShippingQuote(quote);
-    } catch (err: any) {
-      console.error('Erro ao calcular frete no backend:', err);
-      const serverMsg = err.response?.data?.error || err.response?.data?.detail;
-      setShippingError(serverMsg || 'Não foi possível calcular o frete para este CEP.');
-      setShippingQuote(null);
-    } finally {
-      setIsCalculatingShipping(false);
-    }
-  };
-
   const handleCalculateShipping = () => {
-    calculateRealShipping(cep, selectedOffer);
+    void calculateRealShipping(cep, selectedOffer);
   };
 
-  // Verifica se uma nota olfativa específica dá match com o perfil do usuário (RF-20 / RN-05)
   const isMatchedNote = (noteName: string) => {
     if (!product?.matched_notes || product.matched_notes.length === 0) return false;
     const norm = noteName.toLowerCase().trim();
     return product.matched_notes.some(
-      (mn) => mn.toLowerCase().trim().includes(norm) || norm.includes(mn.toLowerCase().trim())
+      (mn) => mn.toLowerCase().trim().includes(norm) || norm.includes(mn.toLowerCase().trim()),
     );
   };
 
-  // Recomendações formatadas para o grid inferior
   const recommendedItems = useMemo(() => {
     return recommendedProducts.map((p) => {
       const hasVariations =
@@ -296,12 +366,13 @@ export default function ProductDetailScreen() {
           ? Math.min(...p.store_offers.map((o) => parseFloat(o.price) || 0))
           : 0);
       const primaryOffer = p.store_offers && p.store_offers.length > 0 ? p.store_offers[0] : null;
+      const resolvedBrand = resolveBrandName(p.brand);
 
       return {
         id: p.id,
         product_id: p.id,
         product_name: p.name,
-        brand_name: p.brand?.name || 'NŌTA',
+        brand_name: resolvedBrand || 'NŌTA',
         olfactory_family: p.olfactory_family || 'Geral',
         price: minPrice ? minPrice.toString() : '0',
         image_url: p.image_url,
@@ -332,9 +403,32 @@ export default function ProductDetailScreen() {
 
   const hasVolumes = displayVolumes.length > 0;
 
-  const currentPrice = selectedOffer
-    ? Number(selectedOffer.price)
-    : product?.min_price || null;
+  const currentPrice = useMemo(() => {
+    if (selectedOffer) {
+      const effective = getEffectiveOfferPrice(selectedOffer);
+      return effective === Number.MAX_SAFE_INTEGER ? null : effective;
+    }
+    const raw = product?.min_price;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const parsed = Number(raw);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [selectedOffer, product?.min_price]);
+
+  const isSelectedOfferOutOfStock = Boolean(
+    selectedOffer &&
+      typeof selectedOffer.stock_quantity === 'number' &&
+      selectedOffer.stock_quantity <= 0,
+  );
+  const canPurchase = currentPrice !== null && !isSelectedOfferOutOfStock;
+
+  const topOffset = Math.max(insets.top, 12);
+  const bottomOffset = Math.max(insets.bottom, 12);
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [180, 260],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   if (isLoading) {
     return (
@@ -348,88 +442,105 @@ export default function ProductDetailScreen() {
   if (error || !product) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={[styles.heroActionBar, { paddingHorizontal: 16, paddingTop: 12 }]}>
-          <TouchableOpacity
-            onPress={handleGoBack}
-            style={styles.floatingCircleBtn}
-          >
-            <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.centered}>
-          <Text style={styles.productTitle}>Perfume indisponível</Text>
-          <Text style={styles.mutedText}>
-            Não foi possível carregar os dados reais deste perfume no banco de dados.
-          </Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={handleGoBack}
-          >
-            <Text style={styles.retryBtnText}>Voltar</Text>
-          </TouchableOpacity>
+        <View style={[styles.mainWrapper, { maxWidth }]}>
+          <View style={[styles.heroActionBar, { paddingHorizontal: 16, top: topOffset + 4 }]}>
+            <TouchableOpacity onPress={handleGoBack} style={styles.floatingCircleBtn}>
+              <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.centered}>
+            <Text style={styles.productTitle}>Perfume indisponível</Text>
+            <Text style={styles.mutedText}>
+              Não foi possível carregar os dados reais deste perfume no banco de dados.
+            </Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={handleGoBack}>
+              <Text style={styles.retryBtnText}>Voltar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
+  const totalReviewCount = reviewsSummary?.count ?? reviews.length;
+  const brandDisplay = resolveBrandName(product.brand);
+  const matchPercentageNum =
+    product.match_percentage !== null && product.match_percentage !== undefined
+      ? Number(product.match_percentage)
+      : 0;
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <StatusBar style="dark" />
 
-      {/* Floating Toast */}
       {toastMessage && (
-        <View style={styles.toastContainer}>
+        <View style={[styles.toastContainer, { top: topOffset + 54 }]}>
           <MaterialIcons name="check-circle" size={18} color="#FFFFFF" />
           <Text style={styles.toastText}>{toastMessage}</Text>
         </View>
       )}
 
       <View style={[styles.mainWrapper, { maxWidth }]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+        <Animated.View
+          style={[
+            styles.stickyHeader,
+            {
+              paddingTop: topOffset,
+              height: topOffset + 52,
+              opacity: headerOpacity,
+            },
+          ]}
+          pointerEvents="none"
         >
-          {/* ========================================================= */}
-          {/* 1. TOP HERO BANNER & IMAGEM/FOTO DO PERFUME */}
-          {/* ========================================================= */}
-          <View style={styles.heroBanner}>
+          <Text style={styles.stickyHeaderTitle} numberOfLines={1}>
+            {product.name}
+          </Text>
+        </Animated.View>
+
+        <View style={[styles.heroActionBar, { top: topOffset + 6 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.floatingCircleBtn}
+            accessibilityLabel="Voltar"
+          >
+            <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
+          </TouchableOpacity>
+
+          <View style={styles.heroRightActions}>
+            <TouchableOpacity
+              onPress={() => void handleShareProduct()}
+              style={styles.floatingCircleBtn}
+              accessibilityLabel="Compartilhar"
+            >
+              <MaterialIcons name="share" size={20} color="#1C252E" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Animated.ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + bottomOffset }]}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          scrollEventThrottle={16}
+        >
+          <View style={[styles.heroBanner, { paddingTop: topOffset }]}>
             {product.image_url ? (
               <Image
                 source={{ uri: product.image_url }}
                 style={styles.realProductImage}
                 contentFit="cover"
+                cachePolicy="memory-disk"
               />
             ) : (
               <View style={styles.bottleCenterWrapper}>
                 <LuxuryBottleIllustration family={product.olfactory_family} />
               </View>
             )}
-
-            {/* Botões de Ação Flutuantes (RF-20 / RN-06: Botão de coração estático removido) */}
-            <View style={styles.heroActionBar}>
-              <TouchableOpacity
-                onPress={handleGoBack}
-                style={styles.floatingCircleBtn}
-                accessibilityLabel="Voltar"
-              >
-                <MaterialIcons name="arrow-back" size={22} color="#1C252E" />
-              </TouchableOpacity>
-
-              <View style={styles.heroRightActions}>
-                <TouchableOpacity
-                  onPress={() => showToast('Link do perfume copiado!')}
-                  style={styles.floatingCircleBtn}
-                  accessibilityLabel="Compartilhar"
-                >
-                  <MaterialIcons name="share" size={20} color="#1C252E" />
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
 
-          {/* ========================================================= */}
-          {/* 2. INFORMAÇÕES DO PRODUTO (BD) & MATCH OLFATIVO (RF-20) */}
-          {/* ========================================================= */}
           <View style={styles.cardSection}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
               <Text style={styles.brandSubtitle}>
@@ -437,7 +548,9 @@ export default function ProductDetailScreen() {
                   ? selectedOffer.store_name.toUpperCase()
                   : product.store_name
                   ? product.store_name.toUpperCase()
-                  : product.brand?.name?.toUpperCase() || 'ALTA PERFUMARIA'}
+                  : brandDisplay
+                  ? brandDisplay.toUpperCase()
+                  : 'ALTA PERFUMARIA'}
                 {(selectedOffer?.is_official ?? product.store_is_official) ? (
                   <Text> <Ionicons name="checkmark-circle" size={14} color="#1D9BF0" /></Text>
                 ) : null}
@@ -448,13 +561,12 @@ export default function ProductDetailScreen() {
               {product.concentration || 'Eau de Parfum'} • {product.olfactory_family}
             </Text>
 
-            {/* CARD DE MATCH OLFATIVO (RF-20 / RN-05) */}
-            {product.match_percentage !== null && product.match_percentage !== undefined && product.match_percentage > 0 && (
+            {!Number.isNaN(matchPercentageNum) && matchPercentageNum > 0 && (
               <View style={styles.matchCardContainer}>
                 <View style={styles.matchCardHeader}>
                   <Ionicons name="sparkles" size={18} color="#D97706" />
                   <Text style={styles.matchCardTitle}>
-                    ✨ {product.match_percentage}% Match com seu Perfil Olfativo
+                    ✨ {Math.round(matchPercentageNum)}% Match com seu Perfil Olfativo
                   </Text>
                 </View>
                 <Text style={styles.matchCardDescription}>
@@ -469,20 +581,15 @@ export default function ProductDetailScreen() {
               </View>
             )}
 
-            {/* Tags de Classificação e Família Olfativa cadastradas no BD */}
             <View style={styles.familyPillsRow}>
               {product.gender ? (
                 <View style={styles.familyPill}>
-                  <Text style={styles.familyPillText}>
-                    {product.gender}
-                  </Text>
+                  <Text style={styles.familyPillText}>{product.gender}</Text>
                 </View>
               ) : null}
               {product.olfactory_family ? (
                 <View style={styles.familyPill}>
-                  <Text style={styles.familyPillText}>
-                    {product.olfactory_family}
-                  </Text>
+                  <Text style={styles.familyPillText}>{product.olfactory_family}</Text>
                 </View>
               ) : null}
               {product.sold_count !== undefined && product.sold_count > 0 ? (
@@ -494,13 +601,10 @@ export default function ProductDetailScreen() {
               ) : null}
             </View>
 
-            {/* Preço real do BD */}
             {currentPrice !== null ? (
               <View style={styles.priceContainer}>
                 <Text style={styles.priceStartingText}>
-                  {hasVolumes && displayVolumes.length > 1
-                    ? 'A partir de'
-                    : 'Preço'}
+                  {hasVolumes && displayVolumes.length > 1 ? 'A partir de' : 'Preço'}
                 </Text>
                 <View style={styles.priceValueRow}>
                   <Text style={styles.priceMainText}>
@@ -556,9 +660,6 @@ export default function ProductDetailScreen() {
             )}
           </View>
 
-          {/* ========================================================= */}
-          {/* 3. TAMANHO / VOLUMES CADASTRADOS NO BD */}
-          {/* ========================================================= */}
           {hasVolumes ? (
             <View style={styles.sectionWrapper}>
               <Text style={styles.sectionHeaderTitle}>Tamanho disponível</Text>
@@ -566,10 +667,15 @@ export default function ProductDetailScreen() {
                 {displayVolumes.map((vol) => {
                   const isSelected = selectedVolume === vol;
                   const offerForVol =
-                    storeOffersForProduct.find((o) => o.volume_ml === vol) ||
-                    product.store_offers?.find((o) => o.volume_ml === vol);
+                    pickBestOffer(storeOffersForProduct, vol) ||
+                    pickBestOffer(product.store_offers || [], vol);
                   const isDecant = vol <= 15;
                   const label = isDecant ? `Decant ${vol}ml` : `${vol} ml`;
+                  const outOfStock = Boolean(
+                    offerForVol &&
+                      typeof offerForVol.stock_quantity === 'number' &&
+                      offerForVol.stock_quantity <= 0,
+                  );
 
                   return (
                     <TouchableOpacity
@@ -577,6 +683,7 @@ export default function ProductDetailScreen() {
                       style={[
                         styles.volumeCard,
                         isSelected && styles.volumeCardSelected,
+                        outOfStock && styles.volumeCardOutOfStock,
                       ]}
                       onPress={() => handleSelectVolume(vol)}
                       activeOpacity={0.8}
@@ -596,7 +703,9 @@ export default function ProductDetailScreen() {
                             isSelected && styles.volumePriceTextSelected,
                           ]}
                         >
-                          R$ {Number(offerForVol.price).toFixed(0)}
+                          {outOfStock
+                            ? 'Esgotado'
+                            : `R$ ${getEffectiveOfferPrice(offerForVol).toFixed(0)}`}
                         </Text>
                       ) : null}
                     </TouchableOpacity>
@@ -606,9 +715,6 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          {/* ========================================================= */}
-          {/* 4. CALCULAR FRETE / ENTREGA */}
-          {/* ========================================================= */}
           <View style={styles.sectionWrapper}>
             <Text style={styles.sectionHeaderTitle}>Entrega</Text>
             <View style={styles.cepInputRow}>
@@ -638,7 +744,6 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Feedback de erro */}
             {shippingError ? (
               <View style={styles.shippingErrorBox}>
                 <Ionicons name="alert-circle-outline" size={16} color="#B91C1C" />
@@ -646,15 +751,15 @@ export default function ProductDetailScreen() {
               </View>
             ) : null}
 
-            {/* Loading */}
             {isCalculatingShipping ? (
               <View style={styles.shippingLoadingBox}>
                 <ActivityIndicator size="small" color="#2C4659" />
-                <Text style={styles.shippingLoadingText}>Consultando prazos e fretes com o vendedor...</Text>
+                <Text style={styles.shippingLoadingText}>
+                  Consultando prazos e fretes com o vendedor...
+                </Text>
               </View>
             ) : null}
 
-            {/* Resultado real por métodos (PAC / SEDEX) */}
             {shippingQuote && !isCalculatingShipping ? (
               <View style={styles.shippingResultsList}>
                 <View style={styles.shippingOriginBadge}>
@@ -705,9 +810,6 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {/* ========================================================= */}
-          {/* 5. PIRÂMIDE OLFATIVA COM DESTAQUE EM MATCHES (RF-20 / RN-05) */}
-          {/* ========================================================= */}
           {Boolean((product.top_notes && product.top_notes.length > 0) ||
             (product.heart_notes && product.heart_notes.length > 0) ||
             (product.base_notes && product.base_notes.length > 0)) ? (
@@ -795,9 +897,6 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          {/* ========================================================= */}
-          {/* 6. SOBRE A FRAGRÂNCIA (BD) */}
-          {/* ========================================================= */}
           {product.description ? (
             <View style={styles.sectionWrapper}>
               <Text style={styles.sectionHeaderTitle}>Sobre a fragrância</Text>
@@ -820,23 +919,24 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          {/* ========================================================= */}
-          {/* AVALIAÇÕES DO PRODUTO */}
-          {/* ========================================================= */}
           <View style={styles.reviewsSectionShopee}>
             <View style={styles.reviewsShopeeHeader}>
               <View style={styles.reviewsShopeeTitleWrap}>
                 <Text style={styles.reviewsShopeeTitle}>Avaliações do Produto</Text>
                 <View style={styles.reviewsShopeeScoreRow}>
-                  <MaterialIcons name="star" size={16} color="#F59E0B" />
-                  <Text style={styles.reviewsShopeeScoreText}>
-                    {reviewsSummary && reviewsSummary.count > 0
-                      ? reviewsSummary.average.toFixed(1).replace('.', ',')
-                      : '5,0'}
-                  </Text>
-                  <Text style={styles.reviewsShopeeCountText}>
-                    ({reviewsSummary?.count ?? reviews.length} avaliações)
-                  </Text>
+                  {totalReviewCount > 0 ? (
+                    <>
+                      <MaterialIcons name="star" size={16} color="#F59E0B" />
+                      <Text style={styles.reviewsShopeeScoreText}>
+                        {Number(reviewsSummary?.average ?? 0).toFixed(1).replace('.', ',')}
+                      </Text>
+                      <Text style={styles.reviewsShopeeCountText}>
+                        ({totalReviewCount} {totalReviewCount === 1 ? 'avaliação' : 'avaliações'})
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.reviewsShopeeCountText}>Sem avaliações ainda</Text>
+                  )}
                 </View>
               </View>
 
@@ -846,7 +946,7 @@ export default function ProductDetailScreen() {
                   onPress={() => {
                     if (storeId) {
                       router.push({
-                        pathname: '/store/[id]/product/[productId]/reviews' as any,
+                        pathname: '/store/[id]/product/[productId]/reviews' as never,
                         params: {
                           id: storeId.toString(),
                           productId: id.toString(),
@@ -958,7 +1058,7 @@ export default function ProductDetailScreen() {
                     onPress={() => {
                       if (storeId) {
                         router.push({
-                          pathname: '/store/[id]/product/[productId]/reviews' as any,
+                          pathname: '/store/[id]/product/[productId]/reviews' as never,
                           params: {
                             id: storeId.toString(),
                             productId: id.toString(),
@@ -983,9 +1083,6 @@ export default function ProductDetailScreen() {
             )}
           </View>
 
-          {/* ========================================================= */}
-          {/* 7. SEÇÃO DE RECOMENDAÇÕES E MATCH (RF-20 / RN-05) */}
-          {/* ========================================================= */}
           {recommendedItems.length > 0 ? (
             <View style={styles.shopeeSectionWrapper}>
               <View style={styles.shopeeHeaderRow}>
@@ -1014,22 +1111,17 @@ export default function ProductDetailScreen() {
               </View>
             </View>
           ) : null}
+        </Animated.ScrollView>
 
-          <View style={{ height: 110 }} />
-        </ScrollView>
-
-        {/* ========================================================= */}
-        {/* 8. BARRA FIXA INFERIOR */}
-        {/* ========================================================= */}
-        <View style={styles.bottomBarContainer}>
+        <View style={[styles.bottomBarContainer, { paddingBottom: bottomOffset }]}>
           <View style={styles.bottomBarStoreInfo}>
             <Text style={styles.bottomBarStoreName} numberOfLines={1}>
-              {selectedOffer
-                ? selectedOffer.store_name
-                : 'Selecione uma opção'}
+              {selectedOffer ? selectedOffer.store_name : 'Selecione uma opção'}
             </Text>
             <Text style={styles.bottomBarPriceText}>
-              {currentPrice !== null
+              {isSelectedOfferOutOfStock
+                ? 'Sem estoque'
+                : currentPrice !== null
                 ? `R$ ${currentPrice.toFixed(2).replace('.', ',')}`
                 : 'Indisponível'}
             </Text>
@@ -1038,23 +1130,24 @@ export default function ProductDetailScreen() {
           <TouchableOpacity
             style={[
               styles.addToCartBtn,
-              currentPrice === null && { backgroundColor: '#9CA3AF' },
+              !canPurchase && { backgroundColor: '#9CA3AF' },
             ]}
-            disabled={currentPrice === null}
+            disabled={!canPurchase}
             activeOpacity={0.85}
             onPress={() => {
-              if (currentPrice === null) return;
+              if (!canPurchase || currentPrice === null) return;
               const volNumber = selectedVolume || product.available_volumes?.[0] || 50;
               const volLabel = volNumber <= 15 ? `Decant ${volNumber}ml` : `${volNumber}ml`;
+              const targetStoreProductId = selectedOffer?.store_product_id ?? selectedOffer?.id;
               addItem({
                 productId: product.id,
                 productName: product.name,
-                brandName: selectedOffer?.store_name || product.store_name || product.brand?.name || 'Alta Perfumaria',
+                brandName: selectedOffer?.store_name || product.store_name || brandDisplay || 'Alta Perfumaria',
                 volume: volLabel,
                 volumeMl: volNumber,
                 price: currentPrice,
                 imageUrl: product.image_url,
-                storeProductId: selectedOffer?.id,
+                storeProductId: targetStoreProductId,
                 storeId: selectedOffer?.store_id,
                 storeName: selectedOffer?.store_name || product.store_name,
                 storeIsOfficial: selectedOffer?.is_official ?? product.store_is_official,
@@ -1064,7 +1157,9 @@ export default function ProductDetailScreen() {
               showToast(`${product.name} adicionado à sacola!`);
             }}
           >
-            <Text style={styles.addToCartBtnText}>Adicionar à sacola</Text>
+            <Text style={styles.addToCartBtnText}>
+              {isSelectedOfferOutOfStock ? 'Esgotado' : 'Adicionar à sacola'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1084,15 +1179,14 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Modal de Todas as Avaliações do Perfume */}
         <StoreReviewsModal
           visible={showAllReviewsModal}
           onClose={() => setShowAllReviewsModal(false)}
           productId={product.id}
           storeId={storeId || selectedOffer?.store_id}
           storeName={product.name}
-          rating={reviewsSummary?.average ?? 5.0}
-          reviewsCount={reviewsSummary?.count ?? reviews.length}
+          rating={reviewsSummary?.average ?? 0}
+          reviewsCount={totalReviewCount}
         />
       </View>
     </SafeAreaView>
@@ -1143,11 +1237,31 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-
-  // Toast
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 15,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 64,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  stickyHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
   toastContainer: {
     position: 'absolute',
-    top: 50,
     alignSelf: 'center',
     backgroundColor: 'rgba(28, 37, 46, 0.94)',
     flexDirection: 'row',
@@ -1168,8 +1282,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-
-  // Hero Banner com Foto do Perfume
   heroBanner: {
     width: '100%',
     height: 360,
@@ -1188,7 +1300,6 @@ const styles = StyleSheet.create({
   },
   heroActionBar: {
     position: 'absolute',
-    top: 14,
     left: 16,
     right: 16,
     flexDirection: 'row',
@@ -1211,10 +1322,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 6,
   },
-
-  // Informações do produto
   cardSection: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -1238,8 +1347,6 @@ const styles = StyleSheet.create({
     color: '#78716C',
     marginTop: 2,
   },
-
-  // Estilos do Match Olfativo (RF-20 / RN-05)
   matchCardContainer: {
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
@@ -1264,7 +1371,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 16,
   },
-
   familyPillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1282,8 +1388,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#524B43',
   },
-
-  // Preço
   priceContainer: {
     marginTop: 18,
     paddingTop: 14,
@@ -1329,8 +1433,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2C4659',
   },
-
-  // Seção Geral
   sectionWrapper: {
     paddingHorizontal: 20,
     marginTop: 22,
@@ -1341,8 +1443,6 @@ const styles = StyleSheet.create({
     color: '#1C252E',
     marginBottom: 12,
   },
-
-  // Volumes
   volumesRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1363,6 +1463,9 @@ const styles = StyleSheet.create({
     borderColor: '#2C4659',
     backgroundColor: '#F3F6F8',
   },
+  volumeCardOutOfStock: {
+    opacity: 0.55,
+  },
   volumeLabelText: {
     fontSize: 14,
     fontWeight: '700',
@@ -1380,8 +1483,6 @@ const styles = StyleSheet.create({
     color: '#2C4659',
     fontWeight: '700',
   },
-
-  // Entrega
   cepInputRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1531,8 +1632,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#78716C',
   },
-
-  // Pirâmide Olfativa
   pyramidContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -1585,8 +1684,6 @@ const styles = StyleSheet.create({
     color: '#92400E',
     fontWeight: '800',
   },
-
-  // Sobre
   aboutParagraph: {
     fontSize: 14,
     lineHeight: 22,
@@ -1601,8 +1698,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2C4659',
   },
-
-  // Shopee Recommendations
   shopeeSectionWrapper: {
     marginTop: 28,
     paddingHorizontal: 16,
@@ -1627,9 +1722,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 12,
   },
-
-  // Bottom Fixed Bar
   bottomBarContainer: {
     position: 'absolute',
     bottom: 0,
@@ -1639,7 +1733,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#EBE6DC',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1706,8 +1800,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 12,
   },
-
-  // Avaliações
   reviewsSectionShopee: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,

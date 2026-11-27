@@ -1,14 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
+  Linking,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +24,7 @@ import {
   type NotificationType,
 } from '@/services/communication';
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 15000;
 
 function iconForType(
   type: NotificationType,
@@ -61,6 +64,9 @@ function formatDate(value: string): string {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const containerWidth = Math.min(windowWidth, 460);
+
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,160 +85,192 @@ export default function NotificationsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      void loadNotifications();
-    }, 0);
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
 
-    const intervalId = setInterval(() => {
-      void loadNotifications();
-    }, POLL_INTERVAL_MS);
+      const safeLoad = () => {
+        if (isActive && AppState.currentState === 'active') {
+          void loadNotifications();
+        }
+      };
 
-    return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-    };
-  }, [loadNotifications]);
+      safeLoad();
+      const intervalId = setInterval(safeLoad, POLL_INTERVAL_MS);
+      const appStateSub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') {
+          safeLoad();
+        }
+      });
+
+      return () => {
+        isActive = false;
+        clearInterval(intervalId);
+        appStateSub.remove();
+      };
+    }, [loadNotifications]),
+  );
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     void loadNotifications();
   };
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(shop)' as never);
+    }
+  };
+
   const handleNotificationPress = async (notification: AppNotification) => {
     if (!notification.is_read) {
-      try {
-        await markNotificationRead(notification.id);
-      } catch (error) {
-        console.error('Erro ao marcar notificação como lida:', error);
-      }
-
       setNotifications((current) =>
         current.map((item) =>
           item.id === notification.id ? { ...item, is_read: true } : item,
         ),
       );
       setUnreadCount((current) => Math.max(0, current - 1));
+
+      try {
+        await markNotificationRead(notification.id);
+      } catch (error) {
+        console.error('Erro ao marcar notificação como lida:', error);
+      }
     }
 
-    if (notification.target_url) {
-      router.push(notification.target_url as never);
+    const target = notification.target_url?.trim();
+    if (!target) return;
+
+    if (/^https?:\/\//i.test(target)) {
+      Linking.openURL(target).catch(() => {});
+    } else {
+      const normalizedPath = target.startsWith('/') ? target : `/${target}`;
+      router.push(normalizedPath as never);
     }
   };
 
   const handleMarkAllRead = async () => {
+    const previousNotifications = notifications;
+    const previousUnread = unreadCount;
+
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, is_read: true })),
+    );
+    setUnreadCount(0);
+
     try {
       await markAllNotificationsRead();
-      setNotifications((current) =>
-        current.map((item) => ({ ...item, is_read: true })),
-      );
-      setUnreadCount(0);
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error);
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnread);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
-
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={22} color="#1C252E" />
-        </TouchableOpacity>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Notificações</Text>
-          <Text style={styles.headerSubtitle}>
-            {unreadCount > 0
-              ? `${unreadCount} não lida${unreadCount === 1 ? '' : 's'}`
-              : 'Tudo em dia'}
-          </Text>
-        </View>
-
-        {unreadCount > 0 && (
+      <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
+        <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => void handleMarkAllRead()}
+            style={styles.backButton}
+            onPress={handleGoBack}
             accessibilityRole="button"
-            accessibilityLabel="Marcar todas como lidas"
+            accessibilityLabel="Voltar"
             activeOpacity={0.7}
           >
-            <Text style={styles.markAllText}>Marcar lidas</Text>
+            <Ionicons name="arrow-back" size={20} color="#1C252E" />
           </TouchableOpacity>
-        )}
-      </View>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2C4659" />
-        </View>
-      ) : (
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor="#2C4659"
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="notifications-off-outline"
-                size={40}
-                color="#C4BDB2"
-              />
-              <Text style={styles.emptyText}>
-                Nenhuma notificação por aqui.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>Notificações</Text>
+            <Text style={styles.headerSubtitle}>
+              {unreadCount > 0
+                ? `${unreadCount} não lida${unreadCount === 1 ? '' : 's'}`
+                : 'Tudo em dia'}
+            </Text>
+          </View>
+
+          {unreadCount > 0 && (
             <TouchableOpacity
-              onPress={() => void handleNotificationPress(item)}
+              onPress={() => void handleMarkAllRead()}
               accessibilityRole="button"
-              accessibilityLabel={`Notificação: ${item.title}`}
-              activeOpacity={0.8}
-              style={[
-                styles.notificationCard,
-                !item.is_read && styles.notificationCardUnread,
-              ]}
+              accessibilityLabel="Marcar todas como lidas"
+              activeOpacity={0.7}
             >
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name={iconForType(item.type)}
-                  size={19}
-                  color="#2C4659"
-                />
-              </View>
-
-              <View style={styles.notificationContent}>
-                <View style={styles.notificationHeader}>
-                  <Text style={styles.notificationTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  {!item.is_read && <View style={styles.unreadDot} />}
-                </View>
-                <Text style={styles.notificationMessage}>
-                  {item.message}
-                </Text>
-                <Text style={styles.notificationDate}>
-                  {formatDate(item.created_at)}
-                </Text>
-              </View>
+              <Text style={styles.markAllText}>Marcar lidas</Text>
             </TouchableOpacity>
           )}
-        />
-      )}
+        </View>
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2C4659" />
+          </View>
+        ) : (
+          <FlatList
+            data={notifications}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor="#2C4659"
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={40}
+                  color="#C4BDB2"
+                />
+                <Text style={styles.emptyText}>
+                  Nenhuma notificação por aqui.
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => void handleNotificationPress(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Notificação: ${item.title}`}
+                activeOpacity={0.8}
+                style={[
+                  styles.notificationCard,
+                  !item.is_read && styles.notificationCardUnread,
+                ]}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons
+                    name={iconForType(item.type)}
+                    size={19}
+                    color="#2C4659"
+                  />
+                </View>
+
+                <View style={styles.notificationContent}>
+                  <View style={styles.notificationHeader}>
+                    <Text style={styles.notificationTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    {!item.is_read && <View style={styles.unreadDot} />}
+                  </View>
+                  <Text style={styles.notificationMessage}>
+                    {item.message}
+                  </Text>
+                  <Text style={styles.notificationDate}>
+                    {formatDate(item.created_at)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -241,6 +279,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F1EA',
+    alignItems: 'center',
+  },
+  mainWrapper: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#F4F1EA',
   },
   header: {
     flexDirection: 'row',
@@ -248,22 +292,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E6E1D2',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#EBE7DE',
+    backgroundColor: '#F4F1EA',
   },
   backButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerInfo: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 17.5,
     fontWeight: '800',
     color: '#1C252E',
   },

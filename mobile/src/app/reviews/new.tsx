@@ -26,8 +26,6 @@ import {
   type Review,
 } from '@/services/reviews';
 
-
-
 export default function NewReviewScreen() {
   const router = useRouter();
   const {
@@ -116,8 +114,14 @@ export default function NewReviewScreen() {
   );
 
   useEffect(() => {
-    if (!review_id) return;
+    if (!review_id) {
+      setLoadingInitial(false);
+      return;
+    }
+
     let isMounted = true;
+    setLoadingInitial(true);
+
     getCustomerReview(review_id)
       .then((data) => {
         if (!isMounted) return;
@@ -126,6 +130,8 @@ export default function NewReviewScreen() {
         setComment(data.comment || '');
         if (data.photos && data.photos.length > 0) {
           setPhotos(data.photos.map((p) => p.image));
+        } else {
+          setPhotos([]);
         }
         // Se a avaliação já foi editada, desativa qualquer modo de edição
         if (data.edited_at || data.can_edit === false) {
@@ -134,7 +140,9 @@ export default function NewReviewScreen() {
       })
       .catch((err) => {
         console.error('Erro ao carregar avaliação:', err);
-        showModalAlert('Atenção', 'Não foi possível carregar os dados da avaliação.');
+        if (isMounted) {
+          showModalAlert('Atenção', 'Não foi possível carregar os dados da avaliação.');
+        }
       })
       .finally(() => {
         if (isMounted) setLoadingInitial(false);
@@ -169,7 +177,7 @@ export default function NewReviewScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
@@ -185,7 +193,7 @@ export default function NewReviewScreen() {
   };
 
   const handleDelete = () => {
-    if (!review_id) return;
+    if (!review_id || submitting) return;
     showModalConfirm({
       title: 'Excluir avaliação',
       message: 'Tem certeza de que deseja excluir sua avaliação? De acordo com as regras, você não poderá avaliar este item novamente após a exclusão.',
@@ -212,6 +220,7 @@ export default function NewReviewScreen() {
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     if (!rating || rating < 1 || rating > 5) {
       showModalAlert('Atenção', 'Selecione uma nota de 1 a 5 estrelas.');
       return;
@@ -266,7 +275,13 @@ export default function NewReviewScreen() {
         <TouchableOpacity
           accessibilityLabel="Voltar"
           style={styles.iconBtn}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/orders' as never);
+            }
+          }}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={18} color="#1E2430" />
@@ -750,31 +765,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
-  },
-  deleteHeaderBtn: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reviewStatusBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 0.5,
-    borderColor: '#FDE68A',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 16,
-  },
-  reviewStatusText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#92400E',
-    lineHeight: 16,
-    fontWeight: '500',
   },
   replyBox: {
     backgroundColor: '#FFFFFF',
