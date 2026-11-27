@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as Clipboard from 'expo-clipboard';
 
 import OrderDetailScreen from '@/app/orders/[id]';
@@ -9,6 +9,10 @@ const mockBack = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '105' }),
   useRouter: () => ({ back: mockBack }),
+  useFocusEffect: (cb: any) => {
+    const React = require('react');
+    React.useEffect(() => cb(), [cb]);
+  },
 }));
 
 jest.mock('expo-clipboard', () => ({

@@ -16,7 +16,14 @@ jest.mock('expo-router', () => ({
   }),
   useLocalSearchParams: () => ({
     store_id: '1',
-    address: JSON.stringify({ street: 'Rua Teste', number: '123' }),
+    address: JSON.stringify({
+      street: 'Rua Teste',
+      number: '123',
+      cep: '01310-100',
+      neighborhood: 'Centro',
+      city: 'São Paulo',
+      state: 'SP',
+    }),
     cartItems: JSON.stringify([{ store_product_id: 1, quantity: 1, unit_price: 100 }]),
   }),
 }));

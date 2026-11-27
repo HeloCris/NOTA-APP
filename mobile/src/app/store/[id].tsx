@@ -53,7 +53,7 @@ export default function StoreScreen() {
     try {
       const conversation = await startConversation(store.id);
       router.push({
-        pathname: '/(shop)/chat/[id]' as never,
+        pathname: '/chat/[id]' as never,
         params: { id: String(conversation.id) },
       });
     } catch (error) {

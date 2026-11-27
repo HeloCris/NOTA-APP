@@ -314,7 +314,7 @@ export default function ShopIndex() {
             <TouchableOpacity
               style={styles.notificationBtn}
               activeOpacity={0.7}
-              onPress={() => router.push('/(shop)/notifications/' as never)}
+              onPress={() => router.push('/notifications' as never)}
               accessibilityRole="button"
               accessibilityLabel="Abrir notificações"
             >

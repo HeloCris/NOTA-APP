@@ -67,6 +67,7 @@ function RootNavigator() {
       <Stack.Screen name="checkout" options={{ headerShown: false }} />
       <Stack.Screen name="orders" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }
