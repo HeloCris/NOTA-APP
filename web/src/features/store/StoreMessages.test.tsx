@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { communicationService } from "../../services/communicationService";
@@ -51,6 +52,14 @@ const messages = [
   },
 ];
 
+function renderStoreMessages(initialEntries = ["/"]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <StoreMessages />
+    </MemoryRouter>,
+  );
+}
+
 describe("StoreMessages", () => {
   beforeAll(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -80,7 +89,7 @@ describe("StoreMessages", () => {
   });
 
   it("renderiza a lista de conversas e o card do pedido vinculado", async () => {
-    render(<StoreMessages />);
+    renderStoreMessages();
 
     await waitFor(() => {
       expect(
@@ -104,7 +113,7 @@ describe("StoreMessages", () => {
   });
 
   it("envia uma nova mensagem", async () => {
-    render(<StoreMessages />);
+    renderStoreMessages();
 
     await waitFor(() => {
       expect(
@@ -134,6 +143,20 @@ describe("StoreMessages", () => {
         text: "Postamos amanhã!",
         image: null,
       });
+    });
+  });
+
+  it("auto-seleciona a conversa quando query param ?chat=1 está presente", async () => {
+    renderStoreMessages(["/brand?tab=messages&chat=1"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Referente ao Pedido #105"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Olá, vocês têm previsão de despacho?"),
+      ).toBeInTheDocument();
+      expect(markConversationRead).toHaveBeenCalledWith(1);
     });
   });
 });

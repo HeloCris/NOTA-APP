@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
+import { AuthContext } from "../../contexts/AuthContext";
 import { communicationService } from "../../services/communicationService";
 import type {
   NotificationItem,
@@ -8,6 +9,54 @@ import type {
 } from "../../types/communication";
 
 const POLL_INTERVAL_MS = 5000;
+
+export function resolveNotificationUrl(
+  targetUrl: string,
+  currentPath = "",
+  userRole?: string | null,
+): string {
+  if (!targetUrl) return "";
+
+  let basePath = "/seller";
+  if (currentPath.startsWith("/brand") || userRole === "BRAND_OWNER") {
+    basePath = "/brand";
+  } else if (currentPath.startsWith("/seller") || userRole === "SELLER") {
+    basePath = "/seller";
+  }
+
+  try {
+    const [pathPart, queryPart] = targetUrl.split("?");
+    const params = new URLSearchParams(queryPart || "");
+
+    if (pathPart === "/store/messages" || pathPart.startsWith("/store/messages/")) {
+      params.set("tab", "messages");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/orders" || pathPart.startsWith("/store/orders/")) {
+      params.set("tab", "orders");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/inventory" || pathPart.startsWith("/store/inventory/")) {
+      params.set("tab", "catalog");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/coupons" || pathPart.startsWith("/store/coupons/")) {
+      params.set("tab", "coupons");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+  } catch {
+    return targetUrl;
+  }
+
+  return targetUrl;
+}
 
 function iconForType(type: NotificationType): string {
   switch (type) {
@@ -41,6 +90,8 @@ function formatDate(value: string): string {
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const authContext = useContext(AuthContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -117,7 +168,12 @@ export function NotificationBell() {
     setIsOpen(false);
 
     if (notification.target_url) {
-      navigate(notification.target_url);
+      const destination = resolveNotificationUrl(
+        notification.target_url,
+        location.pathname,
+        authContext?.user?.role,
+      );
+      navigate(destination);
     }
   };
 

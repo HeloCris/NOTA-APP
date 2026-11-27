@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { communicationService } from "../../services/communicationService";
-import { NotificationBell } from "./NotificationBell";
+import { NotificationBell, resolveNotificationUrl } from "./NotificationBell";
 
 vi.mock("../../services/communicationService", () => ({
   communicationService: {
@@ -117,5 +117,17 @@ describe("NotificationBell", () => {
         screen.queryByTestId("notification-badge"),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("resolveNotificationUrl mapeia rotas do backend para as abas do painel", () => {
+    expect(
+      resolveNotificationUrl("/store/messages?chat=1", "/brand", "BRAND_OWNER"),
+    ).toBe("/brand?chat=1&tab=messages");
+    expect(
+      resolveNotificationUrl("/store/orders/105", "/seller", "SELLER"),
+    ).toBe("/seller?tab=orders");
+    expect(
+      resolveNotificationUrl("/store/inventory", "/brand", "BRAND_OWNER"),
+    ).toBe("/brand?tab=catalog");
   });
 });

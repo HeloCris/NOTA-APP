@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   communicationService,
@@ -48,8 +49,17 @@ function statusLabel(status: string): string {
 }
 
 export function StoreMessages() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const chatParam = searchParams.get("chat");
+
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(() => {
+    if (chatParam) {
+      const parsed = Number(chatParam);
+      return !Number.isNaN(parsed) && parsed > 0 ? parsed : null;
+    }
+    return null;
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [image, setImage] = useState<File | null>(null);
@@ -163,9 +173,26 @@ export function StoreMessages() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (chatParam) {
+      const parsed = Number(chatParam);
+      if (!Number.isNaN(parsed) && parsed > 0 && parsed !== activeId) {
+        setActiveId(parsed);
+      }
+    }
+  }, [chatParam, activeId]);
+
   const handleSelectConversation = (conversationId: number) => {
     setActiveId(conversationId);
     setError(null);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("chat", String(conversationId));
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
@@ -271,21 +298,29 @@ export function StoreMessages() {
         className="bg-white border border-[#E6E1D2] rounded-[20px] flex flex-col overflow-hidden"
       >
         {!activeConversation ? (
-          <div className="flex-1 flex items-center justify-center px-6 py-16 text-center">
-            <div>
-              <div className="w-[56px] h-[56px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-4">
-                <svg className="w-[26px] h-[26px]">
-                  <use href="#ic-mail-nav" />
-                </svg>
-              </div>
-              <h3 className="text-[17px] font-extrabold text-[#23282D] mb-1">
-                Selecione uma conversa
-              </h3>
-              <p className="text-[13px] text-[#5A6067]">
-                Escolha um cliente na lista ao lado para responder.
+          isLoadingConversations ? (
+            <div className="flex-1 flex items-center justify-center px-6 py-16 text-center">
+              <p className="text-[13px] text-[#93927F]">
+                Carregando conversa...
               </p>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center px-6 py-16 text-center">
+              <div>
+                <div className="w-[56px] h-[56px] rounded-2xl bg-[#E9EDF0] text-[#354B5E] flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-[26px] h-[26px]">
+                    <use href="#ic-mail-nav" />
+                  </svg>
+                </div>
+                <h3 className="text-[17px] font-extrabold text-[#23282D] mb-1">
+                  Selecione uma conversa
+                </h3>
+                <p className="text-[13px] text-[#5A6067]">
+                  Escolha um cliente na lista ao lado para responder.
+                </p>
+              </div>
+            </div>
+          )
         ) : (
           <>
             <div className="px-5 py-4 border-b border-[#EFEBDD]">
