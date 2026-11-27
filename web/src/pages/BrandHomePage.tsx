@@ -62,12 +62,6 @@ export function BrandHomePage() {
     setSearchParams(next);
   };
 
-  const handleTopSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("topSearch");
-    const value = input instanceof HTMLInputElement ? input.value : "";
-    goToCatalog(value.trim() || undefined);
-  };
 
   const fetchBrandAndStore = async () => {
     try {
@@ -178,24 +172,7 @@ export function BrandHomePage() {
       <div className="ml-[230px] xl:ml-[250px] flex-1 min-w-0 flex flex-col">
         {/* Topbar */}
         <header className="sticky top-0 z-30 h-[76px] bg-white/92 backdrop-blur-[10px] border-b border-[#E6E1D2] flex items-center justify-between px-6 xl:px-[30px] gap-4">
-          <form
-            onSubmit={handleTopSearch}
-            role="search"
-            className="relative w-[190px] lg:w-[260px] xl:w-[320px] flex-shrink-0"
-          >
-            <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              <use href="#ic-search" />
-            </svg>
-            <input
-              key={searchTerm}
-              type="search"
-              name="topSearch"
-              defaultValue={searchTerm}
-              placeholder="Buscar perfume ou marca..."
-              aria-label="Buscar perfume ou marca"
-              className="w-full border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E]"
-            />
-          </form>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-3 flex-shrink-0">
             <NotificationBell />

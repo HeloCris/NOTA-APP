@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { brandService } from '../../services/brandService';
 import type { Product } from '../../types/catalog';
 import { ProductFormModal } from './ProductFormModal';
+import { ProductDetailsModal } from '../common/ProductDetailsModal';
+
+type SearchFilterType = 'all' | 'name' | 'note' | 'family';
 
 interface BrandPortfolioTabProps {
   initialSearch?: string;
@@ -11,7 +14,9 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState(initialSearch);
+  const [searchFilter, setSearchFilter] = useState<SearchFilterType>('all');
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -43,19 +48,21 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
 
   const term = search.trim().toLowerCase();
   const filteredProducts = term
-    ? products.filter((p) =>
-        [
-          p.name,
-          p.brand?.name ?? "",
-          p.olfactory_family,
+    ? products.filter((p) => {
+        const matchesName = (p.name || "").toLowerCase().includes(term);
+        const matchesFamily = (p.olfactory_family || "").toLowerCase().includes(term);
+        const allNotes = [
           ...(p.top_notes ?? []),
           ...(p.heart_notes ?? []),
           ...(p.base_notes ?? []),
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(term),
-      )
+        ].join(" ").toLowerCase();
+        const matchesNote = allNotes.includes(term);
+
+        if (searchFilter === "name") return matchesName;
+        if (searchFilter === "note") return matchesNote;
+        if (searchFilter === "family") return matchesFamily;
+        return matchesName || matchesFamily || matchesNote || (p.brand?.name ?? "").toLowerCase().includes(term);
+      })
     : products;
 
   if (isLoading) {
@@ -88,13 +95,32 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
         </button>
       </div>
 
-      <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-end gap-2.5 mb-4 flex-wrap">
+        <select
+          aria-label="Filtrar busca por"
+          className="border border-[#E6E1D2] bg-white rounded-xl py-[9px] px-3 text-[12.5px] font-semibold text-[#5A6067] outline-none focus:border-[#354B5E] cursor-pointer"
+          value={searchFilter}
+          onChange={(event) => setSearchFilter(event.target.value as SearchFilterType)}
+        >
+          <option value="all">Buscar em tudo</option>
+          <option value="name">Nome do perfume</option>
+          <option value="note">Nota olfativa</option>
+          <option value="family">Caminho olfativo</option>
+        </select>
         <label className="relative">
           <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><use href="#ic-search" /></svg>
           <input
-            className="border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E] w-[260px]"
+            className="border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E] w-[240px]"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar no meu portfólio..."
+            placeholder={
+              searchFilter === "name"
+                ? "Nome do perfume..."
+                : searchFilter === "note"
+                  ? "Nota (ex: Jasmim, Baunilha)..."
+                  : searchFilter === "family"
+                    ? "Caminho (ex: Floral, Cítrico)..."
+                    : "Buscar no meu portfólio..."
+            }
             type="search"
             value={search}
           />
@@ -139,7 +165,11 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
                 {filteredProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-[#FBFAF6] transition-colors border-b border-[#EFEBDD] last:border-0">
                     <td className="p-[14px_22px] align-middle">
-                      <div className="w-[42px] h-[56px] rounded-lg bg-[#F5F3E9] overflow-hidden flex items-center justify-center border border-[#E6E1D2]">
+                      <div
+                        onClick={() => setSelectedProduct(p)}
+                        className="w-[42px] h-[56px] rounded-lg bg-[#F5F3E9] overflow-hidden flex items-center justify-center border border-[#E6E1D2] cursor-pointer hover:border-[#354B5E] transition-colors"
+                        title="Ver detalhes do perfume"
+                      >
                         {p.image_url ? (
                           <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                         ) : (
@@ -148,7 +178,13 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
                       </div>
                     </td>
                     <td className="p-[14px_22px] align-middle">
-                      <div className="font-bold text-[#23282D] text-[14px]">{p.name}</div>
+                      <div
+                        onClick={() => setSelectedProduct(p)}
+                        className="font-bold text-[#23282D] text-[14px] cursor-pointer hover:text-[#354B5E] transition-colors"
+                        title="Ver detalhes do perfume"
+                      >
+                        {p.name}
+                      </div>
                       <div className="text-[11px] text-[#93927F] font-mono mt-0.5">EAN: {p.ean || 'N/A'}</div>
                     </td>
                     <td className="p-[14px_22px] align-middle">
@@ -183,7 +219,16 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
                       )}
                     </td>
                     <td className="p-[14px_22px] align-middle text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProduct(p)}
+                          title="Ver detalhes do perfume"
+                          aria-label={`Ver detalhes de ${p.name}`}
+                          className="w-8 h-8 rounded-lg text-[#354B5E] hover:bg-[#E9EDF0] transition-colors flex items-center justify-center cursor-pointer"
+                        >
+                          <svg className="w-4 h-4"><use href="#ic-eye-kpi" /></svg>
+                        </button>
                         <button onClick={() => handleDelete(p.id)} title="Excluir perfume" className="w-8 h-8 rounded-lg text-[#93927F] hover:bg-[#FBEEE7] hover:text-[#A24726] transition-colors flex items-center justify-center">
                           <svg className="w-4 h-4"><use href="#ic-trash" /></svg>
                         </button>
@@ -204,6 +249,13 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
             setIsModalOpen(false);
             fetchProducts();
           }} 
+        />
+      )}
+
+      {selectedProduct && (
+        <ProductDetailsModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
         />
       )}
     </div>

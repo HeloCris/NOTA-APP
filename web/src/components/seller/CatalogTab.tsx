@@ -9,6 +9,7 @@ import { AddProductModal } from "./AddProductModal";
 import { InventoryTable } from "./InventoryTable";
 import { OlfactoryPyramidModal } from "./OlfactoryPyramidModal";
 import { ProductAutoComplete } from "./ProductAutoComplete";
+import { ProductDetailsModal } from "../common/ProductDetailsModal";
 
 interface CatalogTabProps {
     store: Store | null;
@@ -24,19 +25,24 @@ const statusSelectBg = {
 
 export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [detailsItem, setDetailsItem] = useState<StoreProduct | null>(null);
     const [items, setItems] = useState<StoreProduct[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
     const [status, setStatus] = useState("");
     const [search, setSearch] = useState(initialSearch);
+    const [searchFilter, setSearchFilter] = useState<"all" | "name" | "note" | "family">("all");
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [addInitialProduct, setAddInitialProduct] = useState<Product | null>(null);
 
     const fetchItems = useCallback(async () => {
         try {
-            const params: { search?: string; status?: string } = {};
+            const params: { search?: string; search_type?: string; status?: string } = {};
             if (status) params.status = status;
-            if (search.trim()) params.search = search.trim();
+            if (search.trim()) {
+                params.search = search.trim();
+                params.search_type = searchFilter;
+            }
             const result = await inventoryService.listStoreProducts(params);
             setItems(result);
             setLoadError(false);
@@ -45,7 +51,7 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
         } finally {
             setIsLoading(false);
         }
-    }, [status, search]);
+    }, [status, search, searchFilter]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -183,16 +189,37 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                             <option value="low_stock">Estoque baixo</option>
                         </select>
                     </div>
-                    <label className="relative">
-                        <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><use href="#ic-search" /></svg>
-                        <input
-                            className="border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E] w-[220px]"
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Buscar no meu estoque..."
-                            type="search"
-                            value={search}
-                        />
-                    </label>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <select
+                            aria-label="Filtrar busca por"
+                            className="border border-[#E6E1D2] bg-white rounded-xl py-[9px] px-3 text-[12.5px] font-semibold text-[#5A6067] outline-none focus:border-[#354B5E] cursor-pointer"
+                            value={searchFilter}
+                            onChange={(event) => setSearchFilter(event.target.value as any)}
+                        >
+                            <option value="all">Buscar em tudo</option>
+                            <option value="name">Nome do perfume</option>
+                            <option value="note">Nota olfativa</option>
+                            <option value="family">Caminho olfativo</option>
+                        </select>
+                        <label className="relative">
+                            <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"><use href="#ic-search" /></svg>
+                            <input
+                                className="border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E] w-[220px]"
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={
+                                    searchFilter === "name"
+                                        ? "Nome do perfume..."
+                                        : searchFilter === "note"
+                                          ? "Nota (ex: Jasmim, Baunilha)..."
+                                          : searchFilter === "family"
+                                            ? "Caminho (ex: Floral, Cítrico)..."
+                                            : "Buscar no meu estoque..."
+                                }
+                                type="search"
+                                value={search}
+                            />
+                        </label>
+                    </div>
                 </div>
 
                 {isLoading ? (
@@ -216,6 +243,7 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                         onDelete={handleDelete}
                         onToggleAvailability={handleToggleAvailability}
                         onUpdate={handleUpdate}
+                        onViewDetails={(item) => setDetailsItem(item)}
                     />
                 )}
             </div>
@@ -236,6 +264,14 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                     }}
                     onClose={() => setSelectedProduct(null)}
                     product={selectedProduct}
+                />
+            ) : null}
+
+            {detailsItem ? (
+                <ProductDetailsModal
+                    product={detailsItem.product as any}
+                    storeProduct={detailsItem}
+                    onClose={() => setDetailsItem(null)}
                 />
             ) : null}
         </div>

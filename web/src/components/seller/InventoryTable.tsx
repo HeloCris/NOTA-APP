@@ -12,6 +12,7 @@ interface InventoryTableProps {
     payload: Partial<StoreProductPayload>,
   ) => void;
   onDelete: (item: StoreProduct) => void;
+  onViewDetails?: (item: StoreProduct) => void;
 }
 
 interface EditDraft {
@@ -33,6 +34,7 @@ export function InventoryTable({
   onToggleAvailability,
   onUpdate,
   onDelete,
+  onViewDetails,
 }: InventoryTableProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState<EditDraft | null>(null);
@@ -110,7 +112,11 @@ export function InventoryTable({
                 >
                   <td className="p-[14px_22px] align-middle">
                     <div className="flex items-center gap-3">
-                      <div className="w-[34px] h-[58px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded-lg overflow-hidden">
+                      <div
+                        onClick={() => onViewDetails?.(item)}
+                        className={`w-[34px] h-[58px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded-lg overflow-hidden border border-[#E6E1D2] ${onViewDetails ? "cursor-pointer hover:border-[#354B5E] transition-colors" : ""}`}
+                        title={onViewDetails ? "Ver detalhes do perfume" : undefined}
+                      >
                         {item.product.image_url ? (
                           <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
                         ) : (
@@ -118,7 +124,13 @@ export function InventoryTable({
                         )}
                       </div>
                       <div>
-                        <div className="font-bold text-[13px] text-[#23282D]">{item.product.name}</div>
+                        <div
+                          onClick={() => onViewDetails?.(item)}
+                          className={`font-bold text-[13px] text-[#23282D] ${onViewDetails ? "cursor-pointer hover:text-[#354B5E] transition-colors" : ""}`}
+                          title={onViewDetails ? "Ver detalhes do perfume" : undefined}
+                        >
+                          {item.product.name}
+                        </div>
                         <div className="text-[11px] text-[#93927F]">{item.product.brand}</div>
                       </div>
                     </div>
@@ -235,9 +247,20 @@ export function InventoryTable({
                       </div>
                     ) : (
                       <div className="flex gap-1.5 justify-end">
+                        {onViewDetails && (
+                          <button
+                            aria-label={`Ver detalhes de ${item.product.name}`}
+                            className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white flex items-center justify-center text-[#354B5E] hover:border-[#354B5E] hover:bg-[#F5F3E9] transition-colors cursor-pointer"
+                            onClick={() => onViewDetails(item)}
+                            type="button"
+                            title="Ver detalhes do perfume"
+                          >
+                            <svg className="w-[14px] h-[14px]"><use href="#ic-eye-kpi" /></svg>
+                          </button>
+                        )}
                         <button
                           aria-label={`Editar ${item.product.name}`}
-                          className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] hover:border-[#23282D] hover:text-[#23282D] transition-colors"
+                          className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] hover:border-[#23282D] hover:text-[#23282D] transition-colors cursor-pointer"
                           onClick={() => startEdit(item)}
                           type="button"
                         >
@@ -245,7 +268,7 @@ export function InventoryTable({
                         </button>
                         <button
                           aria-label={`Remover ${item.product.name}`}
-                          className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] hover:border-[#A24726] hover:text-[#A24726] transition-colors"
+                          className="w-[28px] h-[28px] rounded-lg border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] hover:border-[#A24726] hover:text-[#A24726] transition-colors cursor-pointer"
                           onClick={() => onDelete(item)}
                           type="button"
                         >

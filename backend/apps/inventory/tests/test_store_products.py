@@ -550,4 +550,17 @@ def test_list_filters_search_and_status(
         "/api/v1/store-products/", {"status": "low_stock"}
     )
     assert low_stock.data["count"] == 1
+
+    # Testa filtros por tipo de busca (nota e família)
+    by_note = client.get(
+        "/api/v1/store-products/", {"search": "tuberosa", "search_type": "note"}
+    )
+    assert by_note.data["count"] == 1
+    assert by_note.data["results"][0]["product"]["name"] == "Good Girl"
+
+    by_family = client.get(
+        "/api/v1/store-products/", {"search": "amadeirado", "search_type": "family"}
+    )
+    assert by_family.data["count"] == 1
+    assert by_family.data["results"][0]["product"]["name"] == "Sauvage"
     assert low_stock.data["results"][0]["product"]["name"] == "Sauvage"

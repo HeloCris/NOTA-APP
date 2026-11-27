@@ -7,6 +7,7 @@ import type {
 
 interface ListParams {
   search?: string;
+  search_type?: string;
   status?: string;
   is_active?: string;
 }
