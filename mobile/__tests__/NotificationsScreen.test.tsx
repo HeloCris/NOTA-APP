@@ -1,7 +1,8 @@
 import React from 'react';
+import { AppState } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
-import NotificationsScreen from '@/app/(shop)/notifications';
+import NotificationsScreen from '@/app/notifications';
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -12,7 +13,17 @@ const mockBack = jest.fn();
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack, push: mockPush, canGoBack: () => true, replace: jest.fn() }),
+  useFocusEffect: (cb: any) => {
+    const React = require('react');
+    const ran = React.useRef(false);
+    React.useEffect(() => {
+      if (!ran.current) {
+        ran.current = true;
+        return cb();
+      }
+    }, []);
+  },
 }));
 
 jest.mock('@/services/communication', () => ({
@@ -27,6 +38,7 @@ jest.mock('react-native-safe-area-context', () => {
     SafeAreaView: ({ children, ...props }: any) => (
       <View {...props}>{children}</View>
     ),
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   };
 });
 
@@ -39,6 +51,7 @@ const mockMarkAllNotificationsRead = jest.mocked(
 describe('NotificationsScreen - RF-18.8', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    AppState.currentState = 'active';
 
     mockListNotifications.mockResolvedValue({
       count: 1,

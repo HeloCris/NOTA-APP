@@ -5,7 +5,9 @@ import { getToken, saveToken, deleteToken } from '../utils/storage';
 const debuggerHost = Constants.expoConfig?.hostUri;
 const machineIP = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
 
-const API_URL = `http://${machineIP}:8000/api/v1`;
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '') ||
+  `http://${machineIP}:8000/api/v1`;
 
 export const ACCESS_TOKEN_KEY = 'nota_access_token';
 export const REFRESH_TOKEN_KEY = 'nota_refresh_token';
@@ -16,11 +18,13 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
 
 export const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
 const refreshClient = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -55,10 +59,9 @@ async function requestRefresh(): Promise<string> {
     throw new Error('Refresh token não disponível.');
   }
 
-  const { data } = await refreshClient.post(
-    '/auth/token/refresh/',
-    { refresh: refreshToken },
-  );
+  const { data } = await refreshClient.post('/auth/token/refresh/', {
+    refresh: refreshToken,
+  });
 
   await saveToken(ACCESS_TOKEN_KEY, data.access);
 
@@ -123,5 +126,5 @@ api.interceptors.response.use(
       return handleUnauthorized(error);
     }
     return Promise.reject(error);
-  }
+  },
 );

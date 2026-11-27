@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, {
   Path,
   Circle,
@@ -31,8 +31,6 @@ import {
   HomeProductItem,
   HomeStoreItem,
 } from '../../services/stores';
-
-// --- Ícones Vetoriais das 7 Famílias Olfativas Oficiais (RN-05) ---
 
 function DropletIcon() {
   return (
@@ -127,7 +125,6 @@ function AquaticIcon() {
   );
 }
 
-// Ilustração de fallback para perfume sem foto
 function BottleFallback() {
   return (
     <Svg width={70} height={95} viewBox="0 0 110 140">
@@ -156,7 +153,6 @@ function BottleFallback() {
   );
 }
 
-// As 7 Famílias Olfativas Oficiais do Sistema (RN-05)
 const OLFACTORY_CATEGORIES = [
   { name: 'Amadeirado', icon: <DropletIcon /> },
   { name: 'Floral', icon: <FlowerIcon /> },
@@ -167,6 +163,20 @@ const OLFACTORY_CATEGORIES = [
   { name: 'Aquático', icon: <AquaticIcon /> },
 ];
 
+function formatPriceLabel(
+  rawPrice: number | string | null | undefined,
+  emptyFallback = 'Sob consulta',
+): string {
+  if (rawPrice === null || rawPrice === undefined || rawPrice === '') {
+    return emptyFallback;
+  }
+  const numeric = Number(rawPrice);
+  if (Number.isNaN(numeric)) {
+    return emptyFallback;
+  }
+  return `A partir de R$ ${numeric.toFixed(2).replace('.', ',')}`;
+}
+
 export default function ShopIndex() {
   const router = useRouter();
   const { user } = useAuth();
@@ -175,62 +185,59 @@ export default function ShopIndex() {
   const [feed, setFeed] = useState<HomeFeedResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedOnceRef = useRef(false);
 
-  // Nome e inicial reais do usuário autenticado (RN-08)
   const userName = user?.first_name || (user?.email ? user.email.split('@')[0] : 'Visitante');
   const userInitial = (user?.first_name?.[0] || user?.email?.[0] || 'V').toUpperCase();
 
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  // Banner responsivo ocupando ~80% da tela com peek
   const bannerGap = 12;
-  const bannerWidth = Math.round(containerWidth * 0.80);
+  const bannerWidth = Math.round(containerWidth * 0.8);
   const snapInterval = bannerWidth + bannerGap;
 
-  // Largura de card de loja
   const storeCardWidth = Math.round((containerWidth - 40 - 12) / 2.2);
-
-  // Largura do card de produto (grid de 2 colunas)
   const productCardWidth = Math.floor((containerWidth - 40 - 12) / 2);
 
-  const fetchFeed = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      const data = await storesService.getHomeFeed();
-      setFeed(data);
-    } catch (error) {
-      console.error('Erro ao carregar feed da Home:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    storesService.getHomeFeed()
-      .then((data) => {
-        if (isMounted) {
-          setFeed(data);
-          setLoading(false);
+  const fetchFeed = useCallback(
+    async (mode: 'initial' | 'refresh' | 'silent' = 'initial', isMountedCheck?: () => boolean) => {
+      try {
+        if (mode === 'refresh') {
+          setRefreshing(true);
+        } else if (mode === 'initial') {
+          setLoading(true);
         }
-      })
-      .catch((err) => {
-        console.error('Erro no feed inicial:', err);
-        if (isMounted) setLoading(false);
-      });
+        const data = await storesService.getHomeFeed();
+        if (!isMountedCheck || isMountedCheck()) {
+          setFeed(data);
+          hasLoadedOnceRef.current = true;
+        }
+      } catch (error) {
+        if (!isMountedCheck || isMountedCheck()) {
+          console.error('Erro ao carregar feed da Home:', error);
+        }
+      } finally {
+        if (!isMountedCheck || isMountedCheck()) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    },
+    [],
+  );
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const mode = hasLoadedOnceRef.current ? 'silent' : 'initial';
+      void fetchFeed(mode, () => isMounted);
+      return () => {
+        isMounted = false;
+      };
+    }, [fetchFeed]),
+  );
 
-  // Navegação para busca filtrada por família olfativa (RN-05)
   const handleFamilyPress = (familyName: string) => {
     router.push({
       pathname: '/(shop)/explore',
@@ -238,16 +245,20 @@ export default function ShopIndex() {
     } as never);
   };
 
-  // Navegação para lojas e produtos
   const handleStorePress = (storeId: number) => {
-    router.push(`/store/${storeId}` as never);
+    router.push({
+      pathname: '/store/[id]' as never,
+      params: { id: String(storeId) },
+    });
   };
 
   const handleProductPress = (productId: number) => {
-    router.push(`/product/${productId}` as never);
+    router.push({
+      pathname: '/product/[id]' as never,
+      params: { id: String(productId) },
+    });
   };
 
-  // Banner 1: Festival de Decants (RN-06)
   const handleDecantBannerPress = () => {
     router.push({
       pathname: '/(shop)/explore',
@@ -255,7 +266,6 @@ export default function ShopIndex() {
     } as never);
   };
 
-  // Banner 2: Descoberta Olfativa (RN-06)
   const handleDiscoveryBannerPress = () => {
     if (feed?.has_olfactory_profile) {
       router.push({
@@ -278,13 +288,13 @@ export default function ShopIndex() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => fetchFeed(true)}
+              onRefresh={() => void fetchFeed('refresh')}
               tintColor="#354B5E"
               colors={['#354B5E']}
             />
           }
         >
-          {/* --- HEADER DINÂMICO (RN-08) --- */}
+          {/* --- HEADER DINÂMICO --- */}
           <View style={styles.header}>
             <View style={styles.userInfo}>
               <View style={styles.avatarCircle} testID="user-avatar-circle">
@@ -304,7 +314,7 @@ export default function ShopIndex() {
             <TouchableOpacity
               style={styles.notificationBtn}
               activeOpacity={0.7}
-              onPress={() => router.push('/(shop)/notifications' as never)}
+              onPress={() => router.push('/notifications' as never)}
               accessibilityRole="button"
               accessibilityLabel="Abrir notificações"
             >
@@ -319,7 +329,7 @@ export default function ShopIndex() {
             </TouchableOpacity>
           </View>
 
-          {/* --- BANNERS DE CURADORIA INTERATIVOS (RN-06) --- */}
+          {/* --- BANNERS DE CURADORIA INTERATIVOS --- */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -328,7 +338,6 @@ export default function ShopIndex() {
             decelerationRate="fast"
             snapToAlignment="start"
           >
-            {/* Banner 1: Festival de Decants */}
             <TouchableOpacity
               style={[
                 styles.bannerCard,
@@ -346,7 +355,6 @@ export default function ShopIndex() {
               <Text style={styles.bannerSubtext}>Experimente antes de comprar o frasco</Text>
             </TouchableOpacity>
 
-            {/* Banner 2: Descoberta Olfativa */}
             <TouchableOpacity
               style={[
                 styles.bannerCard,
@@ -365,7 +373,7 @@ export default function ShopIndex() {
             </TouchableOpacity>
           </ScrollView>
 
-          {/* --- 7 FAMÍLIAS OLFATIVAS (RN-05) --- */}
+          {/* --- 7 FAMÍLIAS OLFATIVAS --- */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Famílias Olfativas</Text>
             <Text style={styles.sectionSubtitle}>Toque para filtrar por família</Text>
@@ -384,17 +392,13 @@ export default function ShopIndex() {
                 onPress={() => handleFamilyPress(cat.name)}
                 testID={`category-${cat.name}`}
               >
-                <View style={styles.categoryCircle}>
-                  {cat.icon}
-                </View>
-                <Text style={styles.categoryLabel}>
-                  {cat.name}
-                </Text>
+                <View style={styles.categoryCircle}>{cat.icon}</View>
+                <Text style={styles.categoryLabel}>{cat.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* --- LOJAS EM DESTAQUE (RN-03, RN-07) --- */}
+          {/* --- LOJAS EM DESTAQUE --- */}
           <View style={styles.sectionHeaderWithAction}>
             <View>
               <Text style={styles.sectionTitle}>Lojas em Destaque</Text>
@@ -402,7 +406,9 @@ export default function ShopIndex() {
             </View>
             <TouchableOpacity
               activeOpacity={0.6}
-              onPress={() => router.push({ pathname: '/(shop)/explore', params: { tab: 'stores' } } as never)}
+              onPress={() =>
+                router.push({ pathname: '/(shop)/explore', params: { tab: 'stores' } } as never)
+              }
               testID="see-all-stores-btn"
             >
               <Text style={styles.seeAllText}>Ver todas →</Text>
@@ -421,14 +427,17 @@ export default function ShopIndex() {
             >
               {feed?.featured_stores && feed.featured_stores.length > 0 ? (
                 feed.featured_stores.map((store: HomeStoreItem) => {
-                  const ratingLabel = (store.rating !== null && store.rating !== undefined && store.rating > 0)
-                    ? store.rating.toFixed(1)
-                    : 'Novo';
-                  const locationLabel = store.city && store.state
-                    ? `${store.city}/${store.state}`
-                    : store.reviews_count > 0
-                    ? `${store.reviews_count} aval.`
-                    : 'Loja';
+                  const numericRating = store.rating != null ? Number(store.rating) : 0;
+                  const ratingLabel =
+                    !Number.isNaN(numericRating) && numericRating > 0
+                      ? numericRating.toFixed(1)
+                      : 'Novo';
+                  const locationLabel =
+                    store.city && store.state
+                      ? `${store.city}/${store.state}`
+                      : store.reviews_count > 0
+                      ? `${store.reviews_count} aval.`
+                      : 'Loja';
 
                   return (
                     <TouchableOpacity
@@ -444,6 +453,7 @@ export default function ShopIndex() {
                             source={{ uri: store.logo_url }}
                             style={styles.storeLogoImg}
                             contentFit="cover"
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <View style={styles.storeLogoFallback}>
@@ -465,8 +475,9 @@ export default function ShopIndex() {
 
                       <View style={styles.storeRatingRow}>
                         <Ionicons name="star" size={12} color="#D97706" />
-                        <Text style={styles.storeRatingText}>
-                          {' '}{ratingLabel} · {locationLabel}
+                        <Text style={styles.storeRatingText} numberOfLines={1}>
+                          {' '}
+                          {ratingLabel} · {locationLabel}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -480,7 +491,7 @@ export default function ShopIndex() {
             </ScrollView>
           )}
 
-          {/* --- PARA VOCÊ (RN-02, RN-04, CA-05) --- */}
+          {/* --- PARA VOCÊ --- */}
           <View style={styles.sectionHeaderWithAction}>
             <View>
               <Text style={styles.sectionTitle}>
@@ -501,7 +512,6 @@ export default function ShopIndex() {
             </TouchableOpacity>
           </View>
 
-          {/* Card de convite para quem ainda não tem perfil olfativo configurado (RN-02) */}
           {feed && !feed.has_olfactory_profile && (
             <View style={styles.inviteCard} testID="olfactory-invite-card">
               <View style={styles.inviteIconCircle}>
@@ -510,7 +520,8 @@ export default function ShopIndex() {
               <View style={styles.inviteContent}>
                 <Text style={styles.inviteTitle}>Descubra seu Match Olfativo</Text>
                 <Text style={styles.inviteDesc}>
-                  Configure suas notas e famílias favoritas em 30 segundos para receber recomendações exclusivas.
+                  Configure suas notas e famílias favoritas em 30 segundos para receber
+                  recomendações exclusivas.
                 </Text>
                 <TouchableOpacity
                   style={styles.inviteBtn}
@@ -524,7 +535,6 @@ export default function ShopIndex() {
             </View>
           )}
 
-          {/* Grid de Produtos Recomendados */}
           {loading && !feed ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="small" color="#354B5E" />
@@ -533,9 +543,7 @@ export default function ShopIndex() {
             <View style={styles.productsGrid}>
               {feed?.recommended_products && feed.recommended_products.length > 0 ? (
                 feed.recommended_products.map((item: HomeProductItem) => {
-                  const formattedPrice = item.min_price != null
-                    ? `A partir de R$ ${item.min_price.toFixed(2).replace('.', ',')}`
-                    : 'Sob consulta';
+                  const formattedPrice = formatPriceLabel(item.min_price);
 
                   return (
                     <TouchableOpacity
@@ -545,15 +553,16 @@ export default function ShopIndex() {
                       onPress={() => handleProductPress(item.id)}
                       testID={`product-card-${item.id}`}
                     >
-                      {/* Top Badges: Match % e Decant */}
                       <View style={styles.productTopBadges}>
-                        {item.match_percentage != null && item.match_percentage > 0 ? (
+                        {item.match_percentage != null && Number(item.match_percentage) > 0 ? (
                           <View style={styles.matchBadge} testID={`match-badge-${item.id}`}>
                             <Text style={styles.matchBadgeText}>
-                              ✨ {item.match_percentage}% Match
+                              ✨ {Math.round(Number(item.match_percentage))}% Match
                             </Text>
                           </View>
-                        ) : <View />}
+                        ) : (
+                          <View />
+                        )}
 
                         {item.has_decant && (
                           <View style={styles.decantTag}>
@@ -562,27 +571,28 @@ export default function ShopIndex() {
                         )}
                       </View>
 
-                      {/* Imagem do Perfume ou Fallback */}
                       <View style={styles.productInnerBox}>
                         {item.image_url ? (
                           <Image
                             source={{ uri: item.image_url }}
                             style={styles.productImage}
                             contentFit="contain"
+                            cachePolicy="memory-disk"
                           />
                         ) : (
                           <BottleFallback />
                         )}
                       </View>
 
-                      {/* Informações */}
                       <View style={styles.productDetails}>
-                        <Text style={styles.productBrand} numberOfLines={1}>
-                          {item.brand_name || 'Exclusivo'}
-                        </Text>
-                        <Text style={styles.productName} numberOfLines={1}>
-                          {item.name}
-                        </Text>
+                        <View>
+                          <Text style={styles.productBrand} numberOfLines={1}>
+                            {item.brand_name || 'Exclusivo'}
+                          </Text>
+                          <Text style={styles.productName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                        </View>
                         <View style={styles.productFooter}>
                           <Text style={styles.productPrice}>{formattedPrice}</Text>
                           <View style={styles.familyBadge}>
@@ -605,18 +615,17 @@ export default function ShopIndex() {
             </View>
           )}
 
-          {/* --- DECANTS PARA EXPERIMENTAR (Se houver ofertas fracionadas) --- */}
+          {/* --- DECANTS PARA EXPERIMENTAR --- */}
           {feed?.decant_highlights && feed.decant_highlights.length > 0 && (
             <>
               <View style={styles.sectionHeaderWithAction}>
                 <View>
                   <Text style={styles.sectionTitle}>Decants para Experimentar</Text>
-                  <Text style={styles.sectionSubtitle}>Fracionados originais de 5ml, 10ml e 15ml</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Fracionados originais de 5ml, 10ml e 15ml
+                  </Text>
                 </View>
-                <TouchableOpacity
-                  activeOpacity={0.6}
-                  onPress={handleDecantBannerPress}
-                >
+                <TouchableOpacity activeOpacity={0.6} onPress={handleDecantBannerPress}>
                   <Text style={styles.seeAllText}>Ver todos →</Text>
                 </TouchableOpacity>
               </View>
@@ -640,6 +649,7 @@ export default function ShopIndex() {
                           source={{ uri: item.image_url }}
                           style={styles.decantImage}
                           contentFit="contain"
+                          cachePolicy="memory-disk"
                         />
                       ) : (
                         <BottleFallback />
@@ -648,15 +658,19 @@ export default function ShopIndex() {
                         <Text style={styles.decantSmallBadgeText}>5 a 15ml</Text>
                       </View>
                     </View>
-                    <Text style={styles.decantBrand} numberOfLines={1}>
-                      {item.brand_name}
-                    </Text>
-                    <Text style={styles.decantName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.decantPrice}>
-                      {item.min_price != null ? `A partir de R$ ${item.min_price.toFixed(2).replace('.', ',')}` : ''}
-                    </Text>
+                    <View style={styles.decantDetails}>
+                      <View>
+                        <Text style={styles.decantBrand} numberOfLines={1}>
+                          {item.brand_name}
+                        </Text>
+                        <Text style={styles.decantName} numberOfLines={2}>
+                          {item.name}
+                        </Text>
+                      </View>
+                      <Text style={styles.decantPrice}>
+                        {formatPriceLabel(item.min_price, '')}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -764,8 +778,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   bannersScroll: {
-    paddingLeft: 20,
-    paddingRight: 8,
+    paddingHorizontal: 20,
     gap: 12,
   },
   bannerCard: {
@@ -837,8 +850,7 @@ const styles = StyleSheet.create({
     color: '#9E4732',
   },
   categoriesScroll: {
-    paddingLeft: 20,
-    paddingRight: 8,
+    paddingHorizontal: 20,
     gap: 14,
   },
   categoryItem: {
@@ -863,8 +875,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   storesScroll: {
-    paddingLeft: 20,
-    paddingRight: 8,
+    paddingHorizontal: 20,
     gap: 12,
   },
   storeCard: {
@@ -926,6 +937,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
     color: '#64748B',
+    flex: 1,
   },
   emptyStoresCard: {
     padding: 20,
@@ -998,6 +1010,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     overflow: 'hidden',
+    justifyContent: 'space-between',
   },
   productTopBadges: {
     flexDirection: 'row',
@@ -1098,6 +1111,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    justifyContent: 'space-between',
   },
   decantInnerBox: {
     height: 90,
@@ -1126,6 +1140,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
+  decantDetails: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
   decantBrand: {
     fontSize: 10,
     color: '#8C939D',
@@ -1136,7 +1154,7 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   decantPrice: {
     fontSize: 11,

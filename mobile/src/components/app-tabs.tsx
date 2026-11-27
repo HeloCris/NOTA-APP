@@ -1,25 +1,31 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Feather from '@expo/vector-icons/Feather';
 import { useCart } from '../context/CartContext';
 
 export default function AppTabs() {
   const { totalItemsCount } = useCart();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
+  const tabBarHeight = (Platform.OS === 'ios' ? 60 : 58) + bottomPadding;
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: '#F4F1EA' },
         tabBarActiveTintColor: '#2C4659',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopColor: '#EBE7DE',
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 86 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+          height: tabBarHeight,
+          paddingBottom: bottomPadding,
           paddingTop: 8,
           elevation: 8,
           shadowColor: '#000',

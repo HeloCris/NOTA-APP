@@ -32,11 +32,20 @@ interface StoreGroup {
 export default function CartScreen() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
-  const containerWidth = Math.min(windowWidth, 480);
+  const containerWidth = Math.min(windowWidth, 460);
 
-  const { items, updateQuantity, setQuantity, removeItem, clearCart, totalItemsCount, subtotal } = useCart();
+  const {
+    items,
+    updateQuantity,
+    setQuantity,
+    removeItem,
+    clearCart,
+    totalItemsCount,
+    subtotal,
+  } = useCart();
   const itemsRef = useRef(items);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeValidationIdRef = useRef(0);
   const [stockByItem, setStockByItem] = useState<Record<string, number>>({});
   const [isCheckingStock, setIsCheckingStock] = useState(false);
   const [stockCheckFailed, setStockCheckFailed] = useState(false);
@@ -45,6 +54,14 @@ export default function CartScreen() {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -64,46 +81,65 @@ export default function CartScreen() {
       setStockCheckFailed(false);
       return;
     }
+
+    const requestId = ++activeValidationIdRef.current;
     setIsCheckingStock(true);
     setStockCheckFailed(false);
+
     try {
-      const results = await Promise.all([...groups.entries()].map(async ([storeId, group]) => {
-        const products = await storesService.getStoreProducts(storeId, {
-          store_product_ids: group.map((item) => item.storeProductId).join(","),
-        });
-        return group.map((item) => [
-          item.id,
-          products.find((product) => product.id === item.storeProductId)?.stock_quantity ?? 0,
-        ] as const);
-      }));
+      const results = await Promise.all(
+        [...groups.entries()].map(async ([storeId, group]) => {
+          const products = await storesService.getStoreProducts(storeId, {
+            store_product_ids: group.map((item) => item.storeProductId).join(','),
+          });
+          return group.map(
+            (item) =>
+              [
+                item.id,
+                products.find((product) => product.id === item.storeProductId)
+                  ?.stock_quantity ?? 0,
+              ] as const,
+          );
+        }),
+      );
+
+      if (requestId !== activeValidationIdRef.current) return;
+
       const nextStock = Object.fromEntries(results.flat());
       setStockByItem(nextStock);
-      currentItems.forEach((item) => {
+      itemsRef.current.forEach((item) => {
         const available = nextStock[item.id];
         const stockState = getCartStockState(item, available);
         if (stockState.adjustedQuantity !== null) {
           setQuantity(item.id, stockState.adjustedQuantity);
-          showToast(`A quantidade de ${item.productName} foi ajustada para ${available} devido ao estoque disponível.`);
+          showToast(
+            `A quantidade de ${item.productName} foi ajustada para ${available} devido ao estoque disponível.`,
+          );
         }
       });
     } catch (error) {
-      console.error("Erro ao validar estoque do carrinho:", error);
-      setStockCheckFailed(true);
+      if (requestId === activeValidationIdRef.current) {
+        console.error('Erro ao validar estoque do carrinho:', error);
+        setStockCheckFailed(true);
+      }
     } finally {
-      setIsCheckingStock(false);
+      if (requestId === activeValidationIdRef.current) {
+        setIsCheckingStock(false);
+      }
     }
   }, [setQuantity, showToast]);
 
-  const cartSignature = items.map((item) => `${item.id}:${item.quantity}`).join("|");
-  useFocusEffect(useCallback(() => {
-    void validateStock();
-  }, [validateStock]));
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const itemIdsSignature = items.map((item) => item.id).join('|');
+
+  useFocusEffect(
+    useCallback(() => {
       void validateStock();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [cartSignature, validateStock]);
+    }, [validateStock]),
+  );
+
+  useEffect(() => {
+    void validateStock();
+  }, [itemIdsSignature, validateStock]);
 
   const formatBRL = (val: number) => {
     return val.toLocaleString('pt-BR', {
@@ -112,12 +148,13 @@ export default function CartScreen() {
     });
   };
 
-  // Agrupamento de itens por loja (estilo Shopee)
   const storeGroups = useMemo<StoreGroup[]>(() => {
     const groupsMap = new Map<string, StoreGroup>();
 
     items.forEach((item) => {
-      const storeKey = item.storeId ? item.storeId.toString() : (item.storeName || item.brandName || 'Loja Parceira');
+      const storeKey = item.storeId
+        ? item.storeId.toString()
+        : item.storeName || item.brandName || 'Loja Parceira';
       if (!groupsMap.has(storeKey)) {
         groupsMap.set(storeKey, {
           storeId: item.storeId || 0,
@@ -138,8 +175,19 @@ export default function CartScreen() {
     return Array.from(groupsMap.values());
   }, [items, stockByItem]);
 
-  const hasUnavailableItems = items.some((item) => getCartStockState(item, stockByItem[item.id]).unavailable);
+  const hasUnavailableItems = items.some(
+    (item) => getCartStockState(item, stockByItem[item.id]).unavailable,
+  );
   const checkoutBlocked = isCheckingStock || stockCheckFailed || hasUnavailableItems;
+
+  const handleIncrement = (item: CartItem) => {
+    const available = stockByItem[item.id];
+    if (typeof available === 'number' && item.quantity >= available) {
+      showToast(`Estoque máximo disponível para ${item.productName}: ${available}.`);
+      return;
+    }
+    updateQuantity(item.id, 1);
+  };
 
   const handleCheckout = () => {
     if (items.length === 0) return;
@@ -152,7 +200,7 @@ export default function CartScreen() {
       );
       return;
     }
-    router.push('/checkout/bag' as any);
+    router.push('/checkout/bag' as never);
   };
 
   return (
@@ -164,23 +212,27 @@ export default function CartScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* --- HEADER --- */}
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Meu Carrinho</Text>
               <Text style={styles.subtitle}>
-                {totalItemsCount} {totalItemsCount === 1 ? 'item selecionado' : 'itens selecionados'}
-                {storeGroups.length > 0 ? ` • ${storeGroups.length} ${storeGroups.length === 1 ? 'loja' : 'lojas'}` : ''}
+                {totalItemsCount}{' '}
+                {totalItemsCount === 1 ? 'item selecionado' : 'itens selecionados'}
+                {storeGroups.length > 0
+                  ? ` • ${storeGroups.length} ${storeGroups.length === 1 ? 'loja' : 'lojas'}`
+                  : ''}
               </Text>
             </View>
             {items.length > 0 ? (
-              <TouchableOpacity onPress={clearCart} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity
+                onPress={clearCart}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <Text style={styles.clearCartText}>Limpar</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {/* --- LISTA DE ITENS OU ESTADO VAZIO --- */}
           {items.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconCircle}>
@@ -200,11 +252,12 @@ export default function CartScreen() {
             </View>
           ) : (
             <>
-              {/* --- LISTA AGRUPADA POR LOJA (ESTILO SHOPEE) --- */}
               <View style={styles.storeGroupsList}>
                 {storeGroups.map((group, groupIdx) => (
-                  <View key={`store-group-${group.storeId}-${groupIdx}`} style={styles.storeCardWrapper}>
-                    {/* Cabeçalho da Loja */}
+                  <View
+                    key={`store-group-${group.storeId}-${groupIdx}`}
+                    style={styles.storeCardWrapper}
+                  >
                     <TouchableOpacity
                       style={styles.storeHeaderRow}
                       activeOpacity={group.storeId ? 0.7 : 1}
@@ -223,7 +276,12 @@ export default function CartScreen() {
                           {group.storeName}
                         </Text>
                         {group.storeIsOfficial ? (
-                          <Ionicons name="checkmark-circle" size={14} color="#1D9BF0" style={{ marginLeft: 2 }} />
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color="#1D9BF0"
+                            style={{ marginLeft: 2 }}
+                          />
                         ) : null}
                       </View>
 
@@ -237,10 +295,8 @@ export default function CartScreen() {
                       ) : null}
                     </TouchableOpacity>
 
-                    {/* Linha separadora discreta */}
                     <View style={styles.storeHeaderDivider} />
 
-                    {/* Produtos desta Loja */}
                     <View style={styles.storeProductsList}>
                       {group.items.map((item, itemIdx) => (
                         <View
@@ -252,16 +308,19 @@ export default function CartScreen() {
                         >
                           {stockByItem[item.id] === 0 ? (
                             <View style={styles.unavailableBadge}>
-                              <Text style={styles.unavailableText}>Indisponível / Fora de estoque</Text>
+                              <Text style={styles.unavailableText}>
+                                Indisponível / Fora de estoque
+                              </Text>
                             </View>
                           ) : null}
-                          {/* Imagem do Produto */}
+
                           <View style={styles.bottleBox}>
                             {item.imageUrl ? (
                               <Image
                                 source={{ uri: item.imageUrl }}
                                 style={styles.productImage}
                                 contentFit="contain"
+                                cachePolicy="memory-disk"
                                 transition={200}
                               />
                             ) : (
@@ -269,7 +328,6 @@ export default function CartScreen() {
                             )}
                           </View>
 
-                          {/* Informações */}
                           <View style={styles.infoCol}>
                             <TouchableOpacity
                               activeOpacity={0.7}
@@ -289,7 +347,6 @@ export default function CartScreen() {
                               <Text style={styles.volumeText}>{item.volume}</Text>
                             </View>
 
-                            {/* Seletor de Quantidade */}
                             <View style={styles.qtyControl}>
                               <TouchableOpacity
                                 style={styles.qtyBtn}
@@ -303,7 +360,7 @@ export default function CartScreen() {
 
                               <TouchableOpacity
                                 style={styles.qtyBtn}
-                                onPress={() => updateQuantity(item.id, 1)}
+                                onPress={() => handleIncrement(item)}
                                 activeOpacity={0.6}
                               >
                                 <Text style={styles.qtyBtnText}>+</Text>
@@ -311,10 +368,17 @@ export default function CartScreen() {
                             </View>
                           </View>
 
-                          {/* Preço e Remover */}
                           <View style={styles.priceCol}>
-                            <Text style={[styles.priceText, stockByItem[item.id] === 0 && styles.unavailablePrice]}>
-                              R$ {formatBRL(stockByItem[item.id] === 0 ? 0 : item.price * item.quantity)}
+                            <Text
+                              style={[
+                                styles.priceText,
+                                stockByItem[item.id] === 0 && styles.unavailablePrice,
+                              ]}
+                            >
+                              R${' '}
+                              {formatBRL(
+                                stockByItem[item.id] === 0 ? 0 : item.price * item.quantity,
+                              )}
                             </Text>
                             <TouchableOpacity
                               onPress={() => removeItem(item.id)}
@@ -328,10 +392,14 @@ export default function CartScreen() {
                       ))}
                     </View>
 
-                    {/* Subtotal desta Loja */}
                     <View style={styles.storeFooterRow}>
                       <Text style={styles.storeFooterLabel}>
-                        Subtotal da Loja ({group.items.reduce((acc, i) => acc + i.quantity, 0)} {group.items.reduce((acc, i) => acc + i.quantity, 0) === 1 ? 'item' : 'itens'}):
+                        Subtotal da Loja (
+                        {group.items.reduce((acc, i) => acc + i.quantity, 0)}{' '}
+                        {group.items.reduce((acc, i) => acc + i.quantity, 0) === 1
+                          ? 'item'
+                          : 'itens'}
+                        ):
                       </Text>
                       <Text style={styles.storeFooterValue}>R$ {formatBRL(group.subtotal)}</Text>
                     </View>
@@ -339,10 +407,8 @@ export default function CartScreen() {
                 ))}
               </View>
 
-              {/* --- DIVISÓRIA --- */}
               <View style={styles.dashedDivider} />
 
-              {/* --- RESUMO DO PEDIDO --- */}
               <View style={styles.summaryContainer}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Subtotal dos produtos</Text>
@@ -362,14 +428,19 @@ export default function CartScreen() {
                 </View>
               </View>
 
-              {/* --- BOTÃO FINALIZAR COMPRA --- */}
               <TouchableOpacity
                 style={[styles.checkoutBtn, checkoutBlocked && styles.checkoutBtnDisabled]}
                 activeOpacity={0.88}
                 onPress={handleCheckout}
               >
                 <Text style={styles.checkoutBtnText}>
-                  {isCheckingStock ? 'Verificando estoque...' : stockCheckFailed ? 'Tente verificar novamente' : hasUnavailableItems ? 'Remova itens indisponíveis' : 'Finalizar Compra'}
+                  {isCheckingStock
+                    ? 'Verificando estoque...'
+                    : stockCheckFailed
+                      ? 'Tente verificar novamente'
+                      : hasUnavailableItems
+                        ? 'Remova itens indisponíveis'
+                        : 'Finalizar Compra'}
                 </Text>
               </TouchableOpacity>
             </>
@@ -404,8 +475,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 28,
   },
-
-  // --- Header ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -432,8 +501,6 @@ const styles = StyleSheet.create({
     color: '#B91C1C',
     paddingTop: 4,
   },
-
-  // --- Estado Vazio ---
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -488,8 +555,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.2,
   },
-
-  // --- Agrupamento por Loja (Shopee Style) ---
   storeGroupsList: {
     paddingHorizontal: 16,
     gap: 14,
@@ -656,8 +721,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#2C4659',
   },
-
-  // --- Divisória ---
   dashedDivider: {
     height: 1,
     borderWidth: 1,
@@ -667,8 +730,6 @@ const styles = StyleSheet.create({
     marginTop: 22,
     marginBottom: 16,
   },
-
-  // --- Resumo ---
   summaryContainer: {
     paddingHorizontal: 20,
     gap: 8,
@@ -721,8 +782,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#1C252E',
   },
-
-  // --- Botão Finalizar Compra ---
   checkoutBtn: {
     backgroundColor: '#273847',
     marginHorizontal: 20,

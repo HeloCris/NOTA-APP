@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,10 @@ export default function SavedAddressesScreen() {
 
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
 
-  // Carrega endereços persistidos
+  const cepAbortControllerRef = useRef<AbortController | null>(null);
+
   React.useEffect(() => {
     (async () => {
       try {
@@ -44,11 +46,16 @@ export default function SavedAddressesScreen() {
         setIsLoading(false);
       }
     })();
+
+    return () => {
+      cepAbortControllerRef.current?.abort();
+    };
   }, []);
 
   // Modal para adicionar novo endereço
   const [modalVisible, setModalVisible] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // Form de novo endereço
   const [newTag, setNewTag] = useState('Casa');
@@ -61,7 +68,6 @@ export default function SavedAddressesScreen() {
   const [newStateUf, setNewStateUf] = useState('');
   const [newIsDefault, setNewIsDefault] = useState(false);
 
-  // Definir como padrão
   const handleSetDefault = async (id: string) => {
     try {
       const updated = await apiSetDefaultAddress(id);
@@ -71,7 +77,6 @@ export default function SavedAddressesScreen() {
     }
   };
 
-  // Excluir endereço
   const handleDeleteAddress = async (id: string) => {
     try {
       const updated = await apiDeleteAddress(id);
@@ -81,7 +86,6 @@ export default function SavedAddressesScreen() {
     }
   };
 
-  // Busca de CEP no formulário do modal
   const handleCepSearch = async (text: string) => {
     const raw = text.replace(/\D/g, '');
     let formatted = raw;
@@ -89,32 +93,60 @@ export default function SavedAddressesScreen() {
       formatted = `${raw.slice(0, 5)}-${raw.slice(5, 8)}`;
     }
     setNewCep(formatted);
+    if (formError) setFormError('');
 
     if (raw.length === 8) {
+      cepAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      cepAbortControllerRef.current = controller;
+
       setIsLoadingCep(true);
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+        const response = await fetch(`https://viacep.com.br/ws/${raw}/json/`, {
+          signal: controller.signal,
+        });
         const data = await response.json();
-        if (!data.erro) {
+        if (data.erro) {
+          setFormError('CEP não encontrado. Preencha o endereço manualmente.');
+        } else {
           setNewStreet(data.logradouro || '');
           setNewNeighborhood(data.bairro || '');
           setNewCity(data.localidade || '');
           setNewStateUf(data.uf || '');
         }
-      } catch {
-        // Fallback gracioso
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          setFormError('Não foi possível consultar o CEP agora. Preencha manualmente.');
+        }
       } finally {
         setIsLoadingCep(false);
       }
     }
   };
 
-  // Salvar novo endereço
   const handleSaveAddress = async () => {
-    if (!newStreet.trim() || !newNumber.trim() || !newCep.trim()) {
+    if (isSavingAddress) return;
+
+    const cepDigits = newCep.replace(/\D/g, '');
+    if (cepDigits.length !== 8) {
+      setFormError('Informe um CEP válido com 8 dígitos.');
+      return;
+    }
+    if (!newStreet.trim()) {
+      setFormError('Informe a rua ou logradouro.');
+      return;
+    }
+    if (!newNumber.trim()) {
+      setFormError('Informe o número (ou S/N).');
+      return;
+    }
+    if (!newNeighborhood.trim() || !newCity.trim() || newStateUf.trim().length < 2) {
+      setFormError('Preencha bairro, cidade e UF corretamente.');
       return;
     }
 
+    setIsSavingAddress(true);
+    setFormError('');
     try {
       const updated = await apiAddOrUpdateAddress({
         tag: newTag || 'Outro',
@@ -130,7 +162,6 @@ export default function SavedAddressesScreen() {
 
       setAddresses(updated);
 
-      // Resetar form e fechar modal
       setNewTag('Casa');
       setNewCep('');
       setNewStreet('');
@@ -140,9 +171,13 @@ export default function SavedAddressesScreen() {
       setNewCity('');
       setNewStateUf('');
       setNewIsDefault(false);
+      setFormError('');
       setModalVisible(false);
     } catch (err) {
       console.error('Erro ao salvar endereço:', err);
+      setFormError('Não foi possível salvar o endereço. Tente novamente.');
+    } finally {
+      setIsSavingAddress(false);
     }
   };
 
@@ -162,10 +197,13 @@ export default function SavedAddressesScreen() {
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>Endereços Salvos</Text>
             <Text style={styles.headerSubtitle}>
-              {addresses.length}{' '}
-              {addresses.length === 1
-                ? 'endereço cadastrado'
-                : 'endereços cadastrados'}
+              {isLoading
+                ? 'Carregando...'
+                : `${addresses.length} ${
+                    addresses.length === 1
+                      ? 'endereço cadastrado'
+                      : 'endereços cadastrados'
+                  }`}
             </Text>
           </View>
           <View style={{ width: 40 }} />
@@ -180,77 +218,96 @@ export default function SavedAddressesScreen() {
           <TouchableOpacity
             style={styles.addBtn}
             activeOpacity={0.88}
-            onPress={() => setModalVisible(true)}
+            onPress={() => {
+              setFormError('');
+              setModalVisible(true);
+            }}
           >
             <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
             <Text style={styles.addBtnText}>Adicionar Novo Endereço</Text>
           </TouchableOpacity>
 
           {/* --- LISTA DE ENDEREÇOS --- */}
-          <View style={styles.addressList}>
-            {addresses.map((addr) => (
-              <View
-                key={addr.id}
-                style={[
-                  styles.addressCard,
-                  addr.isDefault && styles.addressCardDefault,
-                ]}
-              >
-                {/* Cabeçalho do Card */}
-                <View style={styles.cardTopRow}>
-                  <View style={styles.tagWrapper}>
-                    <View style={styles.iconCircle}>
-                      <Ionicons
-                        name={addr.tag === 'Trabalho' ? 'briefcase-outline' : 'home-outline'}
-                        size={16}
-                        color="#2C4659"
-                      />
+          {isLoading ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#273847" />
+            </View>
+          ) : addresses.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="location-outline" size={28} color="#9CA3AF" />
+              </View>
+              <Text style={styles.emptyTitle}>Nenhum endereço cadastrado</Text>
+              <Text style={styles.emptySubtitle}>
+                Adicione um endereço de entrega para agilizar seus próximos pedidos.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.addressList}>
+              {addresses.map((addr) => (
+                <View
+                  key={addr.id}
+                  style={[
+                    styles.addressCard,
+                    addr.isDefault && styles.addressCardDefault,
+                  ]}
+                >
+                  {/* Cabeçalho do Card */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.tagWrapper}>
+                      <View style={styles.iconCircle}>
+                        <Ionicons
+                          name={addr.tag === 'Trabalho' ? 'briefcase-outline' : 'home-outline'}
+                          size={16}
+                          color="#2C4659"
+                        />
+                      </View>
+                      <Text style={styles.tagText}>{addr.tag}</Text>
                     </View>
-                    <Text style={styles.tagText}>{addr.tag}</Text>
+
+                    {addr.isDefault ? (
+                      <View style={styles.defaultBadge}>
+                        <Ionicons name="checkmark" size={13} color="#A85A38" />
+                        <Text style={styles.defaultBadgeText}>Padrão</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.setDefaultBtn}
+                        activeOpacity={0.7}
+                        onPress={() => handleSetDefault(addr.id)}
+                      >
+                        <Text style={styles.setDefaultText}>Definir como padrão</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
-                  {addr.isDefault ? (
-                    <View style={styles.defaultBadge}>
-                      <Ionicons name="checkmark" size={13} color="#A85A38" />
-                      <Text style={styles.defaultBadgeText}>Padrão</Text>
-                    </View>
-                  ) : (
+                  {/* Detalhes do Endereço */}
+                  <View style={styles.addressDetails}>
+                    <Text style={styles.streetText}>
+                      {addr.street}, {addr.number}
+                      {addr.complement ? ` · ${addr.complement}` : ''}
+                    </Text>
+                    <Text style={styles.cityText}>
+                      {addr.neighborhood}, {addr.city} — {addr.stateUf}
+                    </Text>
+                    <Text style={styles.cepText}>CEP: {addr.cep}</Text>
+                  </View>
+
+                  {/* Rodapé do Card com Ação de Excluir */}
+                  <View style={styles.cardFooter}>
                     <TouchableOpacity
-                      style={styles.setDefaultBtn}
-                      activeOpacity={0.7}
-                      onPress={() => handleSetDefault(addr.id)}
+                      style={styles.deleteBtn}
+                      activeOpacity={0.65}
+                      onPress={() => handleDeleteAddress(addr.id)}
                     >
-                      <Text style={styles.setDefaultText}>Definir como padrão</Text>
+                      <Feather name="trash-2" size={14} color="#9CA3AF" />
+                      <Text style={styles.deleteText}>Remover</Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
-
-                {/* Detalhes do Endereço */}
-                <View style={styles.addressDetails}>
-                  <Text style={styles.streetText}>
-                    {addr.street}, {addr.number}
-                    {addr.complement ? ` · ${addr.complement}` : ''}
-                  </Text>
-                  <Text style={styles.cityText}>
-                    {addr.neighborhood}, {addr.city} — {addr.stateUf}
-                  </Text>
-                  <Text style={styles.cepText}>CEP: {addr.cep}</Text>
-                </View>
-
-                {/* Rodapé do Card com Ação de Excluir */}
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    activeOpacity={0.65}
-                    onPress={() => handleDeleteAddress(addr.id)}
-                  >
-                    <Feather name="trash-2" size={14} color="#9CA3AF" />
-                    <Text style={styles.deleteText}>Remover</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           <View style={{ height: 36 }} />
         </ScrollView>
@@ -261,19 +318,31 @@ export default function SavedAddressesScreen() {
         visible={modalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => {
+          if (!isSavingAddress) setModalVisible(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxWidth: containerWidth - 32 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Novo Endereço</Text>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  if (!isSavingAddress) setModalVisible(false);
+                }}
                 activeOpacity={0.6}
+                disabled={isSavingAddress}
               >
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
+
+            {formError ? (
+              <View style={styles.errorBox}>
+                <Feather name="alert-circle" size={14} color="#DC2626" />
+                <Text style={styles.errorText}>{formError}</Text>
+              </View>
+            ) : null}
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Identificador (Casa, Trabalho...) */}
@@ -288,6 +357,7 @@ export default function SavedAddressesScreen() {
                         newTag === tagOption && styles.tagOptionBtnActive,
                       ]}
                       onPress={() => setNewTag(tagOption)}
+                      disabled={isSavingAddress}
                     >
                       <Text
                         style={[
@@ -314,6 +384,7 @@ export default function SavedAddressesScreen() {
                     value={newCep}
                     onChangeText={handleCepSearch}
                     maxLength={9}
+                    editable={!isSavingAddress}
                   />
                   {isLoadingCep && (
                     <ActivityIndicator
@@ -333,7 +404,11 @@ export default function SavedAddressesScreen() {
                   placeholder="Ex: Av. Paulista"
                   placeholderTextColor="#9CA3AF"
                   value={newStreet}
-                  onChangeText={setNewStreet}
+                  onChangeText={(t) => {
+                    setNewStreet(t);
+                    if (formError) setFormError('');
+                  }}
+                  editable={!isSavingAddress}
                 />
               </View>
 
@@ -343,11 +418,14 @@ export default function SavedAddressesScreen() {
                   <Text style={styles.inputLabel}>Número</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="123"
+                    placeholder="123 ou S/N"
                     placeholderTextColor="#9CA3AF"
-                    keyboardType="numeric"
                     value={newNumber}
-                    onChangeText={setNewNumber}
+                    onChangeText={(t) => {
+                      setNewNumber(t);
+                      if (formError) setFormError('');
+                    }}
+                    editable={!isSavingAddress}
                   />
                 </View>
 
@@ -359,6 +437,7 @@ export default function SavedAddressesScreen() {
                     placeholderTextColor="#9CA3AF"
                     value={newComplement}
                     onChangeText={setNewComplement}
+                    editable={!isSavingAddress}
                   />
                 </View>
               </View>
@@ -371,7 +450,11 @@ export default function SavedAddressesScreen() {
                   placeholder="Bairro"
                   placeholderTextColor="#9CA3AF"
                   value={newNeighborhood}
-                  onChangeText={setNewNeighborhood}
+                  onChangeText={(t) => {
+                    setNewNeighborhood(t);
+                    if (formError) setFormError('');
+                  }}
+                  editable={!isSavingAddress}
                 />
               </View>
 
@@ -384,7 +467,11 @@ export default function SavedAddressesScreen() {
                     placeholder="Cidade"
                     placeholderTextColor="#9CA3AF"
                     value={newCity}
-                    onChangeText={setNewCity}
+                    onChangeText={(t) => {
+                      setNewCity(t);
+                      if (formError) setFormError('');
+                    }}
+                    editable={!isSavingAddress}
                   />
                 </View>
 
@@ -397,7 +484,11 @@ export default function SavedAddressesScreen() {
                     maxLength={2}
                     autoCapitalize="characters"
                     value={newStateUf}
-                    onChangeText={setNewStateUf}
+                    onChangeText={(t) => {
+                      setNewStateUf(t.toUpperCase());
+                      if (formError) setFormError('');
+                    }}
+                    editable={!isSavingAddress}
                   />
                 </View>
               </View>
@@ -407,6 +498,7 @@ export default function SavedAddressesScreen() {
                 style={styles.checkboxRow}
                 activeOpacity={0.7}
                 onPress={() => setNewIsDefault(!newIsDefault)}
+                disabled={isSavingAddress}
               >
                 <View
                   style={[
@@ -429,16 +521,22 @@ export default function SavedAddressesScreen() {
                   style={styles.modalCancelBtn}
                   activeOpacity={0.7}
                   onPress={() => setModalVisible(false)}
+                  disabled={isSavingAddress}
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.modalSaveBtn}
+                  style={[styles.modalSaveBtn, isSavingAddress && { opacity: 0.7 }]}
                   activeOpacity={0.88}
                   onPress={handleSaveAddress}
+                  disabled={isSavingAddress}
                 >
-                  <Text style={styles.modalSaveText}>Salvar Endereço</Text>
+                  {isSavingAddress ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSaveText}>Salvar Endereço</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -530,6 +628,38 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14.5,
     fontWeight: '700',
+  },
+
+  // --- Empty State ---
+  emptyBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 30,
+    marginHorizontal: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EFEBE2',
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1C252E',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#78716C',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 
   // --- Address Cards ---
@@ -673,6 +803,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#1C252E',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+    flex: 1,
   },
   inputGroup: {
     marginBottom: 12,

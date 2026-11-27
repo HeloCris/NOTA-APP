@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
-import ChatScreen from '@/app/(shop)/chat/[id]';
+import ChatScreen from '@/app/chat/[id]';
 import {
   listConversations,
   listMessages,

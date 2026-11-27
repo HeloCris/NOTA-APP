@@ -5,9 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -32,13 +32,10 @@ const RETURN_REASONS = [
   'Não gostei da fragrância',
 ];
 
-const showAlert = (title: string, message?: string, onOk?: () => void) => {
-  if (Platform.OS === 'web') {
-    window.alert(`${title}${message ? `: ${message}` : ''}`);
-    onOk?.();
-  } else {
-    Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
-  }
+type SelectedPhotoAsset = {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
 };
 
 export default function OrderReturnScreen() {
@@ -52,23 +49,62 @@ export default function OrderReturnScreen() {
   const [selectedReason, setSelectedReason] = useState('');
   const [description, setDescription] = useState('');
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<SelectedPhotoAsset[]>([]);
+
+  const [feedbackModal, setFeedbackModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    isError?: boolean;
+    onOk?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    isError: false,
+  });
+
+  const showFeedback = (
+    title: string,
+    message: string,
+    options?: { isError?: boolean; onOk?: () => void }
+  ) => {
+    setFeedbackModal({
+      visible: true,
+      title,
+      message,
+      isError: options?.isError ?? false,
+      onOk: options?.onOk,
+    });
+  };
 
   useEffect(() => {
+    let isMounted = true;
     if (!id) return;
+
     getCustomerOrder(id)
       .then((data) => {
-        setOrder(data);
+        if (isMounted) setOrder(data);
       })
       .catch(() => {
-        showAlert('Erro', 'Não foi possível carregar os dados do pedido.', () =>
-          router.back()
-        );
+        if (isMounted) {
+          showFeedback('Erro', 'Não foi possível carregar os dados do pedido.', {
+            isError: true,
+            onOk: () => router.back(),
+          });
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [id, router]);
 
   const handleToggleItem = (itemId: string | number, maxQty: number) => {
+    if (maxQty <= 0) return;
     const key = String(itemId);
     setSelectedItems((prev) => {
       const current = prev[key] || 0;
@@ -102,27 +138,38 @@ export default function OrderReturnScreen() {
 
   const pickImage = async () => {
     if (photos.length >= 3) {
-      showAlert('Limite de fotos', 'Você pode adicionar no máximo 3 fotos.');
+      showFeedback('Limite de fotos', 'Você pode adicionar no máximo 3 fotos.', {
+        isError: true,
+      });
       return;
     }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      showAlert(
+      showFeedback(
         'Permissão necessária',
-        'Precisamos de permissão para acessar a galeria.'
+        'Precisamos de permissão para acessar a galeria.',
+        { isError: true }
       );
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0]?.uri) {
-      setPhotos((prev) => [...prev, result.assets[0].uri]);
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      const asset = result.assets[0];
+      setPhotos((prev) => [
+        ...prev,
+        {
+          uri: asset.uri,
+          fileName: asset.fileName,
+          mimeType: asset.mimeType,
+        },
+      ]);
     }
   };
 
@@ -131,21 +178,25 @@ export default function OrderReturnScreen() {
   };
 
   const handleSubmitReturn = async () => {
-    if (!id) return;
+    if (!id || submitting) return;
     if (!selectedReason) {
-      showAlert('Atenção', 'Selecione o motivo da devolução.');
+      showFeedback('Atenção', 'Selecione o motivo da devolução.', {
+        isError: true,
+      });
       return;
     }
 
-    const itemsPayload = Object.entries(selectedItems).map(
-      ([order_item_id, quantity]) => ({
+    const itemsPayload = Object.entries(selectedItems)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([order_item_id, quantity]) => ({
         order_item_id: String(order_item_id),
         quantity,
-      })
-    );
+      }));
 
     if (itemsPayload.length === 0) {
-      showAlert('Atenção', 'Selecione ao menos um produto para devolver.');
+      showFeedback('Atenção', 'Selecione ao menos um produto para devolver.', {
+        isError: true,
+      });
       return;
     }
 
@@ -159,10 +210,14 @@ export default function OrderReturnScreen() {
         formData.append('items', JSON.stringify(itemsPayload));
 
         for (let idx = 0; idx < photos.length; idx++) {
-          const uri = photos[idx];
-          const filename = uri.split('/').pop() || `photo_${idx}.jpg`;
-          const match = /\.(\w+)$/.exec(filename);
-          const type = match ? `image/${match[1]}` : 'image/jpeg';
+          const asset = photos[idx];
+          const uri = asset.uri;
+          const rawExt = uri.split('?')[0].split('.').pop()?.toLowerCase();
+          const ext = rawExt && ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg';
+          const filename = asset.fileName || `return_photo_${idx + 1}.${ext}`;
+          const mimeType =
+            asset.mimeType ||
+            (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg');
 
           if (Platform.OS === 'web') {
             try {
@@ -173,14 +228,14 @@ export default function OrderReturnScreen() {
               formData.append('photos', {
                 uri,
                 name: filename,
-                type,
+                type: mimeType,
               } as any);
             }
           } else {
             formData.append('photos', {
               uri,
               name: filename,
-              type,
+              type: mimeType,
             } as any);
           }
         }
@@ -195,17 +250,21 @@ export default function OrderReturnScreen() {
         await requestCustomerReturn(id, payload);
       }
 
-      showAlert(
+      showFeedback(
         'Solicitação Enviada',
         'Devolução solicitada. A loja tem até 48h para analisar.',
-        () => router.back()
+        {
+          isError: false,
+          onOk: () => router.back(),
+        }
       );
     } catch (err: any) {
-      showAlert(
+      showFeedback(
         'Erro',
         err?.response?.data?.error ||
           err?.response?.data?.detail ||
-          'Não foi possível solicitar a devolução.'
+          'Não foi possível solicitar a devolução.',
+        { isError: true }
       );
     } finally {
       setSubmitting(false);
@@ -383,9 +442,9 @@ export default function OrderReturnScreen() {
             </View>
 
             <View style={styles.photosContainer}>
-              {photos.map((uri, idx) => (
+              {photos.map((photo, idx) => (
                 <View key={idx} style={styles.photoThumbWrapper}>
-                  <Image source={{ uri }} style={styles.photoImg} />
+                  <Image source={{ uri: photo.uri }} style={styles.photoImg} />
                   <TouchableOpacity
                     style={styles.removePhotoBtn}
                     onPress={() => removePhoto(idx)}
@@ -445,6 +504,53 @@ export default function OrderReturnScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal de Feedback Padrão */}
+      <Modal
+        visible={feedbackModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setFeedbackModal((prev) => ({ ...prev, visible: false }))
+        }
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View
+              style={[
+                styles.modalIconCircle,
+                feedbackModal.isError && styles.modalIconDanger,
+              ]}
+            >
+              <Ionicons
+                name={
+                  feedbackModal.isError
+                    ? 'alert-circle-outline'
+                    : 'checkmark-circle-outline'
+                }
+                size={28}
+                color={feedbackModal.isError ? '#BA1A1A' : '#1B2A41'}
+              />
+            </View>
+            <Text style={styles.modalTitle}>{feedbackModal.title}</Text>
+            <Text style={styles.modalMessage}>{feedbackModal.message}</Text>
+            <TouchableOpacity
+              style={[
+                styles.modalOkBtn,
+                feedbackModal.isError && styles.modalOkBtnDanger,
+              ]}
+              activeOpacity={0.88}
+              onPress={() => {
+                const callback = feedbackModal.onOk;
+                setFeedbackModal((prev) => ({ ...prev, visible: false }));
+                callback?.();
+              }}
+            >
+              <Text style={styles.modalOkBtnText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -705,5 +811,67 @@ const styles = StyleSheet.create({
     color: '#1B2A41',
     fontSize: 13,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EAEFF4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  modalIconDanger: {
+    backgroundColor: '#FDECEB',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1C252E',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 13.5,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  modalOkBtn: {
+    width: '100%',
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1B2A41',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalOkBtnDanger: {
+    backgroundColor: '#BA1A1A',
+  },
+  modalOkBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

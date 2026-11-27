@@ -1,7 +1,15 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { authService } from '../services/auth';
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, onRefreshFailure } from '../services/api';
 import { getToken, saveToken, deleteToken } from '../utils/storage';
+import { setAddressStorageUserId } from '../utils/addressStorage';
 
 interface User {
   id: number;
@@ -50,12 +58,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const applyUser = useCallback((rawUser: any) => {
+    const formatted = formatUser(rawUser);
+    setAddressStorageUserId(formatted?.id ?? null);
+    setUser(formatted);
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await authService.logout();
     } catch {}
     await deleteToken(ACCESS_TOKEN_KEY);
     await deleteToken(REFRESH_TOKEN_KEY);
+    setAddressStorageUserId(null);
     setUser(null);
   }, []);
 
@@ -67,71 +82,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = await getToken(ACCESS_TOKEN_KEY);
         if (token && active) {
           const userData = await authService.me();
-          if (active) setUser(formatUser(userData));
+          if (active) applyUser(userData);
         } else if (active) {
-          setUser(null);
+          applyUser(null);
         }
       } catch {
-        if (active) setUser(null);
+        if (active) applyUser(null);
       } finally {
         if (active) setIsLoading(false);
       }
     };
 
-    restoreSession();
+    void restoreSession();
 
     const unsubscribe = onRefreshFailure(() => {
-      signOut();
+      void signOut();
     });
 
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [signOut]);
+  }, [applyUser, signOut]);
 
-  async function signIn(data: any) {
-    const tokens = await authService.login(data);
-    await saveToken(ACCESS_TOKEN_KEY, tokens.access);
-    await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
-    const userData = await authService.me();
-    setUser(formatUser(userData));
-  }
-
-  async function signUp(data: any) {
-    const response = await authService.register(data);
-
-    if (response?.access && response?.refresh) {
-      await saveToken(ACCESS_TOKEN_KEY, response.access);
-      await saveToken(REFRESH_TOKEN_KEY, response.refresh);
+  const signIn = useCallback(
+    async (data: any) => {
+      const tokens = await authService.login(data);
+      await saveToken(ACCESS_TOKEN_KEY, tokens.access);
+      await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
       const userData = await authService.me();
-      setUser(formatUser(userData));
-    } else {
-      await signIn({ email: data.email, password: data.password });
-    }
-  }
+      applyUser(userData);
+    },
+    [applyUser],
+  );
 
-  async function signInWithGoogle(idToken: string) {
-    const tokens = await authService.loginWithGoogle(idToken);
-    await saveToken(ACCESS_TOKEN_KEY, tokens.access);
-    await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
-    const userData = await authService.me();
-    setUser(formatUser(userData));
-  }
+  const signUp = useCallback(
+    async (data: any) => {
+      const response = await authService.register(data);
 
-  async function updateProfile(data: any) {
+      if (response?.access && response?.refresh) {
+        await saveToken(ACCESS_TOKEN_KEY, response.access);
+        await saveToken(REFRESH_TOKEN_KEY, response.refresh);
+        const userData = await authService.me();
+        applyUser(userData);
+      } else {
+        await signIn({ email: data.email, password: data.password });
+      }
+    },
+    [applyUser, signIn],
+  );
+
+  const signInWithGoogle = useCallback(
+    async (idToken: string) => {
+      const tokens = await authService.loginWithGoogle(idToken);
+      await saveToken(ACCESS_TOKEN_KEY, tokens.access);
+      await saveToken(REFRESH_TOKEN_KEY, tokens.refresh);
+      const userData = await authService.me();
+      applyUser(userData);
+    },
+    [applyUser],
+  );
+
+  const updateProfile = useCallback(async (data: any) => {
     const updatedUser = await authService.updateProfile(data);
     setUser((prev) => formatUser({ ...prev, ...updatedUser }));
-  }
+  }, []);
 
-  async function updateOlfactoryProfile(data: OlfactoryProfile) {
+  const updateOlfactoryProfile = useCallback(async (data: OlfactoryProfile) => {
     const response = await authService.updateOlfactoryProfile(data);
     setUser((prev) => {
       const merged = {
         ...prev,
         ...response,
         olfactory_families:
-          Array.isArray(response?.olfactory_families) && response.olfactory_families.length > 0
+          Array.isArray(response?.olfactory_families) &&
+          response.olfactory_families.length > 0
             ? response.olfactory_families
             : data.olfactory_families,
         preferred_notes:
@@ -141,25 +166,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       return formatUser(merged);
     });
-  }
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: user !== null,
-        isLoading,
-        signIn,
-        signUp,
-        signInWithGoogle,
-        signOut,
-        updateProfile,
-        updateOlfactoryProfile,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      isLoading,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      signOut,
+      updateProfile,
+      updateOlfactoryProfile,
+    }),
+    [
+      user,
+      isLoading,
+      signIn,
+      signUp,
+      signInWithGoogle,
+      signOut,
+      updateProfile,
+      updateOlfactoryProfile,
+    ],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);

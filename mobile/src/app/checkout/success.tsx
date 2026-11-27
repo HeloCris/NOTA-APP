@@ -20,16 +20,20 @@ export default function OrderSuccessScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
 
-  const orderId = (params.order_id as string) || '48213';
+  const orderId = (params.order_id as string) || '';
   const orderCount = Number(params.order_count) || 1;
   const orderCodes = (params.order_codes as string) || '';
-  const totalAmount = (params.total_amount as string) || '27,92';
+  const totalAmount = (params.total_amount as string) || '0,00';
   const shippingService = (params.shipping_service as string) || 'SEDEX';
+  const shippingEstimate = (params.shipping_estimate as string) || '1 a 3 dias úteis';
 
-  let addressStreet = 'Rua Presidente Epitácio Pessoa, 98';
+  let addressStreet = 'Endereço de entrega confirmado';
   try {
     if (params.address) {
-      const parsed = typeof params.address === 'string' ? JSON.parse(params.address) : params.address;
+      const parsed =
+        typeof params.address === 'string'
+          ? JSON.parse(params.address)
+          : params.address;
       if (parsed?.street && parsed?.number) {
         addressStreet = `${parsed.street}, ${parsed.number}`;
       }
@@ -92,9 +96,11 @@ export default function OrderSuccessScreen() {
           <View style={styles.card}>
             {/* Linha Pedido */}
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{orderCount > 1 ? 'Pedidos' : 'Pedido'}</Text>
+              <Text style={styles.infoLabel}>
+                {orderCount > 1 ? 'Pedidos' : 'Pedido'}
+              </Text>
               <Text style={styles.orderNumberText}>
-                {orderCodes ? orderCodes : `#NOTA-${orderId}`}
+                {orderCodes ? orderCodes : orderId ? `#NOTA-${orderId}` : 'Confirmado'}
               </Text>
             </View>
 
@@ -113,7 +119,7 @@ export default function OrderSuccessScreen() {
             {/* Linha Previsão */}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Previsão ({shippingService})</Text>
-              <Text style={styles.infoValueBold}>23 a 26 out</Text>
+              <Text style={styles.infoValueBold}>{shippingEstimate}</Text>
             </View>
 
             <View style={styles.divider} />

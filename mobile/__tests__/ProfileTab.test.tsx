@@ -13,8 +13,14 @@ jest.mock('expo-router', () => ({
     replace: mockReplace,
     back: jest.fn(),
   }),
-
   Link: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+jest.mock('@/hooks/use-unread-notifications', () => ({
+  useUnreadNotifications: () => ({
+    unreadCount: 0,
+    refresh: jest.fn(),
+  }),
 }));
 
 let mockUser: any = null;
@@ -108,7 +114,7 @@ describe('Aba Minha Conta - RF-07', () => {
     await fireEvent.press(getByLabelText('Editar dados pessoais'));
     expect(getByText('Editar dados pessoais')).toBeTruthy();
     expect(getByPlaceholderText('Ana Ferreira').props.value).toBe('Ana Ferreira');
-    expect(getByPlaceholderText('(11) 99999-0000').props.value).toBe('11999990000');
+    expect(getByPlaceholderText('(11) 99999-0000').props.value).toBe('(11) 99999-0000');
 
     await fireEvent.changeText(getByPlaceholderText('Ana Ferreira'), 'Ana Beatriz Souza');
     await fireEvent.changeText(getByPlaceholderText('(11) 99999-0000'), '11988887777');
@@ -118,7 +124,7 @@ describe('Aba Minha Conta - RF-07', () => {
       expect(mockUpdateProfile).toHaveBeenCalledWith({
         first_name: 'Ana',
         last_name: 'Beatriz Souza',
-        phone: '11988887777',
+        phone: '(11) 98888-7777',
       })
     );
     await waitFor(() =>

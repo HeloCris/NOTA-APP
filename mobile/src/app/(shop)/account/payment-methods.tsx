@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
   Modal,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -35,7 +34,6 @@ export default function PaymentMethodsScreen() {
   const [cards, setCards] = useState<SavedPaymentCard[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal para adicionar cartão
   const [modalVisible, setModalVisible] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
   const [holderName, setHolderName] = useState('');
@@ -46,7 +44,19 @@ export default function PaymentMethodsScreen() {
 
   const brandInfo = detectCardBrand(cardNumber);
 
-  // Carrega cartões reais e dados do usuário logado
+  const resetFormFields = () => {
+    setCardNumber('');
+    setExpiryDate('');
+    setCvv('');
+    setIsDefaultNew(false);
+    setFormError('');
+  };
+
+  const handleCloseModal = () => {
+    resetFormFields();
+    setModalVisible(false);
+  };
+
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -113,15 +123,19 @@ export default function PaymentMethodsScreen() {
   };
 
   const handleFormatCvv = (text: string) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 3);
+    const cleaned = text.replace(/\D/g, '').slice(0, 4);
     setCvv(cleaned);
     if (formError) setFormError('');
   };
 
   const handleSaveCard = async () => {
     const digitsOnly = cardNumber.replace(/\D/g, '');
-    if (digitsOnly.length < 13 || digitsOnly.length > 16) {
-      setFormError('Número do cartão inválido (deve ter 16 dígitos).');
+    const isAmex = brandInfo.name === 'AMEX';
+    const expectedDigits = isAmex ? 15 : 16;
+    const expectedCvv = isAmex ? 4 : 3;
+
+    if (digitsOnly.length < expectedDigits) {
+      setFormError(`Número do cartão inválido (deve ter ${expectedDigits} dígitos).`);
       return;
     }
     if (!holderName.trim() || holderName.trim().split(/\s+/).length < 2) {
@@ -132,13 +146,16 @@ export default function PaymentMethodsScreen() {
       setFormError('Data de validade incompleta (MM/AA).');
       return;
     }
-    if (cvv.length !== 3) {
-      setFormError('O código CVV deve ter 3 dígitos.');
+    if (cvv.length < expectedCvv) {
+      setFormError(`O código CVV deve ter ${expectedCvv} dígitos.`);
       return;
     }
 
     const last4Digits = digitsOnly.slice(-4);
-    const brandName = brandInfo.name === 'CARTÃO' ? 'Cartão' : (brandInfo.name.charAt(0) + brandInfo.name.slice(1).toLowerCase() as any);
+    const brandName =
+      brandInfo.name === 'CARTÃO'
+        ? 'Cartão'
+        : ((brandInfo.name.charAt(0) + brandInfo.name.slice(1).toLowerCase()) as any);
 
     try {
       const updated = await addOrUpdateCard({
@@ -150,14 +167,7 @@ export default function PaymentMethodsScreen() {
       });
 
       setCards(updated);
-
-      // Resetar form
-      setCardNumber('');
-      setExpiryDate('');
-      setCvv('');
-      setIsDefaultNew(false);
-      setFormError('');
-      setModalVisible(false);
+      handleCloseModal();
     } catch (err) {
       console.error('Erro ao salvar cartão:', err);
     }
@@ -171,7 +181,13 @@ export default function PaymentMethodsScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(shop)/account' as never);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={21} color="#1C252E" />
@@ -195,7 +211,10 @@ export default function PaymentMethodsScreen() {
           <TouchableOpacity
             style={styles.addBtn}
             activeOpacity={0.88}
-            onPress={() => setModalVisible(true)}
+            onPress={() => {
+              resetFormFields();
+              setModalVisible(true);
+            }}
           >
             <Ionicons name="card-outline" size={20} color="#FFFFFF" />
             <Text style={styles.addBtnText}>Adicionar Novo Cartão</Text>
@@ -229,7 +248,7 @@ export default function PaymentMethodsScreen() {
                   {/* Top Row: Bandeira & Badge de Padrão */}
                   <View style={styles.cardTopRow}>
                     <View style={styles.brandRow}>
-                      <CardBrandLogo brand={(card.brand.toUpperCase() as any)} />
+                      <CardBrandLogo brand={card.brand.toUpperCase() as any} />
                       <Text style={styles.brandTitle}>
                         {card.brand} •••• {card.last4}
                       </Text>
@@ -291,14 +310,14 @@ export default function PaymentMethodsScreen() {
         visible={modalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleCloseModal}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxWidth: containerWidth - 32 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Novo Cartão de Crédito</Text>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
+                onPress={handleCloseModal}
                 activeOpacity={0.6}
               >
                 <Ionicons name="close" size={22} color="#6B7280" />
@@ -371,7 +390,7 @@ export default function PaymentMethodsScreen() {
                     secureTextEntry
                     value={cvv}
                     onChangeText={handleFormatCvv}
-                    maxLength={3}
+                    maxLength={4}
                   />
                 </View>
               </View>
@@ -402,7 +421,7 @@ export default function PaymentMethodsScreen() {
                 <TouchableOpacity
                   style={styles.modalCancelBtn}
                   activeOpacity={0.7}
-                  onPress={() => setModalVisible(false)}
+                  onPress={handleCloseModal}
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
@@ -442,8 +461,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 24,
   },
-
-  // --- Header ---
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,8 +498,6 @@ const styles = StyleSheet.create({
     color: '#78716C',
     marginTop: 1,
   },
-
-  // --- Botão Adicionar ---
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -505,8 +520,6 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '700',
   },
-
-  // --- Cards ---
   cardList: {
     paddingHorizontal: 18,
     gap: 14,
@@ -537,14 +550,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EFF4F8',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   brandTitle: {
     fontSize: 15,
@@ -608,8 +613,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontWeight: '500',
   },
-
-  // --- Dica de Segurança ---
   securityBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -627,8 +630,6 @@ const styles = StyleSheet.create({
     color: '#5C6B4E',
     fontWeight: '500',
   },
-
-  // --- Modal ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
@@ -742,6 +743,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 30,
+    marginHorizontal: 18,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#EFEBE2',

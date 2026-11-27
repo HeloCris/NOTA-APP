@@ -9,9 +9,9 @@ export interface HomeProductItem {
   concentration?: string;
   gender?: string;
   image_url?: string;
-  min_price: number | null;
+  min_price: number | string | null;
   has_decant: boolean;
-  match_percentage: number | null;
+  match_percentage: number | string | null;
   sold_count: number;
 }
 
@@ -25,7 +25,7 @@ export interface HomeStoreItem {
   state?: string;
   is_official: boolean;
   followers_count: number;
-  rating: number | null;
+  rating: number | string | null;
   reviews_count: number;
 }
 
@@ -129,7 +129,7 @@ export interface Store {
   vacation_mode: boolean;
   is_verified?: boolean;
   is_official?: boolean;
-  rating?: number;
+  rating?: number | string;
   reviews_count?: number;
   products_count?: number;
   followers_count?: number;
@@ -170,7 +170,7 @@ export interface ProductStoreOffer {
 export interface ProductDetails {
   id: number;
   name: string;
-  brand: ProductBrand;
+  brand: ProductBrand | string;
   concentration?: string;
   gender?: string;
   olfactory_family: string;
@@ -187,9 +187,9 @@ export interface ProductDetails {
   store_state?: string;
   store_offers?: ProductStoreOffer[];
   available_volumes?: number[];
-  min_price?: number | null;
+  min_price?: number | string | null;
   // Campos da RF-20 (Match Olfativo)
-  match_percentage?: number | null;
+  match_percentage?: number | string | null;
   matched_notes?: string[];
   matched_family?: boolean;
 }
@@ -201,7 +201,7 @@ export interface FollowingStore {
   logo_url?: string;
   is_official: boolean;
   followers_count: number;
-  rating: number;
+  rating: number | string;
   followed_at: string;
 }
 
@@ -209,7 +209,7 @@ export interface CouponValidationResponse {
   valid: boolean;
   coupon_id?: number;
   code?: string;
-  discount_type?: "PERCENTAGE" | "FIXED_VALUE";
+  discount_type?: 'PERCENTAGE' | 'FIXED_VALUE';
   discount_value?: string;
   applied_discount?: string;
   new_subtotal?: string;
@@ -217,7 +217,7 @@ export interface CouponValidationResponse {
 }
 
 export interface ShippingMethodQuote {
-  id: "PAC" | "SEDEX";
+  id: 'PAC' | 'SEDEX';
   name: string;
   price: number;
   handling_days: number;
@@ -236,7 +236,7 @@ export interface ShippingQuoteResponse {
   origin_postal_code: string;
   destination_state: string;
   destination_postal_code: string;
-  region_tier: "LOCAL" | "NATIONAL";
+  region_tier: 'LOCAL' | 'NATIONAL';
   region_description: string;
   handling_days: number;
   free_shipping_threshold: number | null;
@@ -293,7 +293,7 @@ export const storesService = {
 
   getStoreProducts: async (id: number | string, params?: StoreProductsParams): Promise<StoreProduct[]> => {
     const response = await api.get(`/stores/${id}/products/`, { params });
-    return response.data;
+    return Array.isArray(response.data) ? response.data : response.data?.results ?? [];
   },
 
   getProducts: async (params?: ProductSearchParams): Promise<ProductDetails[]> => {

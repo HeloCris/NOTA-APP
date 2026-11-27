@@ -1,10 +1,11 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 const mockGetStore = jest.fn();
 const mockGetStoreProducts = jest.fn();
+const mockRegisterView = jest.fn();
 
 const store = {
   id: 7,
@@ -46,16 +47,37 @@ jest.mock('expo-router', () => ({
     navigate: mockNavigate,
     canGoBack: () => true,
   }),
+  useFocusEffect: (cb: any) => {
+    const React = require('react');
+    const ran = React.useRef(false);
+    React.useEffect(() => {
+      if (!ran.current) {
+        ran.current = true;
+        return cb();
+      }
+    }, []);
+  },
 }));
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
-  return { SafeAreaView: ({ children, ...props }: any) => <View {...props}>{children}</View> };
+  return {
+    SafeAreaView: ({ children, ...props }: any) => <View {...props}>{children}</View>,
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  };
 });
 
-jest.mock('@expo/vector-icons', () => ({
-  MaterialIcons: () => null,
-}));
+jest.mock('@expo/vector-icons', () => {
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (prop === '__esModule') return true;
+        return () => null;
+      },
+    },
+  );
+});
 
 jest.mock('expo-image', () => ({
   Image: 'Image',
@@ -63,15 +85,18 @@ jest.mock('expo-image', () => ({
 
 jest.mock('react-native', () => {
   const React = require('react');
-  const TestFlatList = ({ data, ListHeaderComponent, ListEmptyComponent, renderItem }: any) => {
+  const TestFlatList = ({ data = [], ListHeaderComponent, ListEmptyComponent, renderItem }: any) => {
     const header = React.isValidElement(ListHeaderComponent)
       ? ListHeaderComponent
       : typeof ListHeaderComponent === 'function'
         ? React.createElement(ListHeaderComponent)
         : null;
-    const content = data.length > 0
-      ? data.map((item: any, index: number) => React.createElement(React.Fragment, { key: index }, renderItem({ item, index })))
-      : ListEmptyComponent;
+    const content =
+      data.length > 0
+        ? data.map((item: any, index: number) =>
+            React.createElement(React.Fragment, { key: index }, renderItem({ item, index })),
+          )
+        : ListEmptyComponent;
 
     return React.createElement('View', null, header, content);
   };
@@ -81,24 +106,53 @@ jest.mock('react-native', () => {
     }
   }
   const primitive = (name: string) => name;
-  return {
+  const base: Record<string, any> = {
     ActivityIndicator: primitive('ActivityIndicator'),
-    Animated: { Value: TestValue, FlatList: TestFlatList, event: () => jest.fn() },
+    Alert: { alert: jest.fn() },
+    Animated: {
+      Value: TestValue,
+      FlatList: TestFlatList,
+      View: primitive('Animated.View'),
+      Text: primitive('Animated.Text'),
+      ScrollView: primitive('Animated.ScrollView'),
+      event: () => jest.fn(),
+      timing: () => ({ start: jest.fn() }),
+      spring: () => ({ start: jest.fn() }),
+    },
+    Dimensions: {
+      get: () => ({ width: 390, height: 844 }),
+      addEventListener: () => ({ remove: jest.fn() }),
+    },
+    FlatList: TestFlatList,
+    Image: primitive('Image'),
+    Modal: ({ visible, children }: any) => (visible ? React.createElement('View', null, children) : null),
     Pressable: primitive('Pressable'),
     Platform: { OS: 'ios', select: (options: any) => options.ios ?? options.default },
+    RefreshControl: primitive('RefreshControl'),
+    ScrollView: primitive('ScrollView'),
     StatusBar: primitive('StatusBar'),
     StyleSheet: { create: (styles: any) => styles, flatten: (style: any) => style },
     Text: primitive('Text'),
     TextInput: primitive('TextInput'),
     TouchableOpacity: primitive('TouchableOpacity'),
     View: primitive('View'),
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
   };
+
+  return new Proxy(base, {
+    get(target, prop: string) {
+      if (prop in target) return target[prop];
+      if (prop === '__esModule') return true;
+      return primitive(String(prop));
+    },
+  });
 });
 
 jest.mock('@/services/stores', () => ({
   storesService: {
     getStore: mockGetStore,
     getStoreProducts: mockGetStoreProducts,
+    registerView: mockRegisterView,
   },
 }));
 
@@ -188,19 +242,20 @@ describe('StorePage - RF-08', () => {
     jest.resetAllMocks();
     mockGetStore.mockResolvedValue(store);
     mockGetStoreProducts.mockResolvedValue(products);
+    mockRegisterView.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renderiza hero com capa, logo, nome e bio', async () => {
-    const { getByTestId, getByText } = await render(<StoreScreen />);
+    it('renderiza hero com capa, logo, nome e bio', async () => {
+    const { getByTestId, getByText, getAllByText } = await render(<StoreScreen />);
 
     await waitFor(() => expect(getByTestId('store-hero')).toBeTruthy());
     expect(getByText(store.cover_url)).toBeTruthy();
     expect(getByText(store.logo_url)).toBeTruthy();
-    expect(getByText(store.name)).toBeTruthy();
+    expect(getAllByText(store.name).length).toBeGreaterThanOrEqual(1);
     expect(getByText(store.bio)).toBeTruthy();
   });
 
