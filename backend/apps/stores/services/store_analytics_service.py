@@ -1,3 +1,4 @@
+import unicodedata
 from collections import Counter, defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -21,6 +22,34 @@ OFFICIAL_FAMILIES = [
     "Aquático",
     "Gourmand",
 ]
+
+STOPWORDS = {"de", "da", "do", "das", "dos", "e"}
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    ).lower().strip()
+
+
+def _note_words(note: str) -> Set[str]:
+    cleaned = _strip_accents(note).replace("-", " ")
+    return {w for w in cleaned.split() if w and w not in STOPWORDS}
+
+
+def _notes_match(note_a: str, note_b: str) -> bool:
+    if not note_a or not note_b:
+        return False
+    s_a = _strip_accents(note_a)
+    s_b = _strip_accents(note_b)
+    if s_a == s_b:
+        return True
+    w_a = _note_words(note_a)
+    w_b = _note_words(note_b)
+    if not w_a or not w_b:
+        return False
+    return w_a.issubset(w_b) or w_b.issubset(w_a)
 
 VALID_ORDER_STATUSES = [
     OrderStatus.PAID,
@@ -188,6 +217,15 @@ def build_store_analytics(store: Store, period: str = "30d") -> Dict[str, Any]:
     for offer in active_offers:
         my_notes.update(_product_notes(offer.product))
 
+    store_brand = getattr(store, "official_brand", None)
+    if store_brand:
+        for brand_product in Product.objects.filter(brand=store_brand, is_approved=True):
+            my_product_ids.add(brand_product.id)
+            fam = _normalized_family(brand_product.olfactory_family)
+            if fam:
+                my_families.add(fam)
+            my_notes.update(_product_notes(brand_product))
+
     approved_products = list(Product.objects.filter(is_approved=True).select_related("brand"))
 
     def suggest_products(family: Optional[str] = None, note: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -197,12 +235,12 @@ def build_store_analytics(store: Store, period: str = "30d") -> Dict[str, Any]:
                 continue
             if family is not None and _normalized_family(product.olfactory_family) != family:
                 continue
-            if note is not None and note not in _product_notes(product):
+            if note is not None and not any(_notes_match(note, p_note) for p_note in _product_notes(product)):
                 continue
             suggestions.append({
                 "id": product.id,
                 "name": product.name,
-                "brand_name": product.brand.name,
+                "brand_name": product.brand.name if product.brand else "",
             })
             if len(suggestions) == 2:
                 break
@@ -249,7 +287,9 @@ def build_store_analytics(store: Store, period: str = "30d") -> Dict[str, Any]:
         })
 
     for note, count in note_counts.most_common(10):
-        if note in my_notes:
+        # Check if the store offers this note or any of its variations
+        has_note = any(_notes_match(note, my_note) for my_note in my_notes)
+        if has_note:
             continue
         share = round(count / max(customers_with_notes, 1) * 100)
         catalog_gaps.append({

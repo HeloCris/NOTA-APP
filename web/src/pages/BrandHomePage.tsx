@@ -57,6 +57,7 @@ export function BrandHomePage() {
   const changeTab = (tab: TabType) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
+    next.delete("q");
     setActiveTab(tab);
     setSearchParams(next);
   };
