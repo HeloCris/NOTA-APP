@@ -115,7 +115,7 @@ export function SellerHomePage() {
         <nav className="flex-1 px-3.5 py-3 flex flex-col justify-start gap-1 overflow-y-auto">
           <div className="my-auto flex flex-col gap-1.5 w-full">
             <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
-            <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
+            <NavLink id="catalog" icon="#ic-box" label="Estoque & Vendas" />
             <NavLink id="orders" icon="#ic-box" label="Pedidos" />
             <NavLink id="coupons" icon="#ic-coupon" label="Cupons" />
             <NavLink id="metrics" icon="#ic-chart" label="Métricas" />

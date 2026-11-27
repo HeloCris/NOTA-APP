@@ -192,7 +192,7 @@ export function AddProductModal({
                     {product.name}
                   </p>
                   <p className="truncate text-xs text-[#93927F]">
-                    {product.brand.name} · {product.olfactory_family}
+                    {(typeof product.brand === "object" ? product.brand?.name : product.brand) || ""} · {product.olfactory_family}
                   </p>
                 </div>
                 <button
