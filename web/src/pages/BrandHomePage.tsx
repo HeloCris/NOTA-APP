@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/useAuth";
