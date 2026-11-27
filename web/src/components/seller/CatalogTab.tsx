@@ -9,18 +9,26 @@ import { AddProductModal } from "./AddProductModal";
 import { InventoryTable } from "./InventoryTable";
 import { ProductDetailsModal } from "../common/ProductDetailsModal";
 import { CatalogPickerModal } from "./CatalogPickerModal";
+import { CustomSelect } from "../common/CustomSelect";
 
 interface CatalogTabProps {
     store: Store | null;
     initialSearch?: string;
 }
 
-const statusSelectBg = {
-    backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393927F' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 8px center",
-    backgroundSize: "11px",
-};
+const STATUS_OPTIONS = [
+    { value: "", label: "Status: Todos" },
+    { value: "active", label: "Ativos" },
+    { value: "inactive", label: "Inativos" },
+    { value: "low_stock", label: "Estoque baixo (<3)" },
+];
+
+const SEARCH_FILTER_OPTIONS = [
+    { value: "all", label: "Tudo" },
+    { value: "name", label: "Nome" },
+    { value: "note", label: "Nota" },
+    { value: "family", label: "Família" },
+];
 
 const formatBRL = (value: string): string =>
     new Intl.NumberFormat("pt-BR", {
@@ -232,34 +240,24 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                             </button>
                         </div>
 
-                        {/* Status Select Compacto */}
-                        <select
-                            aria-label="Filtrar por status"
-                            className="appearance-none font-inter text-[11.5px] font-bold text-[#5A6067] bg-[#FAF9F5] border border-[#E6E1D2] rounded-lg py-1.5 pl-2.5 pr-6 cursor-pointer outline-none focus:border-[#354B5E]"
-                            style={statusSelectBg}
+                        {/* Status Select Personalizado e Arredondado */}
+                        <CustomSelect
+                            ariaLabel="Filtrar por status"
                             value={status}
-                            onChange={(event) => setStatus(event.target.value)}
-                        >
-                            <option value="">Status: Todos</option>
-                            <option value="active">Ativos</option>
-                            <option value="inactive">Inativos</option>
-                            <option value="low_stock">Estoque baixo (&lt;3)</option>
-                        </select>
+                            onChange={setStatus}
+                            options={STATUS_OPTIONS}
+                        />
                     </div>
 
                     {/* Campo de Busca Unificado com Dropdown de Filtro Integrado */}
-                    <div className="flex items-center flex-1 max-w-sm sm:max-w-md bg-[#FAF9F5] border border-[#E6E1D2] rounded-lg focus-within:border-[#354B5E] focus-within:bg-white transition-all overflow-hidden ml-auto">
-                        <select
-                            aria-label="Filtrar busca por"
-                            className="bg-transparent text-[11.5px] font-bold text-[#5A6067] py-1.5 px-2.5 border-r border-[#E6E1D2] outline-none cursor-pointer hover:text-[#263847]"
+                    <div className="flex items-center flex-1 max-w-sm sm:max-w-md bg-[#FAF9F5] border border-[#E6E1D2] rounded-lg focus-within:border-[#354B5E] focus-within:bg-white transition-all ml-auto">
+                        <CustomSelect
+                            ariaLabel="Filtrar busca por"
                             value={searchFilter}
-                            onChange={(event) => setSearchFilter(event.target.value as any)}
-                        >
-                            <option value="all">Tudo</option>
-                            <option value="name">Nome</option>
-                            <option value="note">Nota</option>
-                            <option value="family">Família</option>
-                        </select>
+                            onChange={(val) => setSearchFilter(val as any)}
+                            options={SEARCH_FILTER_OPTIONS}
+                            variant="attached"
+                        />
                         <div className="relative flex-1 flex items-center">
                             <svg className="w-3.5 h-3.5 text-[#93927F] absolute left-2.5 pointer-events-none">
                                 <use href="#ic-search" />

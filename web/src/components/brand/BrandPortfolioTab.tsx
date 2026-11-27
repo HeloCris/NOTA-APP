@@ -3,8 +3,16 @@ import { brandService } from '../../services/brandService';
 import type { Product } from '../../types/catalog';
 import { ProductFormModal } from './ProductFormModal';
 import { ProductDetailsModal } from '../common/ProductDetailsModal';
+import { CustomSelect } from '../common/CustomSelect';
 
 type SearchFilterType = 'all' | 'name' | 'note' | 'family';
+
+const SEARCH_FILTER_OPTIONS = [
+  { value: 'all', label: 'Tudo' },
+  { value: 'name', label: 'Nome' },
+  { value: 'note', label: 'Nota' },
+  { value: 'family', label: 'Família' },
+];
 
 interface BrandPortfolioTabProps {
   initialSearch?: string;
@@ -147,18 +155,14 @@ export function BrandPortfolioTab({ initialSearch = '' }: BrandPortfolioTabProps
         </div>
 
         {/* Campo de Busca Unificado com Dropdown de Filtro Integrado */}
-        <div className="flex items-center flex-1 max-w-sm sm:max-w-md bg-[#FAF9F5] border border-[#E6E1D2] rounded-lg focus-within:border-[#354B5E] focus-within:bg-white transition-all overflow-hidden ml-auto">
-          <select
-            aria-label="Filtrar busca por"
-            className="bg-transparent text-[11.5px] font-bold text-[#5A6067] py-1.5 px-2.5 border-r border-[#E6E1D2] outline-none cursor-pointer hover:text-[#263847]"
+        <div className="flex items-center flex-1 max-w-sm sm:max-w-md bg-[#FAF9F5] border border-[#E6E1D2] rounded-lg focus-within:border-[#354B5E] focus-within:bg-white transition-all ml-auto">
+          <CustomSelect
+            ariaLabel="Filtrar busca por"
             value={searchFilter}
-            onChange={(event) => setSearchFilter(event.target.value as SearchFilterType)}
-          >
-            <option value="all">Tudo</option>
-            <option value="name">Nome</option>
-            <option value="note">Nota</option>
-            <option value="family">Família</option>
-          </select>
+            onChange={(val) => setSearchFilter(val as SearchFilterType)}
+            options={SEARCH_FILTER_OPTIONS}
+            variant="attached"
+          />
           <div className="relative flex-1 flex items-center">
             <svg className="w-3.5 h-3.5 text-[#93927F] absolute left-2.5 pointer-events-none">
               <use href="#ic-search" />
