@@ -83,17 +83,17 @@ export function InventoryTable({
   }
 
   return (
-    <div className="bg-white border border-[#EFEBDD] rounded-[20px] shadow-[0_1px_3px_rgba(35,40,45,0.06)] overflow-hidden">
+    <div className="bg-white border border-[#EFEBDD] rounded-xl shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
-            <tr>
-              <th className="text-left text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Produto</th>
-              <th className="text-left text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Volume</th>
-              <th className="text-left text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Preço</th>
-              <th className="text-left text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Estoque</th>
-              <th className="text-left text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Status</th>
-              <th className="text-right text-[10.5px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[12px_22px] border-b border-[#EFEBDD]">Ações</th>
+            <tr className="bg-[#FAF9F5]">
+              <th className="text-left text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Produto</th>
+              <th className="text-left text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Volume</th>
+              <th className="text-left text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Preço</th>
+              <th className="text-left text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Estoque</th>
+              <th className="text-left text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Status</th>
+              <th className="text-right text-[10px] tracking-[0.06em] uppercase text-[#93927F] font-bold p-[10px_16px] border-b border-[#EFEBDD]">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -110,17 +110,17 @@ export function InventoryTable({
                       : ""
                   }`}
                 >
-                  <td className="p-[14px_22px] align-middle">
-                    <div className="flex items-center gap-3">
+                  <td className="p-[10px_16px] align-middle">
+                    <div className="flex items-center gap-2.5">
                       <div
                         onClick={() => onViewDetails?.(item)}
-                        className={`w-[34px] h-[58px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded-lg overflow-hidden border border-[#E6E1D2] ${onViewDetails ? "cursor-pointer hover:border-[#354B5E] transition-colors" : ""}`}
+                        className={`w-[32px] h-[48px] flex items-center justify-center flex-shrink-0 bg-[#F5F3E9] rounded overflow-hidden border border-[#E6E1D2] ${onViewDetails ? "cursor-pointer hover:border-[#354B5E] transition-colors" : ""}`}
                         title={onViewDetails ? "Ver detalhes do perfume" : undefined}
                       >
                         {item.product.image_url ? (
                           <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
                         ) : (
-                          <svg className="h-[48px] w-auto"><use href="#bt-libre" /></svg>
+                          <svg className="h-[38px] w-auto"><use href="#bt-libre" /></svg>
                         )}
                       </div>
                       <div>
@@ -131,25 +131,25 @@ export function InventoryTable({
                         >
                           {item.product.name}
                         </div>
-                        <div className="text-[11px] text-[#93927F]">{item.product.brand}</div>
+                        <div className="text-[10.5px] text-[#93927F]">{item.product.brand}</div>
                       </div>
                     </div>
                   </td>
 
-                  <td className="p-[14px_22px] align-middle">
+                  <td className="p-[10px_16px] align-middle">
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center rounded-full bg-[#E9EDF0] text-[#354B5E] text-[11.5px] font-bold px-3 py-1">
+                      <span className="inline-flex items-center rounded-full bg-[#E9EDF0] text-[#354B5E] text-[11px] font-bold px-2.5 py-0.5">
                         {item.volume_ml}ml
                       </span>
                       {item.volume_ml <= 15 && (
-                        <span className="inline-flex items-center rounded-full bg-[#FFF4E5] text-[#8A5B22] text-[10.5px] font-bold px-2 py-0.5 border border-[#F0DDC5]">
+                        <span className="inline-flex items-center rounded-full bg-[#FFF4E5] text-[#8A5B22] text-[10px] font-bold px-2 py-0.5 border border-[#F0DDC5]">
                           Decant
                         </span>
                       )}
                     </div>
                   </td>
 
-                  <td className="p-[14px_22px] align-middle">
+                  <td className="p-[10px_16px] align-middle">
                     {isEditing ? (
                       <div className="flex flex-col gap-1.5 w-[140px]">
                         <input
@@ -212,7 +212,7 @@ export function InventoryTable({
                     )}
                   </td>
 
-                  <td className="p-[14px_22px] align-middle">
+                  <td className="p-[10px_16px] align-middle">
                     <div
                       aria-label={item.is_available ? "Perfume ativo" : "Perfume inativo"}
                       aria-pressed={item.is_available}
@@ -227,7 +227,7 @@ export function InventoryTable({
                     </div>
                   </td>
 
-                  <td className="p-[14px_22px] align-middle">
+                  <td className="p-[10px_16px] align-middle">
                     {isEditing ? (
                       <div className="flex gap-1.5 justify-end">
                         <button

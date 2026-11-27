@@ -162,7 +162,7 @@ export function CatalogPickerModal({
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
                 {products.map((p) => {
                   const brandName =
                     typeof p.brand === "object"
@@ -177,91 +177,92 @@ export function CatalogPickerModal({
                   return (
                     <div
                       key={p.id}
-                      className="bg-white border border-[#E6E1D2] rounded-2xl p-4 flex flex-col justify-between hover:border-[#354B5E] hover:shadow-md transition-all duration-200 group"
+                      className="bg-white border border-[#E6E1D2] rounded-xl p-2.5 flex flex-col justify-between hover:border-[#354B5E] hover:shadow-xs transition-all duration-150 group"
                     >
                       <div>
-                        {/* Imagem do Frasco */}
+                        {/* Imagem do Frasco Compacta */}
                         <div
                           onClick={() => setPreviewProduct(p)}
-                          className="w-full h-44 rounded-xl bg-[#F5F3E9] overflow-hidden flex items-center justify-center relative border border-[#EFEBDD] mb-3.5 cursor-pointer"
+                          className="w-full h-28 rounded-lg bg-[#F5F3E9] overflow-hidden flex items-center justify-center relative border border-[#EFEBDD] mb-2 cursor-pointer"
                           title="Clique para ver detalhes do perfume"
                         >
                           {p.image_url ? (
                             <img
                               src={p.image_url}
                               alt={p.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             />
                           ) : (
-                            <svg className="w-10 h-10 text-[#93927F]">
+                            <svg className="w-8 h-8 text-[#93927F]">
                               <use href="#ic-flask" />
                             </svg>
                           )}
 
-                          <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end">
+                          <div className="absolute top-1.5 right-1.5 flex flex-col gap-0.5 items-end">
                             {p.olfactory_family && (
-                              <span className="bg-white/95 backdrop-blur-sm text-[#263847] text-[10.5px] font-bold px-2 py-0.5 rounded-md border border-[#E6E1D2] shadow-xs">
+                              <span className="bg-white/95 backdrop-blur-sm text-[#263847] text-[9.5px] font-bold px-1.5 py-0.5 rounded border border-[#E6E1D2] shadow-xs">
                                 {p.olfactory_family}
                               </span>
                             )}
                             {p.concentration && (
-                              <span className="bg-[#354B5E]/90 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow-xs">
+                              <span className="bg-[#354B5E]/90 text-white text-[9px] font-extrabold px-1 py-0.5 rounded shadow-xs">
                                 {p.concentration}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Informações */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <span className="block text-[11px] font-extrabold uppercase tracking-[0.06em] text-[#93927F] truncate">
-                              {brandName}
-                            </span>
-                            <h3 className="text-[16px] font-extrabold text-[#263847] font-jakarta leading-snug mt-0.5 truncate">
+                        {/* Informações Compactas */}
+                        <div className="mb-1.5">
+                          <span className="block text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#93927F] truncate">
+                            {brandName}
+                          </span>
+                          <div className="flex items-start justify-between gap-1 mt-0.5">
+                            <h3 className="text-[13.5px] font-extrabold text-[#263847] font-jakarta leading-tight truncate flex-1" title={p.name}>
                               {p.name}
                             </h3>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewProduct(p)}
+                              title="Ver ficha técnica completa"
+                              aria-label={`Ver detalhes de ${p.name}`}
+                              className="w-6 h-6 rounded text-[#5A6067] hover:text-[#354B5E] hover:bg-[#E9EDF0] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                            >
+                              <svg className="w-3.5 h-3.5">
+                                <use href="#ic-eye-kpi" />
+                              </svg>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setPreviewProduct(p)}
-                            title="Ver ficha técnica completa"
-                            aria-label={`Ver detalhes de ${p.name}`}
-                            className="w-7 h-7 rounded-lg text-[#5A6067] hover:text-[#354B5E] hover:bg-[#E9EDF0] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
-                          >
-                            <svg className="w-4 h-4">
-                              <use href="#ic-eye-kpi" />
-                            </svg>
-                          </button>
                         </div>
 
-                        {/* Notas em Chips */}
+                        {/* Notas em Chips Compactas */}
                         {allNotes.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2.5">
-                            {allNotes.slice(0, 3).map((note) => (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {allNotes.slice(0, 2).map((note) => (
                               <span
                                 key={note}
-                                className="bg-[#F8F6F0] text-[#5A6067] text-[10.5px] font-medium px-2 py-0.5 rounded-md border border-[#EFEBDD]"
+                                className="bg-[#F8F6F0] text-[#5A6067] text-[9.5px] font-medium px-1.5 py-0.5 rounded border border-[#EFEBDD] truncate max-w-[85px]"
+                                title={note}
                               >
                                 {note}
                               </span>
                             ))}
-                            {allNotes.length > 3 && (
-                              <span className="text-[10px] text-[#93927F] font-bold self-center">
-                                +{allNotes.length - 3}
+                            {allNotes.length > 2 && (
+                              <span className="text-[9px] text-[#93927F] font-bold self-center">
+                                +{allNotes.length - 2}
                               </span>
                             )}
                           </div>
                         )}
                       </div>
 
-                      {/* Botão de Adição */}
+                      {/* Botão de Adição Compacto */}
                       <button
                         type="button"
                         onClick={() => onSelectProduct(p)}
-                        className="mt-4 w-full py-2.5 px-4 rounded-xl bg-[#354B5E] text-white hover:bg-[#263847] font-jakarta font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                        className="mt-2 w-full py-1.5 px-3 rounded-lg bg-[#354B5E] text-white hover:bg-[#263847] font-jakarta font-bold text-[11.5px] flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-xs"
                       >
-                        <svg className="w-3.5 h-3.5">
+                        <svg className="w-3 h-3">
                           <use href="#ic-plus" />
                         </svg>
                         Ofertar no meu estoque
