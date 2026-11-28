@@ -46,9 +46,9 @@ def calculate_review_summary(queryset):
 class CustomerReviewViewSet(viewsets.ModelViewSet):
     """
     Endpoints do cliente:
-    - POST /api/v1/reviews/ (criação multipart)
-    - PATCH /api/v1/reviews/{id}/ (edição única)
-    - DELETE /api/v1/reviews/{id}/ (exclusão lógica)
+- POST /api/v1/reviews/ (criação multipart)
+- PATCH /api/v1/reviews/{id}/ (edição única)
+- DELETE /api/v1/reviews/{id}/ (exclusão lógica)
     """
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -124,7 +124,7 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
         try:
             from apps.communication.services import notify_store
             if review.store:
-                notify_store(review.store, "Nova avaliação", f"Cliente avaliou {review.product.name if review.product else 'produto'}.", "NEW_REVIEW", f"/store/reviews")
+                notify_store(review.store, "Nova avaliação", f"Cliente avaliou {review.product.name if review.product else 'produto'}.", "NEW_REVIEW", "/store/reviews")
         except Exception:
             pass
 
@@ -186,8 +186,8 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
 class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Listagens públicas com filtros e resumo (RF-16.4 e RF-16.5):
-    - GET /api/v1/stores/{id}/reviews/
-    - GET /api/v1/stores/{id}/products/{product_id}/reviews/
+- GET /api/v1/stores/{id}/reviews/
+- GET /api/v1/stores/{id}/products/{product_id}/reviews/
     """
     serializer_class = ReviewSerializer
     permission_classes = [permissions.AllowAny]
@@ -249,8 +249,8 @@ class PublicReviewViewSet(viewsets.ReadOnlyModelViewSet):
 class StoreReviewViewSet(viewsets.GenericViewSet):
     """
     Visão do Lojista (RF-16.6):
-    - GET /api/v1/store/reviews/
-    - PUT /api/v1/store/reviews/{id}/reply/
+- GET /api/v1/store/reviews/
+- PUT /api/v1/store/reviews/{id}/reply/
     """
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -331,8 +331,18 @@ class StoreReviewViewSet(viewsets.GenericViewSet):
         try:
             from apps.communication.services import notify_user
             if review.user:
-                notify_user(review.user, "Loja respondeu sua avaliação", "A loja respondeu à sua avaliação.", "NEW_REVIEW", f"/(shop)/reviews")
+                target_url = (
+                    f"/store/{store.id}/product/{review.product_id}/reviews"
+                    if review.product_id
+                    else f"/store/{store.id}/reviews"
+                )
+                notify_user(
+                    review.user,
+                    "Loja respondeu sua avaliação",
+                    f"{store.name} respondeu à sua avaliação.",
+                    "NEW_REVIEW",
+                    target_url,
+                )
         except Exception:
             pass
         return Response(ReviewReplySerializer(reply).data, status=status.HTTP_200_OK)
-

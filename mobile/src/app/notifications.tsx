@@ -62,6 +62,25 @@ function formatDate(value: string): string {
   });
 }
 
+function resolveNotificationPath(notification: AppNotification): string | null {
+  const raw = notification.target_url?.trim();
+  if (!raw) {
+    return notification.type === 'NEW_REVIEW' ? '/orders' : null;
+  }
+
+  const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+
+  if (normalized === '/(shop)/reviews' || normalized === '/reviews') {
+    return '/orders';
+  }
+
+  if (normalized.startsWith('/(shop)/')) {
+    return normalized.replace('/(shop)', '');
+  }
+
+  return normalized;
+}
+
 export default function NotificationsScreen() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
@@ -141,14 +160,15 @@ export default function NotificationsScreen() {
     }
 
     const target = notification.target_url?.trim();
-    if (!target) return;
-
-    if (/^https?:\/\//i.test(target)) {
+    if (target && /^https?:\/\//i.test(target)) {
       Linking.openURL(target).catch(() => {});
-    } else {
-      const normalizedPath = target.startsWith('/') ? target : `/${target}`;
-      router.push(normalizedPath as never);
+      return;
     }
+
+    const resolvedPath = resolveNotificationPath(notification);
+    if (!resolvedPath) return;
+
+    router.push(resolvedPath as never);
   };
 
   const handleMarkAllRead = async () => {
