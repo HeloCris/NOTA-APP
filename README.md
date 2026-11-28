@@ -7,7 +7,7 @@
 
 <br/><br/>
 
-> *Ecossistema integrado de inteligência olfativa, comunidade e marketplace B2B/B2C para fragrâncias.*
+> *Ecossistema integrado de perfumaria fina e decanteria inteligente: recomendação olfativa, e-commerce B2C e portal de gestão B2B para lojistas e marcas de fragrâncias.*
 
 <br/>
 
@@ -20,10 +20,10 @@
 <br/>
 
 <!-- Badges -->
-![Status](https://img.shields.io/badge/Status-Em%20Desenvolvimento-c9a96e?style=for-the-badge&logo=circle&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Finalizado%20%2F%20Homologado-22c55e?style=for-the-badge&logo=checkmarx&logoColor=white)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Mobile%20%26%20Web-1a1a1a?style=for-the-badge)
 ![Modelo](https://img.shields.io/badge/Modelo-B2B%20%2F%20B2C-c9a96e?style=for-the-badge)
-![Versão](https://img.shields.io/badge/Versão-0.4.5--alpha-1a1a1a?style=for-the-badge)
+![Testes](https://img.shields.io/badge/Testes%20Unitários-300%2B%20Passando-38bdf8?style=for-the-badge)
 
 <br/>
 
@@ -41,9 +41,11 @@
 
 | # | Seção | Descrição |
 |:-:|:------|:----------|
-| [01](#-sobre-o-projeto) | **Sobre o Projeto** | Visão geral, problema e solução |
-| [02](#-equipe) | **Equipe** | As pessoas por trás do NŌTA |
-| [03](#-protótipo-do-app) | **Protótipo do App** | Primeiras telas e fluxos de navegação |
+| [01](#-sobre-o-projeto) | **Sobre o Projeto** | Visão do produto, problema real e solução integrada |
+| [02](#-galeria-visual-do-produto) | **Galeria Visual** | Telas reais do Aplicativo Mobile e do Portal Web |
+| [03](#-arquitetura--tecnologias) | **Arquitetura & Stack** | Estrutura técnica, APIs e testes automatizados |
+| [04](#-como-executar) | **Como Executar** | Instruções de inicialização do Backend, Web e Mobile |
+| [05](#-equipe) | **Equipe** | Integrantes responsáveis pelo desenvolvimento |
 
 </div>
 
@@ -58,13 +60,13 @@
 <br/>
 
 <div align="center">
-<img src="documentacoes/assets/logo.png" alt="NŌTA Logo" width="400"/>
+<img src="documentacoes/assets/logo.png" alt="NŌTA Logo" width="380"/>
 <br/><br/>
 </div>
 
-O **NŌTA** é uma plataforma multicanal que une inteligência artificial, comunidade e comércio em torno de um único universo: as fragrâncias.
+O **NŌTA** é uma plataforma multicanal especializada no universo da alta perfumaria e decants. O ecossistema conecta entusiastas de fragrâncias, lojistas especializados (boutiques e decanterias) e marcas oficiais (D2C) em uma experiência fluida, técnica e sensorial.
 
-O ecossistema é composto por um **aplicativo mobile voltado ao consumidor final** e um **portal web administrativo dedicado a marcas e casas de perfumaria**. Juntos, eles conectam quem ama perfumes a quem os cria — de forma técnica, sensorial e comercial.
+Diferente de um e-commerce genérico, o NŌTA entende a **pirâmide olfativa** de cada criação (notas de topo, coração e base), permitindo que o consumidor descubra fragrâncias compatíveis com seu gosto pessoal e adquira tanto **frascos lacrados** quanto **amostras e decants oficiais (2ml, 5ml e 10ml)** sem o risco financeiro de uma compra às cegas (*blind buy*).
 
 <br/>
 
@@ -76,16 +78,18 @@ O ecossistema é composto por um **aplicativo mobile voltado ao consumidor final
 <tr>
 <td width="50%" valign="top">
 
-**Para o Consumidor**
-
-A jornada de compra de perfumes é fragmentada entre redes sociais, enciclopédias técnicas e e-commerces. O alto risco financeiro das compras às cegas (*blind buy*) afasta pessoas que gostariam de explorar novos aromas, mas não têm um guia confiável.
+**Para o Consumidor (B2C)**
+- O alto custo de perfumes importados e de nicho torna as compras no escuro arriscadas.
+- Falta de ferramentas confiáveis que cruzem notas olfativas preferidas com produtos do mercado.
+- Dificuldade em encontrar decants autênticos e lojas verificadas com frete acessível e avaliações transparentes.
 
 </td>
 <td width="50%" valign="top">
 
-**Para Marcas & Casas de Perfumaria**
-
-Dificuldade em alcançar públicos qualificados com base em compatibilidade real de notas olfativas. Falta de canais diretos para comercializar frações e decants oficiais, e poucos recursos para educar o mercado sobre novos lançamentos.
+**Para Lojistas & Marcas (B2B)**
+- Ausência de canais especializados para catalogar e precificar decants e frações fracionadas.
+- Pouca visibilidade sobre as famílias e notas olfativas mais buscadas pelo público de cada região.
+- Canais de atendimento e pós-venda dispersos, sem rastreio de logística, devoluções e resposta pública a avaliações.
 
 </td>
 </tr>
@@ -97,33 +101,37 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<details>
-<summary><strong>📱 Aplicativo Mobile &nbsp;—&nbsp; B2C (Consumidor Final)</strong></summary>
+<details open>
+<summary><strong>📱 Aplicativo Mobile &nbsp;—&nbsp; Experiência B2C do Consumidor</strong></summary>
 
 <br/>
 
-| Funcionalidade | Descrição |
-|:--------------|:----------|
-| **Feed "For You" Olfativo** | Resenhas em vídeo e foto com tags interativas e índice de compatibilidade (*Match %*) em tempo real |
-| **Enciclopédia Completa** | Catálogo técnico com pirâmide olfativa (topo, coração e base), acordes e avaliações da comunidade |
-| **O Alquimista (IA)** | Algoritmo para cálculo de compatibilidade de *layering* e consultor olfativo conversacional |
-| **Decanteria & Shop** | Compra facilitada de frascos e decants (2ml, 5ml, 10ml) para testes sem risco financeiro |
-| **Perfil & Armário** | Gestão de coleção pessoal (*Tenho*, *Desejo*, *Decants*) e mapeamento do DNA olfativo |
+| Recurso | Descrição |
+|:---|:---|
+| **Perfil Olfativo & Match %** | Mapeamento das famílias favoritas (amadeirado, cítrico, floral, etc.) com cálculo dinâmico de compatibilidade olfativa em tempo real na vitrine. |
+| **Exploração Técnica & Notas** | Busca granular por famílias olfativas, notas de topo/coração/base, gênero, concentração e tipo de oferta (Frasco ou Decant). |
+| **Decanteria & Compra Segura** | Escolha de volumetrias fracionadas (2ml, 5ml, 10ml) ou frascos completos com cálculo de frete inteligente (PAC / SEDEX) e frete grátis por loja. |
+| **Gestão de Pedidos & Devoluções** | Acompanhamento do status de envio com código de rastreio e fluxo transparente de solicitação de devolução com fotos. |
+| **Avaliações com Fotos & Réplica** | Sistema de avaliação pós-entrega com notas, comentários, upload de fotos reais e destaque interativo da resposta oficial da loja. |
+| **Chat & Notificações In-App** | Chat em tempo real entre comprador e vendedor vinculado ao pedido e notificações instantâneas sobre novidades e pedidos. |
 
 </details>
 
 <br/>
 
-<details>
-<summary><strong>💻 Portal Web Partner &nbsp;—&nbsp; B2B (Marcas & Lojistas)</strong></summary>
+<details open>
+<summary><strong>💻 Portal Web &nbsp;—&nbsp; Experiência B2B para Lojistas e Marcas</strong></summary>
 
 <br/>
 
-| Funcionalidade | Descrição |
-|:--------------|:----------|
-| **Gestão de Catálogo & Fichas Técnicas** | Cadastro e edição detalhada de fragrâncias com indexação automática na Enciclopédia global |
-| **Marketplace & Vendas** | Painel de controle de estoque e precificação para frascos lacrados, amostras e decants oficiais |
-| **Analytics Olfativo & Demanda** | Relatórios com métricas de interesse, notas em alta e taxa de conversão gerada pelo *Match Algorithm* |
+| Recurso | Descrição |
+|:---|:---|
+| **Dashboard Operacional 360°** | Painel em tempo real com métricas de receita, total de pedidos, ticket médio, funil de conversão e atalhos rápidos. |
+| **Inteligência de Mercado (RF-23 / RF-24)** | Relatórios analíticos de demanda olfativa: notas mais buscadas, famílias em alta, ranking de marcas e taxa de compatibilidade da base de clientes. |
+| **Gestão de Estoque & Volumetrias** | Cadastro de ofertas fracionadas (decants) e frascos, controle de estoque unitário, preços promocionais e ativação imediata. |
+| **Logística & Despacho de Pedidos** | Fluxo de processamento de pedidos, inserção de código de rastreamento com transportadora e gestão de devoluções. |
+| **Central de Cupons Promocionais** | Criação de cupons por loja com definição de desconto, validade, valor mínimo de pedido e limite de usos por usuário. |
+| **Onboarding & Homologação D2C** | Área dedicada para casas de perfumaria e marcas oficiais cadastrarem contratos sociais e registros INPI para obtenção do selo de Loja Oficial. |
 
 </details>
 
@@ -133,7 +141,185 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-## 02 · Equipe
+## 02 · Galeria Visual do Produto
+
+<br/>
+
+<div align="center">
+
+### 💻 Portal Web — Painel do Lojista e Inteligência de Mercado
+
+<br/>
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <b>Dashboard Gerencial & Funil de Vendas</b><br/><br/>
+      <img src="documentacoes/assets/web_dashboard.png" alt="Dashboard do Lojista" width="100%"/>
+    </td>
+    <td align="center" width="50%">
+      <b>Inteligência de Demanda e Métricas Olfativas</b><br/><br/>
+      <img src="documentacoes/assets/web_metricas.png" alt="Métricas de Mercado" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <b>Gestão de Catálogo de Estoque (Decants e Frascos)</b><br/><br/>
+      <img src="documentacoes/assets/web_catalogo.png" alt="Gestão de Catálogo" width="75%"/>
+    </td>
+  </tr>
+</table>
+
+<br/><br/>
+
+### 📱 Aplicativo Mobile — Experiência do Consumidor
+
+<br/>
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <b>Descoberta & Vitrine Inicial</b><br/><br/>
+      <img src="documentacoes/assets/mobile_home.png" alt="Home Mobile" width="90%"/>
+    </td>
+    <td align="center" width="33%">
+      <b>Ficha Técnica & Pirâmide Olfativa</b><br/><br/>
+      <img src="documentacoes/assets/mobile_produto.png" alt="Detalhe do Produto" width="90%"/>
+    </td>
+    <td align="center" width="33%">
+      <b>Avaliação do Cliente & Resposta da Loja</b><br/><br/>
+      <img src="documentacoes/assets/mobile_avaliacao.jpg" alt="Sua Avaliação" width="90%"/>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+<br/>
+
+---
+
+<br/>
+
+## 03 · Arquitetura & Tecnologias
+
+<br/>
+
+```text
+┌──────────────────────────┐      ┌──────────────────────────┐
+│     Aplicativo Mobile    │      │        Portal Web        │
+│ (React Native / Expo 58) │      │ (React 19 / TypeScript)  │
+└────────────┬─────────────┘      └────────────┬─────────────┘
+             │                                 │
+             └───────────────┬─────────────────┘
+                             │ HTTP / JSON (JWT Bearer)
+                             ▼
+              ┌──────────────────────────────┐
+              │      Backend API REST        │
+              │   (Django 5.2 / DRF 3.16)    │
+              └──────────────┬───────────────┘
+                             │ Django ORM
+                             ▼
+              ┌──────────────────────────────┐
+              │      Base de Dados Relacional │
+              │          (SQLite / PostgreSQL) │
+              └──────────────────────────────┘
+```
+
+<br/>
+
+### Stack Tecnológica & Qualidade
+
+| Camada | Tecnologias Principais | Testes Automatizados |
+|:---|:---|:---:|
+| **Backend** | Python 3.13, Django 5.2, Django REST Framework, Simple JWT, SQLite | **193 testes** (`pytest`) |
+| **Web** | React 19, TypeScript, Vite, Tailwind CSS v4, React Router v7 | **53 testes** (`vitest`) |
+| **Mobile** | React Native 0.88, Expo 58 (SDK 58), Expo Router, TypeScript | **54 testes** (`jest`) |
+
+<br/>
+
+---
+
+<br/>
+
+## 04 · Como Executar
+
+<br/>
+
+### 1. Pré-requisitos
+- Python 3.12+ ou 3.13
+- Node.js 20+ e npm
+- Git
+
+<br/>
+
+### 2. Backend (API Django)
+
+```bash
+# Acessar a pasta e criar ambiente virtual
+cd backend
+python -m venv venv
+
+# Ativar ambiente virtual
+# No Windows:
+.\venv\Scripts\activate
+# No Linux/Mac:
+source venv/bin/activate
+
+# Instalar dependências e aplicar migrações
+pip install -r requirements.txt
+python manage.py migrate
+
+# Rodar os testes automatizados
+pytest
+
+# Iniciar o servidor de desenvolvimento
+python manage.py runserver 0.0.0.0:8000
+```
+
+<br/>
+
+### 3. Portal Web (React + Vite)
+
+```bash
+# Acessar a pasta do frontend web
+cd web
+
+# Instalar dependências
+npm install
+
+# Rodar a suíte de testes unitários
+npm test
+
+# Iniciar o portal web
+npm run dev
+```
+
+<br/>
+
+### 4. Aplicativo Mobile (Expo / React Native)
+
+```bash
+# Acessar a pasta mobile
+cd mobile
+
+# Instalar dependências
+npm install
+
+# Rodar os testes unitários
+npm test
+
+# Iniciar o servidor Expo
+npx expo start
+```
+
+<br/>
+
+---
+
+<br/>
+
+## 05 · Equipe
 
 <br/>
 
@@ -147,56 +333,36 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
   <tr>
     <td align="center">
       <a href="https://github.com/HeloCris">
-        <img src="https://github.com/HeloCris.png" width="80" style="border-radius:50%"/><br/>
+        <img src="https://github.com/HeloCris.png" width="85" style="border-radius:50%"/><br/><br/>
         <sub><b>Helorrayne Cristine de Alcantara Rodrigues</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/LeticiaGLopes-151">
-        <img src="https://github.com/LeticiaGLopes-151.png" width="80" style="border-radius:50%"/><br/>
+        <img src="https://github.com/LeticiaGLopes-151.png" width="85" style="border-radius:50%"/><br/><br/>
         <sub><b>Letícia Gomes Lopes</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/luc4sm0ur4">
-        <img src="https://github.com/luc4sm0ur4.png" width="80" style="border-radius:50%"/><br/>
+        <img src="https://github.com/luc4sm0ur4.png" width="85" style="border-radius:50%"/><br/><br/>
         <sub><b>Lucas Carvalho da Luz Moura</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/iohanan-cephas">
-        <img src="https://github.com/iohanan-cephas.png" width="80" style="border-radius:50%"/><br/>
+        <img src="https://github.com/iohanan-cephas.png" width="85" style="border-radius:50%"/><br/><br/>
         <sub><b>João Pedro Oliveira Barbosa</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/nhangamona">
-        <img src="https://github.com/nhangamona.png" width="80" style="border-radius:50%"/><br/>
+        <img src="https://github.com/nhangamona.png" width="85" style="border-radius:50%"/><br/><br/>
         <sub><b>Laurinda Nhanga Mona</b></sub>
       </a>
     </td>
   </tr>
 </table>
-
-</div>
-
-<br/>
-
----
-
-<br/>
-
-## 03 · Protótipo do App
-
-<br/>
-
-<div align="center">
-
-*Uma visão antecipada do ecossistema NŌTA em movimento.*
-
-<br/>
-
-<img src="documentacoes/assets/nota-demo.gif" alt="NŌTA — Demo do App" width="30%"/>
 
 </div>
 
@@ -214,11 +380,11 @@ Dificuldade em alcançar públicos qualificados com base em compatibilidade real
 
 <br/>
 
-<img src="documentacoes/assets/logo-icon.png" alt="NŌTA Icon" width="180"/>
+<img src="documentacoes/assets/logo-icon.png" alt="NŌTA Icon" width="160"/>
 
 <br/><br/>
 
-![Made with Love](https://img.shields.io/badge/Feito%20com-✦%20e%20muito%20café-c9a96e?style=flat-square)
+![Feito com Amor](https://img.shields.io/badge/Feito%20com-✦%20e%20alta%20perfumaria-c9a96e?style=for-the-badge)
 
 <br/>
 
