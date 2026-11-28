@@ -13,7 +13,12 @@ const mockBack = jest.fn();
 const mockPush = jest.fn();
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush, canGoBack: () => true, replace: jest.fn() }),
+  useRouter: () => ({
+    back: mockBack,
+    push: mockPush,
+    canGoBack: () => true,
+    replace: jest.fn(),
+  }),
   useFocusEffect: (cb: any) => {
     const React = require('react');
     const ran = React.useRef(false);
@@ -106,7 +111,47 @@ describe('NotificationsScreen - RF-18.8', () => {
 
     await waitFor(() => {
       expect(mockMarkNotificationRead).toHaveBeenCalledWith(1);
-      expect(mockPush).toHaveBeenCalledWith('/(shop)/orders/105');
+      expect(mockPush).toHaveBeenCalledWith('/orders/105');
+    });
+  });
+
+  it('redireciona rota legada /(shop)/reviews para /orders sem quebrar', async () => {
+    mockListNotifications.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      unread_count: 0,
+      results: [
+        {
+          id: 2,
+          user: 10,
+          store: 5,
+          title: 'Loja respondeu sua avaliação',
+          message: 'A loja respondeu à sua avaliação.',
+          type: 'NEW_REVIEW',
+          target_url: '/(shop)/reviews',
+          is_read: true,
+          created_at: '2026-11-02T11:00:00Z',
+        },
+      ],
+    });
+
+    const { getByLabelText } = await render(<NotificationsScreen />);
+
+    await waitFor(() => {
+      expect(
+        getByLabelText('Notificação: Loja respondeu sua avaliação'),
+      ).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(
+        getByLabelText('Notificação: Loja respondeu sua avaliação'),
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/orders');
     });
   });
 

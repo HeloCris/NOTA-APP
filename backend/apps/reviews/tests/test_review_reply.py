@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from datetime import timedelta
 
 from apps.catalog.models import Brand, Product
+from apps.communication.models import Notification
 from apps.inventory.models import StoreProduct
 from apps.orders.models import Order, OrderItem, OrderStatus
 from apps.reviews.models import Review, ReviewReply
@@ -96,6 +97,13 @@ class ReviewReplyTests(APITestCase):
         self.assertEqual(reply.text, 'Muito obrigado pela preferência, Maria!')
         self.assertEqual(reply.author, self.seller)
         self.assertEqual(reply.review, self.review)
+
+        notif = Notification.objects.filter(user=self.user, type='NEW_REVIEW').first()
+        assert notif is not None
+        self.assertEqual(
+            notif.target_url,
+            f'/store/{self.store.id}/product/{self.product.id}/reviews',
+        )
 
     def test_store_can_edit_existing_reply(self):
         # RN-09: Editável pela loja
