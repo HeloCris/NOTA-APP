@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   sellerReviewsService,
@@ -13,6 +14,22 @@ interface StoreReviewsViewProps {
 }
 
 export function StoreReviewsView({ store, onBack }: StoreReviewsViewProps) {
+  const [searchParams] = useSearchParams();
+  const highlightReviewId = searchParams.get('review_id');
+  const [activeHighlightId, setActiveHighlightId] = useState<string | null>(
+    () => highlightReviewId,
+  );
+
+  useEffect(() => {
+    if (highlightReviewId) {
+      setActiveHighlightId(highlightReviewId);
+      const timer = setTimeout(() => {
+        setActiveHighlightId(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightReviewId]);
+
   const [reviews, setReviews] = useState<StoreReviewItem[]>([]);
   const [summary, setSummary] = useState<StoreReviewsSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -65,6 +82,18 @@ export function StoreReviewsView({ store, onBack }: StoreReviewsViewProps) {
       isMounted = false;
     };
   }, [selectedRating, selectedProduct, withPhotosOnly, unansweredOnly]);
+
+  useEffect(() => {
+    if (highlightReviewId && reviews.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`review-${highlightReviewId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightReviewId, reviews]);
 
   // Perfumes únicos encontrados nas avaliações para popular o filtro
   const availablePerfumes = useMemo(() => {
@@ -374,11 +403,21 @@ export function StoreReviewsView({ store, onBack }: StoreReviewsViewProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {reviews.map((rev) => (
-            <div
-              key={rev.id}
-              className="bg-white border border-[#EFEBDD] rounded-[20px] p-6 shadow-[0_1px_3px_rgba(35,40,45,0.06)] space-y-4"
-            >
+          {reviews.map((rev) => {
+            const isHighlighted =
+              Boolean(activeHighlightId) &&
+              String(rev.id) === String(activeHighlightId);
+
+            return (
+              <div
+                key={rev.id}
+                id={`review-${rev.id}`}
+                className={`bg-white border rounded-[20px] p-6 space-y-4 transition-all duration-300 ${
+                  isHighlighted
+                    ? 'animate-delicate-pulse'
+                    : 'border-[#EFEBDD] shadow-[0_1px_3px_rgba(35,40,45,0.06)]'
+                }`}
+              >
               {/* Topo da Avaliação */}
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3.5">
@@ -519,8 +558,9 @@ export function StoreReviewsView({ store, onBack }: StoreReviewsViewProps) {
                 </div>
               )}
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
       )}
 
       {/* Lightbox para Foto Expandida */}

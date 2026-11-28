@@ -102,7 +102,7 @@ class ReviewReplyTests(APITestCase):
         assert notif is not None
         self.assertEqual(
             notif.target_url,
-            f'/store/{self.store.id}/product/{self.product.id}/reviews',
+            f'/reviews/new?review_id={self.review.id}&highlight_reply=true',
         )
 
     def test_store_can_edit_existing_reply(self):

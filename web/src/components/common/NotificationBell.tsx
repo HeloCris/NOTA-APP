@@ -51,6 +51,12 @@ export function resolveNotificationUrl(
       const qs = params.toString();
       return `${basePath}${qs ? `?${qs}` : ""}`;
     }
+
+    if (pathPart === "/store/reviews" || pathPart.startsWith("/store/reviews/")) {
+      params.set("tab", "reviews");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
   } catch {
     return targetUrl;
   }

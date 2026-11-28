@@ -27,7 +27,7 @@ export function ProductDetailsModal({
   onClose,
 }: ProductDetailsModalProps) {
   const [product, setProduct] = useState<Partial<Product>>(initialProduct);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
     setProduct(initialProduct);

@@ -129,5 +129,19 @@ describe("NotificationBell", () => {
     expect(
       resolveNotificationUrl("/store/inventory", "/brand", "BRAND_OWNER"),
     ).toBe("/brand?tab=catalog");
+    expect(
+      resolveNotificationUrl(
+        "/store/reviews?review_id=5&highlight=true",
+        "/seller",
+        "SELLER",
+      ),
+    ).toBe("/seller?review_id=5&highlight=true&tab=reviews");
+    expect(
+      resolveNotificationUrl(
+        "/store/reviews?review_id=5&highlight=true",
+        "/brand",
+        "BRAND_OWNER",
+      ),
+    ).toBe("/brand?review_id=5&highlight=true&tab=reviews");
   });
 });

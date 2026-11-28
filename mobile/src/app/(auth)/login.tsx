@@ -110,10 +110,6 @@ export default function LoginScreen() {
         )}
       />
 
-      <TouchableOpacity style={styles.forgotLink} onPress={() => {}}>
-        <Text style={styles.forgotText}>Esqueci minha senha</Text>
-      </TouchableOpacity>
-
       {apiError ? <Text style={styles.errorText}>{apiError}</Text> : null}
 
       <TouchableOpacity
@@ -126,13 +122,6 @@ export default function LoginScreen() {
         ) : (
           <Text style={styles.primaryButtonText}>Entrar</Text>
         )}
-      </TouchableOpacity>
-
-      <Text style={styles.orText}>ou</Text>
-
-      <TouchableOpacity style={styles.secondaryButton} disabled activeOpacity={1}>
-        <Text style={styles.googleIcon}>G</Text>
-        <Text style={styles.secondaryButtonText}>Entrar com Google</Text>
       </TouchableOpacity>
 
       <Link href="/(auth)/register" asChild>

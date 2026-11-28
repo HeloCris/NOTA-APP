@@ -71,3 +71,20 @@ input {
 .orders-table-container::-webkit-scrollbar-thumb:hover {
   background: #B8B09F;
 }
+
+@keyframes delicatePulse {
+  0%, 100% {
+    border-color: #EFEBDD;
+    background-color: #FFFFFF;
+    box-shadow: 0 1px 3px rgba(35, 40, 45, 0.06);
+  }
+  50% {
+    border-color: #D4A373;
+    background-color: #FEF9EE;
+    box-shadow: 0 0 0 3px rgba(212, 163, 115, 0.25), 0 4px 12px rgba(212, 163, 115, 0.12);
+  }
+}
+
+.animate-delicate-pulse {
+  animation: delicatePulse 1s ease-in-out 3;
+}

@@ -1,16 +1,12 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { MaterialIcons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const registerSchema = z.object({
   first_name: z.string().min(1, 'Informe seu nome.'),
@@ -24,7 +20,7 @@ type RegisterData = z.infer<typeof registerSchema>;
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [apiError, setApiError] = useState('');
 
@@ -39,34 +35,6 @@ export default function RegisterScreen() {
       password: '',
     }
   });
-
-  console.log("CLIENT ID Carregado:", process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID);
-  const discovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID as string,
-    redirectUri: AuthSession.makeRedirectUri({
-      scheme: 'notaapp',
-    }),
-    scopes: ['openid', 'profile', 'email'],
-  }, discovery);
-
-  const handleGoogleSuccess = useCallback(async (accessToken: string) => {
-    try {
-      router.replace('/(auth)/onboarding/families');
-      await signInWithGoogle(accessToken);
-    } catch {
-      setApiError('Erro ao autenticar com o Google.');
-      router.replace('/(auth)/login');
-    }
-  }, [router, signInWithGoogle]);
-
-  useEffect(() => {
-    if (response?.type === 'success' && response.authentication?.accessToken) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reação assíncrona ao resultado do OAuth
-      handleGoogleSuccess(response.authentication.accessToken);
-    }
-  }, [response, handleGoogleSuccess]);
 
   const onSubmit = async (data: RegisterData) => {
     setApiError('');
@@ -147,16 +115,6 @@ export default function RegisterScreen() {
 
       <TouchableOpacity testID="submit-register" style={[styles.primaryButton, !isValid && styles.disabledButton]} onPress={() => handleSubmit(onSubmit)()} disabled={!isValid || isSubmitting}>
         {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.primaryButtonText}>Próximo →</Text>}
-      </TouchableOpacity>
-
-      <Text style={styles.orText}>ou</Text>
-
-      <TouchableOpacity
-        style={styles.secondaryButton}
-        onPress={() => promptAsync()}
-        disabled={!request}
-      >
-        <Text style={styles.secondaryButtonText}>Continuar com Google</Text>
       </TouchableOpacity>
 
       <Link href="/(auth)/login" asChild>

@@ -37,14 +37,14 @@ describe('LoginScreen - RF-07', () => {
   };
 
   it('renderiza campos e botões corretamente', async () => {
-    const { getByPlaceholderText, getByText } = await render(<LoginScreen />);
+    const { getByPlaceholderText, getByText, queryByText } = await render(<LoginScreen />);
 
     expect(getByPlaceholderText('ana@email.com')).toBeTruthy();
     expect(getByPlaceholderText('••••••••')).toBeTruthy();
-    expect(getByText('Esqueci minha senha')).toBeTruthy();
     expect(getByText('Entrar')).toBeTruthy();
-    expect(getByText('Entrar com Google')).toBeTruthy();
     expect(getByText('Não tem conta? Cadastre-se')).toBeTruthy();
+    expect(queryByText('Esqueci minha senha')).toBeNull();
+    expect(queryByText('Entrar com Google')).toBeNull();
   });
 
   it('credenciais inválidas → erro exibido, sem navegação', async () => {
