@@ -42,10 +42,9 @@
 | # | Seção | Descrição |
 |:-:|:------|:----------|
 | [01](#-sobre-o-projeto) | **Sobre o Projeto** | Visão do produto, problema real e solução integrada |
-| [02](#-galeria-visual-do-produto) | **Galeria Visual** | Telas reais do Aplicativo Mobile e do Portal Web |
-| [03](#-arquitetura--tecnologias) | **Arquitetura & Stack** | Estrutura técnica, APIs e testes automatizados |
-| [04](#-como-executar) | **Como Executar** | Instruções de inicialização do Backend, Web e Mobile |
-| [05](#-equipe) | **Equipe** | Integrantes responsáveis pelo desenvolvimento |
+| [02](#-arquitetura--tecnologias) | **Arquitetura & Stack** | Estrutura técnica, APIs e testes automatizados |
+| [03](#-como-executar) | **Como Executar** | Instruções de inicialização do Backend, Web e Mobile |
+| [04](#-equipe) | **Equipe** | Integrantes responsáveis pelo desenvolvimento |
 
 </div>
 
@@ -141,67 +140,7 @@ Diferente de um e-commerce genérico, o NŌTA entende a **pirâmide olfativa** d
 
 <br/>
 
-## 02 · Galeria Visual do Produto
-
-<br/>
-
-<div align="center">
-
-### 💻 Portal Web — Painel do Lojista e Inteligência de Mercado
-
-<br/>
-
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <b>Dashboard Gerencial & Funil de Vendas</b><br/><br/>
-      <img src="documentacoes/assets/web_dashboard.png" alt="Dashboard do Lojista" width="100%"/>
-    </td>
-    <td align="center" width="50%">
-      <b>Inteligência de Demanda e Métricas Olfativas</b><br/><br/>
-      <img src="documentacoes/assets/web_metricas.png" alt="Métricas de Mercado" width="100%"/>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <b>Gestão de Catálogo de Estoque (Decants e Frascos)</b><br/><br/>
-      <img src="documentacoes/assets/web_catalogo.png" alt="Gestão de Catálogo" width="75%"/>
-    </td>
-  </tr>
-</table>
-
-<br/><br/>
-
-### 📱 Aplicativo Mobile — Experiência do Consumidor
-
-<br/>
-
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <b>Descoberta & Vitrine Inicial</b><br/><br/>
-      <img src="documentacoes/assets/mobile_home.png" alt="Home Mobile" width="90%"/>
-    </td>
-    <td align="center" width="33%">
-      <b>Ficha Técnica & Pirâmide Olfativa</b><br/><br/>
-      <img src="documentacoes/assets/mobile_produto.png" alt="Detalhe do Produto" width="90%"/>
-    </td>
-    <td align="center" width="33%">
-      <b>Avaliação do Cliente & Resposta da Loja</b><br/><br/>
-      <img src="documentacoes/assets/mobile_avaliacao.jpg" alt="Sua Avaliação" width="90%"/>
-    </td>
-  </tr>
-</table>
-
-</div>
-
-<br/>
-
----
-
-<br/>
-
-## 03 · Arquitetura & Tecnologias
+## 02 · Arquitetura & Tecnologias
 
 <br/>
 
@@ -242,7 +181,7 @@ Diferente de um e-commerce genérico, o NŌTA entende a **pirâmide olfativa** d
 
 <br/>
 
-## 04 · Como Executar
+## 03 · Como Executar
 
 <br/>
 
@@ -319,7 +258,7 @@ npx expo start
 
 <br/>
 
-## 05 · Equipe
+## 04 · Equipe
 
 <br/>
 
