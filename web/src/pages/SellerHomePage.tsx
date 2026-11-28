@@ -40,6 +40,7 @@ export function SellerHomePage() {
   const goToCatalog = (term?: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", "catalog");
+    next.delete("chat");
     if (term) {
       next.set("q", term);
     } else {
@@ -53,6 +54,7 @@ export function SellerHomePage() {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
     next.delete("q");
+    next.delete("chat");
     setActiveTab(tab);
     setSearchParams(next);
   };

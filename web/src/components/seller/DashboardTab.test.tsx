@@ -39,6 +39,6 @@ describe("DashboardTab RF-17", () => {
     expect(screen.getByText("Ticket médio")).toBeInTheDocument();
     expect(screen.getByText("Cancelamentos e devoluções")).toBeInTheDocument();
     expect(screen.queryByText("Top Perfumes")).not.toBeInTheDocument();
-    expect(getDashboardData).toHaveBeenCalledWith("7d");
+    expect(getDashboardData).toHaveBeenCalledWith("30d");
   });
 });

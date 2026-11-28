@@ -72,7 +72,7 @@ export function StoreMessages() {
 
   const lastMessageIdRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeId) ?? null;
@@ -170,17 +170,39 @@ export function StoreMessages() {
   }, [activeId, loadMessages]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop =
+        messagesContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
     if (chatParam) {
       const parsed = Number(chatParam);
-      if (!Number.isNaN(parsed) && parsed > 0 && parsed !== activeId) {
-        setActiveId(parsed);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        if (parsed !== activeId) {
+          setActiveId(parsed);
+        }
+      } else if (activeId !== null) {
+        setActiveId(null);
       }
+    } else if (activeId !== null) {
+      setActiveId(null);
     }
   }, [chatParam, activeId]);
+
+  const handleCloseConversation = () => {
+    setActiveId(null);
+    setError(null);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("chat");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const handleSelectConversation = (conversationId: number) => {
     setActiveId(conversationId);
@@ -233,7 +255,7 @@ export function StoreMessages() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 min-h-[560px]">
+    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 h-[calc(100vh-140px)] min-h-[520px] max-h-[820px]">
       <section
         aria-label="Lista de conversas"
         className="bg-white border border-[#E6E1D2] rounded-[20px] overflow-hidden flex flex-col"
@@ -323,13 +345,25 @@ export function StoreMessages() {
           )
         ) : (
           <>
-            <div className="px-5 py-4 border-b border-[#EFEBDD]">
-              <h2 className="font-jakarta text-[16px] font-extrabold text-[#263847]">
-                {activeConversation.customer_name}
-              </h2>
-              <p className="text-[12px] text-[#93927F]">
-                {activeConversation.store_name}
-              </p>
+            <div className="px-5 py-3.5 border-b border-[#EFEBDD] flex items-center justify-between gap-4">
+              <div>
+                <h2 className="font-jakarta text-[16px] font-extrabold text-[#263847]">
+                  {activeConversation.customer_name}
+                </h2>
+                <p className="text-[12px] text-[#93927F]">
+                  {activeConversation.store_name}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseConversation}
+                title="Fechar conversa"
+                aria-label="Fechar conversa"
+                className="w-8 h-8 rounded-full border border-[#E6E1D2] flex items-center justify-center text-[#5A6067] hover:bg-[#F5F3E9] hover:text-[#263847] transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
             {activeConversation.order && (
@@ -343,7 +377,10 @@ export function StoreMessages() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
+            >
               {isLoadingMessages ? (
                 <p className="text-center text-[13px] text-[#93927F]">
                   Carregando mensagens...
@@ -402,7 +439,7 @@ export function StoreMessages() {
                   );
                 })
               )}
-              <div ref={messagesEndRef} />
+
             </div>
 
             {error && (

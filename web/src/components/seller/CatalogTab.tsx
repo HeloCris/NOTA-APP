@@ -20,6 +20,7 @@ const STATUS_OPTIONS = [
     { value: "", label: "Status: Todos" },
     { value: "active", label: "Ativos" },
     { value: "inactive", label: "Inativos" },
+    { value: "low_stock", label: "Estoque baixo (<3)" },
     { value: "low_stock", label: "Estoque baixo" },
 ];
 
@@ -164,12 +165,12 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {!store?.is_active && (
                 <div className="mb-4 bg-[#FEF0EB] border border-[#F5C9B3] rounded-xl p-3.5 flex items-start gap-3">
-                     <svg className="w-5 h-5 text-[#A24726] flex-shrink-0 mt-0.5"><use href="#ic-warning" /></svg>
-                     <div>
-                         <h3 className="text-[#7E4228] font-bold text-[14px] m-0 mb-0.5">Sua loja está inativa</h3>
-                         <p className="text-[#A24726] text-[12.5px] m-0">Sua vitrine não está visível para os clientes. Reative sua loja na aba Configurações.</p>
-                     </div>
-                 </div>
+                    <svg className="w-5 h-5 text-[#A24726] flex-shrink-0 mt-0.5"><use href="#ic-warning" /></svg>
+                    <div>
+                        <h3 className="text-[#7E4228] font-bold text-[14px] m-0 mb-0.5">Sua loja está inativa</h3>
+                        <p className="text-[#A24726] text-[12.5px] m-0">Sua vitrine não está visível para os clientes. Reative sua loja na aba Configurações.</p>
+                    </div>
+                </div>
             )}
 
             <div className={!store?.is_active ? "pointer-events-none opacity-60 grayscale-[0.2]" : ""}>
@@ -201,40 +202,38 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                             <button
                                 type="button"
                                 onClick={() => setViewMode("table")}
-                                className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                    viewMode === "table"
+                                className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === "table"
                                         ? "bg-white text-[#263847] shadow-xs"
                                         : "text-[#5A6067] hover:text-[#263847]"
-                                }`}
+                                    }`}
                                 title="Visualizar como Lista"
                             >
                                 {/* Ícone de Lista: 3 linhas horizontais */}
                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="8" y1="6" x2="21" y2="6"/>
-                                    <line x1="8" y1="12" x2="21" y2="12"/>
-                                    <line x1="8" y1="18" x2="21" y2="18"/>
-                                    <line x1="3" y1="6" x2="3.01" y2="6"/>
-                                    <line x1="3" y1="12" x2="3.01" y2="12"/>
-                                    <line x1="3" y1="18" x2="3.01" y2="18"/>
+                                    <line x1="8" y1="6" x2="21" y2="6" />
+                                    <line x1="8" y1="12" x2="21" y2="12" />
+                                    <line x1="8" y1="18" x2="21" y2="18" />
+                                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                                    <line x1="3" y1="18" x2="3.01" y2="18" />
                                 </svg>
                                 Lista
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setViewMode("grid")}
-                                className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                    viewMode === "grid"
+                                className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${viewMode === "grid"
                                         ? "bg-white text-[#263847] shadow-xs"
                                         : "text-[#5A6067] hover:text-[#263847]"
-                                }`}
+                                    }`}
                                 title="Visualizar como Grade"
                             >
                                 {/* Ícone de Grade: 4 quadrados */}
                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                                    <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                                    <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                                    <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
                                 </svg>
                                 Grade
                             </button>
@@ -269,10 +268,10 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                                     searchFilter === "name"
                                         ? "Buscar por nome..."
                                         : searchFilter === "note"
-                                          ? "Buscar por nota (ex: Jasmim)..."
-                                          : searchFilter === "family"
-                                            ? "Buscar por caminho (ex: Floral)..."
-                                            : "Buscar no estoque por perfume, nota..."
+                                            ? "Buscar por nota (ex: Jasmim)..."
+                                            : searchFilter === "family"
+                                                ? "Buscar por caminho (ex: Floral)..."
+                                                : "Buscar no estoque por perfume, nota..."
                                 }
                                 type="search"
                                 value={search}
@@ -322,9 +321,8 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                             return (
                                 <div
                                     key={item.id}
-                                    className={`bg-white border rounded-xl p-2.5 flex flex-col justify-between hover:shadow-xs transition-all duration-150 group ${
-                                        lowStock ? "border-[#E4B34B]/80 bg-[#FFFDF8]" : "border-[#E6E1D2]"
-                                    }`}
+                                    className={`bg-white border rounded-xl p-2.5 flex flex-col justify-between hover:shadow-xs transition-all duration-150 group ${lowStock ? "border-[#E4B34B]/80 bg-[#FFFDF8]" : "border-[#E6E1D2]"
+                                        }`}
                                 >
                                     <div>
                                         {/* Imagem do Frasco Compacta */}
@@ -358,19 +356,18 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
 
                                             <div className="absolute top-1.5 right-1.5">
                                                 <span
-                                                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border shadow-xs ${
-                                                        isOut
+                                                    className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border shadow-xs ${isOut
                                                             ? "bg-[#FEF0EB] text-[#A24726] border-[#F5C9B3]"
                                                             : lowStock
-                                                              ? "bg-[#FFF8E6] text-[#8A5B22] border-[#F0DDC5]"
-                                                              : "bg-[#EDF0E7] text-[#454F3A] border-[#D5DCCC]"
-                                                    }`}
+                                                                ? "bg-[#FFF8E6] text-[#8A5B22] border-[#F0DDC5]"
+                                                                : "bg-[#EDF0E7] text-[#454F3A] border-[#D5DCCC]"
+                                                        }`}
                                                 >
                                                     {isOut
                                                         ? "Esgotado"
                                                         : lowStock
-                                                          ? `Estoque (${item.stock_quantity})`
-                                                          : `${item.stock_quantity} un.`}
+                                                            ? `Estoque (${item.stock_quantity})`
+                                                            : `${item.stock_quantity} un.`}
                                                 </span>
                                             </div>
                                         </div>
@@ -428,14 +425,12 @@ export function CatalogTab({ store, initialSearch = "" }: CatalogTabProps) {
                                                     aria-checked={item.is_available}
                                                     aria-label={item.is_available ? "Perfume ativo" : "Perfume inativo"}
                                                     onClick={() => handleToggleAvailability(item)}
-                                                    className={`w-8 h-4.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${
-                                                        item.is_available ? "bg-[#354B5E]" : "bg-[#D8D2C2]"
-                                                    }`}
+                                                    className={`w-8 h-4.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${item.is_available ? "bg-[#354B5E]" : "bg-[#D8D2C2]"
+                                                        }`}
                                                 >
                                                     <div
-                                                        className={`bg-white w-3.5 h-3.5 rounded-full shadow-sm transform transition-transform ${
-                                                            item.is_available ? "translate-x-3.5" : "translate-x-0"
-                                                        }`}
+                                                        className={`bg-white w-3.5 h-3.5 rounded-full shadow-sm transform transition-transform ${item.is_available ? "translate-x-3.5" : "translate-x-0"
+                                                            }`}
                                                     />
                                                 </button>
                                             </div>

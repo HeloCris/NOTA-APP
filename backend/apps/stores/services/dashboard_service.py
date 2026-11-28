@@ -1,7 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import F, Sum
+from django.db.models import F, Q, Sum
 from django.utils import timezone
 
 from apps.inventory.models import StoreProduct
@@ -41,7 +41,13 @@ def build_dashboard(store, period: str = "7d") -> dict:
     )
     refunds = returned_refunds + cancelled_refunds
     cancelled = orders.filter(status=OrderStatus.CANCELLED).count()
-    returned = orders.filter(status=OrderStatus.REFUNDED).count()
+    returned = (
+        orders.filter(
+            Q(status=OrderStatus.REFUNDED) | Q(return_requests__isnull=False)
+        )
+        .distinct()
+        .count()
+    )
     total_orders = orders.count()
     commission = subtotal * COMMISSION_RATE
     stock_value = sum(
@@ -91,8 +97,9 @@ def build_dashboard(store, period: str = "7d") -> dict:
             "commission": float(commission),
             "refunds": float(refunds),
             "average_ticket": float(gross / valid_orders.count()) if valid_orders.exists() else 0,
-            "pending_orders": orders.filter(
-                status__in=[OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.PROCESSING]
+            "pending_orders": Order.objects.filter(
+                store=store,
+                status__in=[OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.PROCESSING],
             ).count(),
             "stock_alerts": StoreProduct.objects.filter(
                 store=store, is_available=True, stock_quantity__lt=3
@@ -101,6 +108,8 @@ def build_dashboard(store, period: str = "7d") -> dict:
             "store_views": store.views_count,
             "cancellation_rate": round(cancelled / total_orders * 100, 1) if total_orders else 0,
             "return_rate": round(returned / total_orders * 100, 1) if total_orders else 0,
+            "cancelled_count": cancelled,
+            "returned_count": returned,
         },
         "chart": {"labels": chart_labels, "values": chart_values},
         "recent_orders": recent_orders,

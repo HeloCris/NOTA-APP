@@ -87,7 +87,10 @@ class ChatListCreateView(APIView):
         store = get_user_store(user)
 
         if store:
-            queryset = ChatConversation.objects.filter(store=store)
+            queryset = ChatConversation.objects.filter(
+                store=store,
+                messages__isnull=False,
+            ).distinct()
         else:
             queryset = ChatConversation.objects.filter(customer=user)
 
