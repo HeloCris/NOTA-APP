@@ -243,6 +243,27 @@ def test_chat_list_is_isolated_by_store(api_client, customer, other_seller, stor
     assert response.data == []
 
 
+def test_chat_list_ignores_empty_conversations_for_store(api_client, customer, seller, store):
+    conversation = create_conversation(customer, store)
+    api_client.force_authenticate(user=seller)
+
+    # Conversa sem mensagens não deve aparecer para a loja
+    response = api_client.get("/api/v1/chats/")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == []
+
+    # Assim que tiver mensagem, aparece normalmente
+    ChatMessage.objects.create(
+        conversation=conversation,
+        sender=customer,
+        text="Olá lojista",
+    )
+    response = api_client.get("/api/v1/chats/")
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.data) == 1
+    assert response.data[0]["id"] == conversation.id
+
+
 def test_consecutive_message_limit(api_client, customer, store):
     conversation = create_conversation(customer, store)
     for index in range(10):

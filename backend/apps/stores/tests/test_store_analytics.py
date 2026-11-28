@@ -183,6 +183,38 @@ def test_store_analytics_identifies_catalog_gaps(seller, store, api_client):
 
 
 @pytest.mark.django_db
+def test_store_analytics_matches_note_variations(seller, store, api_client):
+    CustomUser.objects.create_user(
+        email="customer_jasmim@example.com",
+        password="secret",
+        first_name="Cliente Jasmim",
+        preferred_notes=["Jasmim"],
+    )
+    brand = Brand.objects.create(name="Brand Jasmim")
+    product_with_sambac = Product.objects.create(
+        brand=brand,
+        name="Perfume Sambac",
+        olfactory_family=Product.OlfactoryFamily.FLORAL,
+        heart_notes=["Jasmim Sambac"],
+        is_approved=True,
+    )
+    StoreProduct.objects.create(
+        store=store,
+        product=product_with_sambac,
+        volume_ml=50,
+        price=Decimal("150.00"),
+        stock_quantity=10,
+    )
+
+    api_client.force_authenticate(seller)
+    response = api_client.get(ANALYTICS_URL)
+    assert response.status_code == 200
+
+    gap_names = [item["name"] for item in response.json()["catalog_gaps"] if item["type"] == "note"]
+    assert "Jasmim" not in gap_names
+
+
+@pytest.mark.django_db
 def test_store_analytics_permissions_period_and_past_dates(seller, store, api_client):
     customer = CustomUser.objects.create_user(
         email="analytics_no_store@example.com",

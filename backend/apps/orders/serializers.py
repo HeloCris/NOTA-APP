@@ -27,6 +27,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(
         source='store_product.product.name', read_only=True
     )
+    brand_name = serializers.CharField(
+        source='store_product.product.brand.name', read_only=True, default=''
+    )
     volume_ml = serializers.IntegerField(
         source='store_product.volume_ml', read_only=True
     )
@@ -56,6 +59,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'store_id',
             'store_name',
             'product_name',
+            'brand_name',
             'volume_ml',
             'product_image',
             'quantity',
@@ -239,6 +243,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'store',
             'store_name',
             'status',
+            'payment_method',
             'total_amount',
             'shipping_cost',
             'shipping_service',
@@ -288,6 +293,7 @@ class CustomerOrderDetailSerializer(serializers.ModelSerializer):
             'store',
             'store_name',
             'status',
+            'payment_method',
             'total_amount',
             'shipping_cost',
             'shipping_service',
@@ -439,6 +445,15 @@ class StoreOrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     code = serializers.CharField(read_only=True)
     customer_name = serializers.SerializerMethodField()
+    customer_email = serializers.EmailField(source='user.email', read_only=True)
+    customer_phone = serializers.SerializerMethodField()
+    subtotal_amount = serializers.SerializerMethodField()
+    discount_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    coupon_code = serializers.SerializerMethodField()
+    payment_method = serializers.SerializerMethodField()
+    payment_method_label = serializers.SerializerMethodField()
     dispatch_deadline = serializers.SerializerMethodField()
     urgency_status = serializers.SerializerMethodField()
     is_delayed = serializers.SerializerMethodField()
@@ -451,10 +466,15 @@ class StoreOrderSerializer(serializers.ModelSerializer):
             'id',
             'code',
             'status',
+            'subtotal_amount',
+            'discount_amount',
+            'coupon_code',
             'total_amount',
             'shipping_cost',
             'shipping_service',
             'shipping_address',
+            'payment_method',
+            'payment_method_label',
             'tracking_code',
             'carrier',
             'carrier_url',
@@ -467,6 +487,8 @@ class StoreOrderSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'customer_name',
+            'customer_email',
+            'customer_phone',
             'items',
             'dispatch_deadline',
             'urgency_status',
@@ -485,6 +507,44 @@ class StoreOrderSerializer(serializers.ModelSerializer):
         user = obj.user
         name = f'{user.first_name} {user.last_name}'.strip()
         return name or user.email
+
+    def get_customer_phone(self, obj):
+        return getattr(obj.user, 'phone', None) or None
+
+    def get_subtotal_amount(self, obj):
+        items_list = list(obj.items.all())
+        if items_list:
+            subtotal = sum(it.total_price for it in items_list)
+            return f'{subtotal:.2f}'
+        fallback = (obj.total_amount or 0) - (obj.shipping_cost or 0) + (obj.discount_amount or 0)
+        return f'{max(fallback, 0):.2f}'
+
+    def get_coupon_code(self, obj):
+        if obj.coupon_id and obj.coupon:
+            return obj.coupon.code
+        return None
+
+    def get_payment_method(self, obj):
+        method = getattr(obj, 'payment_method', None)
+        if method:
+            return method
+        for hist in obj.status_history.all():
+            reason_up = (hist.reason or '').upper()
+            if 'CARTÃO' in reason_up or 'CREDIT_CARD' in reason_up or 'CARTAO' in reason_up:
+                return 'CREDIT_CARD'
+            if 'PIX' in reason_up:
+                return 'PIX'
+        if obj.status == 'PENDING':
+            return 'PENDING'
+        return 'PIX'
+
+    def get_payment_method_label(self, obj):
+        method = self.get_payment_method(obj)
+        if method == 'CREDIT_CARD':
+            return 'Cartão de Crédito'
+        if method == 'PENDING':
+            return 'Aguardando pagamento'
+        return 'PIX'
 
     def _deadline(self, obj):
         created = obj.created_at

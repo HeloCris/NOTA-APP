@@ -108,6 +108,8 @@ export interface DashboardData {
         store_views: number;
         cancellation_rate: number;
         return_rate: number;
+        cancelled_count?: number;
+        returned_count?: number;
     };
     chart: { labels: string[]; values: number[] };
     recent_orders: {

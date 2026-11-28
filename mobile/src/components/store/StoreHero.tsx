@@ -60,9 +60,13 @@ export function StoreHero({
     extrapolate: 'clamp',
   });
 
+  const numericRating =
+    store.rating !== null && store.rating !== undefined
+      ? Number(store.rating)
+      : null;
   const ratingDisplay =
-    store.rating !== null && store.rating !== undefined && store.rating > 0
-      ? store.rating.toFixed(1).replace('.', ',')
+    numericRating !== null && !isNaN(numericRating) && numericRating > 0
+      ? numericRating.toFixed(1).replace('.', ',')
       : 'Novo';
   const perfumesCount = productsCount ?? store.products_count ?? 0;
   const locationText = store.city

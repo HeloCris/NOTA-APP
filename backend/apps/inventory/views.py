@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
 
@@ -41,7 +42,26 @@ class StoreProductListCreateView(generics.ListCreateAPIView):
         params = self.request.query_params
 
         if search := params.get("search"):
-            queryset = queryset.filter(product__name__icontains=search)
+            search_type = params.get("search_type", "all")
+            if search_type == "name":
+                queryset = queryset.filter(product__name__icontains=search)
+            elif search_type == "note":
+                queryset = queryset.filter(
+                    Q(product__top_notes__icontains=search)
+                    | Q(product__heart_notes__icontains=search)
+                    | Q(product__base_notes__icontains=search)
+                )
+            elif search_type == "family":
+                queryset = queryset.filter(product__olfactory_family__icontains=search)
+            else:
+                queryset = queryset.filter(
+                    Q(product__name__icontains=search)
+                    | Q(product__brand__name__icontains=search)
+                    | Q(product__olfactory_family__icontains=search)
+                    | Q(product__top_notes__icontains=search)
+                    | Q(product__heart_notes__icontains=search)
+                    | Q(product__base_notes__icontains=search)
+                )
 
         if is_active := params.get("is_active"):
             queryset = queryset.filter(is_available=is_active.lower() == "true")

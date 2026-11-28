@@ -10,7 +10,7 @@ interface DashboardTabProps {
 export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
     const [data, setData] = useState<DashboardData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [period, setPeriod] = useState<"7d" | "30d">("7d");
+    const [chartPeriod, setChartPeriod] = useState<"7d" | "30d">("7d");
 
     const storeName = store?.name || "Sua Loja";
     const initial = storeName.charAt(0).toUpperCase();
@@ -19,7 +19,7 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const dashboardData = await storeService.getDashboardData(period);
+                const dashboardData = await storeService.getDashboardData("30d");
                 setData(dashboardData);
             } catch (err) {
                 console.error("Erro ao carregar dados do dashboard", err);
@@ -31,7 +31,7 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
         if (store) {
             fetchData();
         }
-    }, [store, period]);
+    }, [store]);
 
     const money = (value: number) => value.toLocaleString("pt-BR", {
         style: "currency", currency: "BRL", minimumFractionDigits: 2,
@@ -132,7 +132,14 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                 </div>
                 <div className="bg-white border border-[#EFEBDD] rounded-[18px] p-5">
                     <div className="text-[11px] uppercase tracking-wide text-[#93927F] font-bold">Cancelamentos e devoluções</div>
-                    <div className="font-jakarta text-[18px] font-extrabold text-[#23282D] mt-2">{data.kpis.cancellation_rate}% cancelados · {data.kpis.return_rate}% devolvidos</div>
+                    <div className="font-jakarta text-[18px] font-extrabold text-[#23282D] mt-2">
+                        {data.kpis.cancellation_rate}% cancelados · {data.kpis.return_rate}% devolvidos
+                    </div>
+                    {(data.kpis.cancelled_count !== undefined || data.kpis.returned_count !== undefined) && (
+                        <div className="text-[11px] text-[#93927F] mt-1.5 font-medium">
+                            {data.kpis.cancelled_count || 0} cancelamento{(data.kpis.cancelled_count || 0) === 1 ? '' : 's'} · {data.kpis.returned_count || 0} devoluç{(data.kpis.returned_count || 0) === 1 ? 'ão' : 'ões'}
+                        </div>
+                    )}
                 </div>
                 <div className="bg-white border border-[#EFEBDD] rounded-[18px] p-5">
                     <div className="text-[11px] uppercase tracking-wide text-[#93927F] font-bold">Valor em estoque</div>
@@ -147,29 +154,67 @@ export function DashboardTab({ store, onOpenReviews }: DashboardTabProps) {
                             <h3 className="text-[16.5px] font-extrabold m-0 text-[#23282D]">Faturamento por dia</h3>
                             <div className="flex gap-1 bg-[#F5F3E9] border border-[#E6E1D2] rounded-full p-[3px]">
                                 {(["7d", "30d"] as const).map((value) => (
-                                    <button key={value} onClick={() => setPeriod(value)} className={`text-[11px] font-bold px-[11px] py-[5px] rounded-full ${period === value ? "bg-white text-[#23282D] shadow-[0_1px_3px_rgba(35,40,45,0.06)]" : "text-[#5A6067]"}`}>
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setChartPeriod(value)}
+                                        className={`text-[11px] font-bold px-[11px] py-[5px] rounded-full transition-colors cursor-pointer ${
+                                            chartPeriod === value
+                                                ? "bg-white text-[#23282D] shadow-[0_1px_3px_rgba(35,40,45,0.06)]"
+                                                : "text-[#5A6067] hover:text-[#23282D]"
+                                        }`}
+                                    >
                                         {value === "7d" ? "7 dias" : "30 dias"}
                                     </button>
                                 ))}
                             </div>
                         </div>
                         <div className="p-[6px_22px_18px]">
-                            {data.chart.values.reduce((a, b) => a + b, 0) === 0 ? (
-                                <div className="h-[200px] flex items-center justify-center text-[13px] text-[#93927F] border-2 border-dashed border-[#E6E1D2] rounded-xl m-2">
-                                    Nenhuma venda registrada nesta semana.
-                                </div>
-                            ) : (
-                                <svg viewBox="0 0 700 200" preserveAspectRatio="none" className="w-full h-auto block">
-                                    <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#354B5E" stopOpacity=".22" /><stop offset="100%" stopColor="#354B5E" stopOpacity="0" /></linearGradient></defs>
-                                    <g stroke="#F0EEE5" strokeWidth="1">
-                                        <line x1="0" y1="15" x2="700" y2="15" /><line x1="0" y1="65" x2="700" y2="65" /><line x1="0" y1="115" x2="700" y2="115" /><line x1="0" y1="155" x2="700" y2="155" />
-                                    </g>
-                                    <polyline points={data.chart.values.map((value, index) => `${index * (700 / Math.max(data.chart.values.length - 1, 1))},${185 - Math.min(value / Math.max(...data.chart.values, 1), 1) * 160}`).join(" ")} fill="none" stroke="#354B5E" strokeWidth="2.5" strokeLinecap="round" />
-                                    <g className="font-inter text-[11px]" fill="#93927F">
-                                        {data.chart.labels.filter((_, i) => i % Math.ceil(data.chart.labels.length / 7) === 0).map((label, i) => <text key={label} x={i * 100} y="192">{label}</text>)}
-                                    </g>
-                                </svg>
-                            )}
+                            {(() => {
+                                const chartValues = chartPeriod === "7d" ? data.chart.values.slice(-7) : data.chart.values;
+                                const chartLabels = chartPeriod === "7d" ? data.chart.labels.slice(-7) : data.chart.labels;
+                                const totalPeriodRevenue = chartValues.reduce((a, b) => a + b, 0);
+
+                                if (totalPeriodRevenue === 0) {
+                                    return (
+                                        <div className="h-[200px] flex items-center justify-center text-[13px] text-[#93927F] border-2 border-dashed border-[#E6E1D2] rounded-xl m-2">
+                                            Nenhuma venda registrada {chartPeriod === "7d" ? "nesta semana" : "nos últimos 30 dias"}.
+                                        </div>
+                                    );
+                                }
+
+                                const maxVal = Math.max(...chartValues, 1);
+                                const stepX = 700 / Math.max(chartValues.length - 1, 1);
+
+                                return (
+                                    <svg viewBox="0 0 700 200" preserveAspectRatio="none" className="w-full h-auto block">
+                                        <defs>
+                                            <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#354B5E" stopOpacity=".22" />
+                                                <stop offset="100%" stopColor="#354B5E" stopOpacity="0" />
+                                            </linearGradient>
+                                        </defs>
+                                        <g stroke="#F0EEE5" strokeWidth="1">
+                                            <line x1="0" y1="15" x2="700" y2="15" />
+                                            <line x1="0" y1="65" x2="700" y2="65" />
+                                            <line x1="0" y1="115" x2="700" y2="115" />
+                                            <line x1="0" y1="155" x2="700" y2="155" />
+                                        </g>
+                                        <polyline
+                                            points={chartValues.map((value, index) => `${index * stepX},${185 - Math.min(value / maxVal, 1) * 160}`).join(" ")}
+                                            fill="none"
+                                            stroke="#354B5E"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                        />
+                                        <g className="font-inter text-[11px]" fill="#93927F">
+                                            {chartLabels.filter((_, i) => i % Math.ceil(chartLabels.length / 7) === 0).map((label, i) => (
+                                                <text key={label} x={i * 100} y="192">{label}</text>
+                                            ))}
+                                        </g>
+                                    </svg>
+                                );
+                            })()}
                         </div>
                     </div>
 

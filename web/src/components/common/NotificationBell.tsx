@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
+import { AuthContext } from "../../contexts/AuthContext";
 import { communicationService } from "../../services/communicationService";
 import type {
   NotificationItem,
@@ -8,6 +9,60 @@ import type {
 } from "../../types/communication";
 
 const POLL_INTERVAL_MS = 5000;
+
+export function resolveNotificationUrl(
+  targetUrl: string,
+  currentPath = "",
+  userRole?: string | null,
+): string {
+  if (!targetUrl) return "";
+
+  let basePath = "/seller";
+  if (currentPath.startsWith("/brand") || userRole === "BRAND_OWNER") {
+    basePath = "/brand";
+  } else if (currentPath.startsWith("/seller") || userRole === "SELLER") {
+    basePath = "/seller";
+  }
+
+  try {
+    const [pathPart, queryPart] = targetUrl.split("?");
+    const params = new URLSearchParams(queryPart || "");
+
+    if (pathPart === "/store/messages" || pathPart.startsWith("/store/messages/")) {
+      params.set("tab", "messages");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/orders" || pathPart.startsWith("/store/orders/")) {
+      params.set("tab", "orders");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/inventory" || pathPart.startsWith("/store/inventory/")) {
+      params.set("tab", "catalog");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/coupons" || pathPart.startsWith("/store/coupons/")) {
+      params.set("tab", "coupons");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+
+    if (pathPart === "/store/reviews" || pathPart.startsWith("/store/reviews/")) {
+      params.set("tab", "reviews");
+      const qs = params.toString();
+      return `${basePath}${qs ? `?${qs}` : ""}`;
+    }
+  } catch {
+    return targetUrl;
+  }
+
+  return targetUrl;
+}
 
 function iconForType(type: NotificationType): string {
   switch (type) {
@@ -41,6 +96,8 @@ function formatDate(value: string): string {
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const authContext = useContext(AuthContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -117,7 +174,12 @@ export function NotificationBell() {
     setIsOpen(false);
 
     if (notification.target_url) {
-      navigate(notification.target_url);
+      const destination = resolveNotificationUrl(
+        notification.target_url,
+        location.pathname,
+        authContext?.user?.role,
+      );
+      navigate(destination);
     }
   };
 
@@ -140,9 +202,9 @@ export function NotificationBell() {
         aria-label="Notificações"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
-        className="relative w-[46px] h-[46px] rounded-full border border-[#E6E1D2] bg-white flex items-center justify-center text-[#5A6067] cursor-pointer"
+        className="relative w-10 h-10 rounded-full border border-[#E6E1D2] bg-white hover:bg-[#F9F8F3] hover:border-[#D6CEBC] transition-all flex items-center justify-center text-[#5A6067] hover:text-[#263847] shadow-sm cursor-pointer"
       >
-        <svg className="w-[22px] h-[22px]">
+        <svg className="w-5 h-5">
           <use href="#ic-bell" />
         </svg>
         {unreadCount > 0 && (
@@ -159,7 +221,7 @@ export function NotificationBell() {
         <div
           role="dialog"
           aria-label="Central de notificações"
-          className="absolute right-0 top-[56px] w-[360px] bg-white border border-[#E6E1D2] rounded-2xl shadow-xl z-50 overflow-hidden"
+          className="absolute right-0 top-[48px] w-[360px] bg-white border border-[#E6E1D2] rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#EFEBDD]">
             <strong className="text-[14px] text-[#263847]">

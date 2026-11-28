@@ -407,6 +407,11 @@ class OrderPostPurchaseService:
         return_req.save(update_fields=['refund_amount', 'updated_at'])
 
         for photo in photos:
+            photo_name = getattr(photo, 'name', '') or ''
+            if photo_name and '.' not in photo_name.split('/')[-1]:
+                content_type = getattr(photo, 'content_type', '') or ''
+                ext = '.png' if 'png' in content_type else '.webp' if 'webp' in content_type else '.jpg'
+                photo.name = f'{photo_name}{ext}'
             return_req.photos.create(image=photo)
 
         try:

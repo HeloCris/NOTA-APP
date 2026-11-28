@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "../contexts/useAuth";
@@ -40,6 +40,7 @@ export function SellerHomePage() {
   const goToCatalog = (term?: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", "catalog");
+    next.delete("chat");
     if (term) {
       next.set("q", term);
     } else {
@@ -52,16 +53,12 @@ export function SellerHomePage() {
   const changeTab = (tab: TabType) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
+    next.delete("q");
+    next.delete("chat");
     setActiveTab(tab);
     setSearchParams(next);
   };
 
-  const handleTopSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("topSearch");
-    const value = input instanceof HTMLInputElement ? input.value : "";
-    goToCatalog(value.trim() || undefined);
-  };
 
   const fetchStore = async () => {
     try {
@@ -85,16 +82,14 @@ export function SellerHomePage() {
     return (
       <button
         onClick={() => changeTab(id)}
-        className={`flex items-center gap-[11px] px-3.5 py-2.5 rounded-xl text-[14px] font-semibold transition-colors w-full cursor-pointer ${
-          isActive
-            ? "bg-[#E9EDF0] text-[#354B5E]"
-            : "text-[#5A6067] hover:bg-[#EFEBDD] hover:text-[#23282D]"
-        }`}
+        className={`flex items-center gap-[11px] px-3.5 py-2.5 rounded-xl text-[14px] font-semibold transition-colors w-full cursor-pointer ${isActive
+          ? "bg-[#E9EDF0] text-[#354B5E]"
+          : "text-[#5A6067] hover:bg-[#EFEBDD] hover:text-[#23282D]"
+          }`}
       >
         <svg
-          className={`w-[19px] h-[19px] flex-shrink-0 transition-colors ${
-            isActive ? "text-[#354B5E]" : "text-[#93927F]"
-          }`}
+          className={`w-[19px] h-[19px] flex-shrink-0 transition-colors ${isActive ? "text-[#354B5E]" : "text-[#93927F]"
+            }`}
         >
           <use href={icon} />
         </svg>
@@ -122,7 +117,7 @@ export function SellerHomePage() {
         <nav className="flex-1 px-3.5 py-3 flex flex-col justify-start gap-1 overflow-y-auto">
           <div className="my-auto flex flex-col gap-1.5 w-full">
             <NavLink id="dashboard" icon="#ic-grid" label="Dashboard" />
-            <NavLink id="catalog" icon="#ic-flask" label="Meus Perfumes" />
+            <NavLink id="catalog" icon="#ic-box" label="Estoque & Vendas" />
             <NavLink id="orders" icon="#ic-box" label="Pedidos" />
             <NavLink id="coupons" icon="#ic-coupon" label="Cupons" />
             <NavLink id="metrics" icon="#ic-chart" label="Métricas" />
@@ -161,60 +156,38 @@ export function SellerHomePage() {
       <div className="ml-[230px] xl:ml-[250px] flex-1 min-w-0 flex flex-col">
         {/* Topbar */}
         <header className="sticky top-0 z-30 h-[76px] bg-white/92 backdrop-blur-[10px] border-b border-[#E6E1D2] flex items-center justify-between px-6 xl:px-[30px] gap-4">
-          <form
-            onSubmit={handleTopSearch}
-            role="search"
-            className="relative w-[190px] lg:w-[260px] xl:w-[320px] flex-shrink-0"
-          >
-            <svg className="w-4 h-4 text-[#93927F] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-              <use href="#ic-search" />
-            </svg>
-            <input
-              key={searchTerm}
-              type="search"
-              name="topSearch"
-              defaultValue={searchTerm}
-              placeholder="Buscar perfume ou marca..."
-              aria-label="Buscar perfume ou marca"
-              className="w-full border border-[#E6E1D2] bg-white rounded-xl pl-9 pr-4 py-[9px] text-[12.5px] text-[#23282D] outline-none focus:border-[#354B5E]"
-            />
-          </form>
+          <div className="flex-1" />
 
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-3.5 flex-shrink-0">
             <NotificationBell />
 
             {store && (
               <div
-                className={`h-[34px] px-[15px] rounded-full flex items-center gap-[7px] border font-inter font-bold text-[12.5px] whitespace-nowrap ${
+                className={`h-10 px-4 rounded-full flex items-center gap-2 border font-inter font-bold text-[12.5px] whitespace-nowrap shadow-sm transition-all select-none ${
                   store.vacation_mode
                     ? "bg-[#FDF4F0] border-[#F0C4B0] text-[#7E2D11]"
                     : storeActive
-                    ? "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]"
-                    : "bg-[#F5F3F0] border-[#E6E1D2] text-[#5A6067]"
+                      ? "bg-[#F0F5EE] border-[#B8CFAF] text-[#3A5C30]"
+                      : "bg-[#F5F3F0] border-[#E6E1D2] text-[#5A6067]"
                 }`}
               >
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    store.vacation_mode
-                      ? "bg-[#A24726]"
-                      : storeActive
-                      ? "bg-[#5C6B4E]"
-                      : "bg-[#93927F]"
-                  }`}
-                ></span>
+                <span className="relative flex h-2 w-2">
+                  {storeActive && !store.vacation_mode && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5C6B4E] opacity-75"></span>
+                  )}
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      store.vacation_mode
+                        ? "bg-[#A24726]"
+                        : storeActive
+                          ? "bg-[#5C6B4E]"
+                          : "bg-[#93927F]"
+                    }`}
+                  ></span>
+                </span>
                 {store.vacation_mode ? "Loja de Férias" : storeActive ? "Loja Ativa" : "Loja Pausada"}
               </div>
             )}
-
-            <button
-              onClick={() => changeTab("catalog")}
-              className="font-jakarta font-bold text-[13.5px] rounded-full px-5 py-[10px] border-2 border-transparent inline-flex items-center gap-2 whitespace-nowrap bg-[#354B5E] text-white hover:bg-[#263847] transition-colors cursor-pointer"
-            >
-              <svg className="w-[16px] h-[16px]">
-                <use href="#ic-plus" />
-              </svg>
-              Novo Perfume
-            </button>
           </div>
         </header>
 

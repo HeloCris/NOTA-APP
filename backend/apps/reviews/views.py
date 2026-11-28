@@ -122,9 +122,22 @@ class CustomerReviewViewSet(viewsets.ModelViewSet):
             for photo in photos:
                 ReviewPhoto.objects.create(review=review, image=photo)
         try:
-            from apps.communication.services import notify_store
+            from apps.communication.services import notify_store, notify_user
+            user = getattr(self.request, 'user', None) or review.user
+            author_name = user.get_full_name() or user.first_name if user else "Cliente"
+            product_name = review.product.name if review.product else "produto"
+            notif_title = "Nova avaliação"
+            notif_message = f"{author_name} avaliou {product_name}."
+            target_url = f"/store/reviews?review_id={review.id}&highlight=true"
+
             if review.store:
-                notify_store(review.store, "Nova avaliação", f"Cliente avaliou {review.product.name if review.product else 'produto'}.", "NEW_REVIEW", "/store/reviews")
+                notify_store(review.store, notif_title, notif_message, "NEW_REVIEW", target_url)
+
+            if review.product and getattr(review.product, 'brand', None):
+                brand = review.product.brand
+                brand_owner = getattr(brand, 'owner', None)
+                if brand_owner and (not review.store or brand_owner != review.store.owner):
+                    notify_user(brand_owner, notif_title, notif_message, "NEW_REVIEW", target_url, store=review.store)
         except Exception:
             pass
 
@@ -331,17 +344,14 @@ class StoreReviewViewSet(viewsets.GenericViewSet):
         try:
             from apps.communication.services import notify_user
             if review.user:
-                target_url = (
-                    f"/store/{store.id}/product/{review.product_id}/reviews"
-                    if review.product_id
-                    else f"/store/{store.id}/reviews"
-                )
+                target_url = f"/reviews/new?review_id={review.id}&highlight_reply=true"
                 notify_user(
                     review.user,
                     "Loja respondeu sua avaliação",
                     f"{store.name} respondeu à sua avaliação.",
                     "NEW_REVIEW",
                     target_url,
+                    store=store,
                 )
         except Exception:
             pass

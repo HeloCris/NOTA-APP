@@ -5,6 +5,15 @@ export interface StoreProduct {
     name: string;
     brand: string;
     image_url?: string;
+    ean?: string;
+    anvisa_code?: string;
+    concentration?: string;
+    gender?: string;
+    olfactory_family?: string;
+    top_notes?: string[];
+    heart_notes?: string[];
+    base_notes?: string[];
+    description?: string;
   };
   volume_ml: number;
   price: string;

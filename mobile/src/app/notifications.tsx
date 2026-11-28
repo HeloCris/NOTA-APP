@@ -63,15 +63,41 @@ function formatDate(value: string): string {
 }
 
 function resolveNotificationPath(notification: AppNotification): string | null {
-  const raw = notification.target_url?.trim();
+  const raw = notification.target_url?.trim() || '';
+
+  if (raw.includes('/reviews/new')) {
+    const normalized = raw.startsWith('/') ? raw : `/${raw}`;
+    if (!normalized.includes('highlight_reply=')) {
+      return normalized.includes('?')
+        ? `${normalized}&highlight_reply=true`
+        : `${normalized}?highlight_reply=true`;
+    }
+    return normalized;
+  }
+
+  const isReplyNotification =
+    notification.type === 'NEW_REVIEW' &&
+    (notification.title?.toLowerCase().includes('respondeu') ||
+      notification.message?.toLowerCase().includes('respondeu'));
+
+  if (isReplyNotification) {
+    const reviewIdMatch = raw.match(/review_id=(\d+)/);
+    if (reviewIdMatch) {
+      return `/reviews/new?review_id=${reviewIdMatch[1]}&highlight_reply=true`;
+    }
+  }
+
   if (!raw) {
-    return notification.type === 'NEW_REVIEW' ? '/orders' : null;
+    if (notification.type === 'NEW_REVIEW') {
+      return notification.store ? `/store/${notification.store}/reviews` : '/orders';
+    }
+    return null;
   }
 
   const normalized = raw.startsWith('/') ? raw : `/${raw}`;
 
   if (normalized === '/(shop)/reviews' || normalized === '/reviews') {
-    return '/orders';
+    return notification.store ? `/store/${notification.store}/reviews` : '/orders';
   }
 
   if (normalized.startsWith('/(shop)/')) {

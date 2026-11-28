@@ -16,11 +16,11 @@ def notify_store(store, title, message, type_, target_url=""):
     )
 
 
-def notify_user(user, title, message, type_, target_url=""):
+def notify_user(user, title, message, type_, target_url="", store=None):
     if not user:
         return None
     return Notification.objects.create(
-        store=None,
+        store=store,
         user=user,
         title=title[:150],
         message=message,

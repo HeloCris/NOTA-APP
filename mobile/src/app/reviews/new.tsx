@@ -2,9 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -34,16 +35,20 @@ export default function NewReviewScreen() {
     product_image,
     review_id,
     can_edit,
+    highlight_reply,
   } = useLocalSearchParams<{
     order_item_id?: string;
     product_name?: string;
     product_image?: string;
     review_id?: string;
     can_edit?: string;
+    highlight_reply?: string;
   }>();
 
   const isExistingReview = Boolean(review_id);
   const paramCanEdit = can_edit === 'true' || can_edit === '1';
+
+  const pulseAnim = useRef(new Animated.Value(0)).current;
 
   // Modo de edição: se for nova avaliação, já entra editável. Se for existente, começa inativo até clicar em Editar.
   const [isEditing, setIsEditing] = useState(() => !isExistingReview);
@@ -152,6 +157,36 @@ export default function NewReviewScreen() {
       isMounted = false;
     };
   }, [review_id]);
+
+  useEffect(() => {
+    if (
+      (highlight_reply === 'true' || highlight_reply === '1') &&
+      reviewData?.reply
+    ) {
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  }, [highlight_reply, reviewData?.reply, pulseAnim]);
 
   const finalProductImage =
     product_image ||
@@ -425,7 +460,22 @@ export default function NewReviewScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>RESPOSTA DA LOJA</Text>
                 {reviewData?.reply ? (
-                  <View style={styles.replyBox}>
+                  <Animated.View
+                    style={[
+                      styles.replyBox,
+                      {
+                        borderColor: pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['#E4DDD0', '#D4A373'],
+                        }),
+                        backgroundColor: pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['#FFFFFF', '#FEF9EE'],
+                        }),
+                        borderWidth: 1.5,
+                      },
+                    ]}
+                  >
                     <View style={styles.replyHeader}>
                       <Ionicons name="storefront-outline" size={15} color="#1E2430" />
                       <Text style={styles.replyTitle}>
@@ -440,7 +490,7 @@ export default function NewReviewScreen() {
                     <Text style={styles.replyText}>
                       {reviewData.reply.text || reviewData.reply.comment}
                     </Text>
-                  </View>
+                  </Animated.View>
                 ) : (
                   <View style={styles.replyEmptyBox}>
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color="#9CA3AF" />

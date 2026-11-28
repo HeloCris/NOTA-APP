@@ -188,7 +188,6 @@ export function LoginForm() {
           {errors.password && (
             <p className="auth-form-error">{errors.password.message}</p>
           )}
-          <Link to="/forgot-password" className="forgot-link">Esqueci minha senha</Link>
         </div>
 
         <button
@@ -199,15 +198,6 @@ export function LoginForm() {
           {isSubmitting ? "Acessando..." : "ENTRAR"}
         </button>
       </form>
-
-      <div className="auth-divider">OU</div>
-
-      <button type="button" className="btn-google">
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" />
-        Continuar com Google
-      </button>
-
-
 
       <div className="auth-footer">
         Ainda não vende na NŌTA? <Link to="/register">Criar conta</Link>

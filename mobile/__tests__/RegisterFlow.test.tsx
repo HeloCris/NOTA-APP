@@ -64,7 +64,7 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
   });
 
   it('renderiza todos os campos do formulário de cadastro corretamente', async () => {
-    const { getByText, getByPlaceholderText } = await render(<RegisterScreen />);
+    const { getByText, getByPlaceholderText, queryByText } = await render(<RegisterScreen />);
 
     expect(getByText('Crie sua conta')).toBeTruthy();
     expect(getByText('Cadastre-se para explorar o universo NŌTA como cliente.')).toBeTruthy();
@@ -74,7 +74,7 @@ describe('RegisterScreen - Fluxo de Cadastro Mobile', () => {
     expect(getByPlaceholderText('11 99999-0000')).toBeTruthy();
     expect(getByPlaceholderText('••••••••')).toBeTruthy();
     expect(getByText('Próximo →')).toBeTruthy();
-    expect(getByText('Continuar com Google')).toBeTruthy();
+    expect(queryByText('Continuar com Google')).toBeNull();
     expect(getByText('Já tem uma conta? Entrar')).toBeTruthy();
   });
 
