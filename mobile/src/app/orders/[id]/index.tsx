@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -144,19 +143,6 @@ const showAlert = (title: string, message?: string, onOk?: () => void) => {
   }
 };
 
-const showConfirm = (title: string, message: string, onConfirm: () => void) => {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${title}\n\n${message}`)) {
-      onConfirm();
-    }
-  } else {
-    Alert.alert(title, message, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Confirmar', onPress: onConfirm },
-    ]);
-  }
-};
-
 export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -166,6 +152,7 @@ export default function OrderDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modais de Pós-Compra
   const [activeSheet, setActiveSheet] = useState<
@@ -175,7 +162,7 @@ export default function OrderDetailScreen() {
   const [customReason, setCustomReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Formulário de Alteração de Endereço (Padrão idêntico a Meus Endereços)
+  // Formulário de Alteração de Endereço
   const [tag, setTag] = useState('Casa');
   const [street, setStreet] = useState('');
   const [number, setNumber] = useState('');
@@ -187,7 +174,7 @@ export default function OrderDetailScreen() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [addressError, setAddressError] = useState(false);
 
-  // Modal Customizado Bonito para Avisos / Confirmações
+  // Modal Customizado para Avisos / Confirmações
   const [confirmModal, setConfirmModal] = useState<{
     visible: boolean;
     title: string;
@@ -205,6 +192,14 @@ export default function OrderDetailScreen() {
     isDanger: false,
     onConfirm: () => {},
   });
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   const showCustomConfirm = (options: {
     title: string;
@@ -226,9 +221,13 @@ export default function OrderDetailScreen() {
   };
 
   const showToast = (text: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(text);
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToastMessage(null);
+      toastTimerRef.current = null;
     }, 2800);
   };
 
@@ -277,7 +276,7 @@ export default function OrderDetailScreen() {
     }
   };
 
-  const syncAddress = (address: any) => {
+  const syncAddress = useCallback((address: any) => {
     if (!address) return;
     setTag(address.tag || 'Casa');
     setStreet(address.shipping_street || address.street || '');
@@ -295,58 +294,47 @@ export default function OrderDetailScreen() {
     setZipCode(
       address.shipping_zip_code || address.cep || address.zip_code || ''
     );
-  };
+  }, []);
 
-  const fetchOrderDetail = useCallback(async () => {
-    if (!id) return;
-    try {
-      setError(false);
-      const data = await getCustomerOrder(id);
-      setOrder(data);
-      if (data?.shipping_address) {
-        syncAddress(data.shipping_address);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const load = async () => {
+  const fetchOrderDetail = useCallback(
+    async (isMountedCheck?: () => boolean) => {
       if (!id) return;
       try {
         setError(false);
         const data = await getCustomerOrder(id);
-        if (isMounted) {
+        if (!isMountedCheck || isMountedCheck()) {
           setOrder(data);
           if (data?.shipping_address) {
             syncAddress(data.shipping_address);
           }
         }
       } catch {
-        if (isMounted) {
+        if (!isMountedCheck || isMountedCheck()) {
           setError(true);
         }
       } finally {
-        if (isMounted) {
+        if (!isMountedCheck || isMountedCheck()) {
           setLoading(false);
           setRefreshing(false);
         }
       }
-    };
-    void load();
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+    },
+    [id, syncAddress]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      void fetchOrderDetail(() => isMounted);
+      return () => {
+        isMounted = false;
+      };
+    }, [fetchOrderDetail])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchOrderDetail();
+    void fetchOrderDetail();
   }, [fetchOrderDetail]);
 
   const copyTracking = async () => {
@@ -370,7 +358,6 @@ export default function OrderDetailScreen() {
     }
   };
 
-  // Ações do Pós-Compra (Consumindo a API)
   const handleConfirmCancel = async () => {
     if (!id || !order) return;
     const finalReason =
@@ -412,7 +399,6 @@ export default function OrderDetailScreen() {
       return;
     }
 
-    // Validação de mesma Cidade/UF (RN-05)
     const originalAddr: any = order.shipping_address || {};
     const originalCity = (originalAddr.shipping_city || originalAddr.city || '')
       .trim()
@@ -426,12 +412,12 @@ export default function OrderDetailScreen() {
       .trim()
       .toUpperCase();
 
-    if (
-      originalCity &&
-      city.trim().toLowerCase() !== originalCity &&
-      originalUF &&
-      stateUF.trim().toUpperCase() !== originalUF
-    ) {
+    const cityChanged =
+      Boolean(originalCity) && city.trim().toLowerCase() !== originalCity;
+    const ufChanged =
+      Boolean(originalUF) && stateUF.trim().toUpperCase() !== originalUF;
+
+    if (cityChanged || ufChanged) {
       setAddressError(true);
       return;
     }
@@ -509,7 +495,6 @@ export default function OrderDetailScreen() {
     }
   };
 
-  // Timeline baseada nos dados do pedido (timeline vinda da API DRF ou construída)
   const getTimelineSteps = () => {
     if (order?.timeline && order.timeline.length > 0) {
       return order.timeline;
@@ -633,7 +618,6 @@ export default function OrderDetailScreen() {
     ? STATUS_CONFIG[order.status] || STATUS_CONFIG.PROCESSING
     : STATUS_CONFIG.PROCESSING;
 
-  // Agrupamento dos itens por loja (sejam itens vindos de lojas distintas ou mesma loja)
   const storeGroups = useMemo(() => {
     if (!order?.items || order.items.length === 0) return [];
 
@@ -702,7 +686,7 @@ export default function OrderDetailScreen() {
             <Text style={styles.errorText}>
               Não foi possível carregar as informações deste pedido da API.
             </Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchOrderDetail}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => void fetchOrderDetail()}>
               <Text style={styles.retryBtnText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
@@ -789,7 +773,6 @@ export default function OrderDetailScreen() {
 
             {/* BOTÕES DE AÇÃO POR STATUS */}
             <View style={styles.actionsContainer}>
-              {/* Em PENDING ou PAID */}
               {['PENDING', 'PAID'].includes(order.status) ? (
                 <>
                   <TouchableOpacity
@@ -819,7 +802,6 @@ export default function OrderDetailScreen() {
                 </>
               ) : null}
 
-              {/* Em PROCESSING */}
               {order.status === 'PROCESSING' ? (
                 <>
                   <TouchableOpacity
@@ -849,7 +831,6 @@ export default function OrderDetailScreen() {
                 </>
               ) : null}
 
-              {/* Em SHIPPED */}
               {order.status === 'SHIPPED' ? (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.actionBtnSuccess]}
@@ -863,7 +844,6 @@ export default function OrderDetailScreen() {
                 </TouchableOpacity>
               ) : null}
 
-              {/* Em DELIVERED */}
               {order.status === 'DELIVERED' ? (
                 <>
                   {order.delivery_confirmed_by === 'SELLER' ? (
@@ -944,7 +924,6 @@ export default function OrderDetailScreen() {
                 </>
               ) : null}
 
-              {/* Em DELIVERY_DISPUTED */}
               {order.status === 'DELIVERY_DISPUTED' ? (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.actionBtnNavy]}
@@ -959,7 +938,7 @@ export default function OrderDetailScreen() {
               ) : null}
             </View>
 
-            {/* Card de Rastreio (se houver código) */}
+            {/* Card de Rastreio */}
             {order.tracking_code ? (
               <View style={styles.card}>
                 <View style={styles.cardRow}>
@@ -1025,7 +1004,6 @@ export default function OrderDetailScreen() {
                           Qtd {item.quantity}
                         </Text>
 
-                        {/* Botão de Avaliar ou Ver Avaliação do item entregue (RF-16) */}
                         {order.status === 'DELIVERED' && item.can_review ? (
                           <TouchableOpacity
                             style={styles.reviewItemBtn}
@@ -1033,7 +1011,7 @@ export default function OrderDetailScreen() {
                               router.push({
                                 pathname: '/reviews/new',
                                 params: {
-                                  order_item_id: item.id,
+                                  order_item_id: String(item.id),
                                   product_name: item.product_name,
                                   product_image: item.product_image || '',
                                 },
@@ -1051,7 +1029,7 @@ export default function OrderDetailScreen() {
                                 router.push({
                                   pathname: '/reviews/new',
                                   params: {
-                                    review_id: item.review_id,
+                                    review_id: String(item.review_id),
                                     product_name: item.product_name,
                                     product_image: item.product_image || '',
                                     can_edit: item.can_edit_review ? 'true' : 'false',
@@ -1069,7 +1047,7 @@ export default function OrderDetailScreen() {
                                   router.push({
                                     pathname: '/reviews/new',
                                     params: {
-                                      review_id: item.review_id,
+                                      review_id: String(item.review_id),
                                       product_name: item.product_name,
                                       product_image: item.product_image || '',
                                       can_edit: item.can_edit_review ? 'true' : 'false',
@@ -1276,7 +1254,7 @@ export default function OrderDetailScreen() {
         </View>
       </Modal>
 
-      {/* MODAL PADRÃO: ALTERAR ENDEREÇO (IGUAL A MEUS ENDEREÇOS) */}
+      {/* MODAL PADRÃO: ALTERAR ENDEREÇO */}
       <Modal
         visible={activeSheet === 'address'}
         transparent
@@ -1304,7 +1282,7 @@ export default function OrderDetailScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Identificador (Casa, Trabalho...) */}
+              {/* Identificador */}
               <View style={styles.addressInputGroup}>
                 <Text style={styles.addressInputLabel}>Identificador</Text>
                 <View style={styles.addressTagRow}>
@@ -1412,7 +1390,10 @@ export default function OrderDetailScreen() {
                     placeholder="Cidade"
                     placeholderTextColor="#9CA3AF"
                     value={city}
-                    onChangeText={setCity}
+                    onChangeText={(t) => {
+                      setCity(t);
+                      if (addressError) setAddressError(false);
+                    }}
                   />
                 </View>
 
@@ -1425,7 +1406,10 @@ export default function OrderDetailScreen() {
                     maxLength={2}
                     autoCapitalize="characters"
                     value={stateUF}
-                    onChangeText={setStateUF}
+                    onChangeText={(t) => {
+                      setStateUF(t);
+                      if (addressError) setAddressError(false);
+                    }}
                   />
                 </View>
               </View>
@@ -1506,7 +1490,7 @@ export default function OrderDetailScreen() {
         </View>
       </Modal>
 
-      {/* MODAL ELEGANTE DE AVISOS E CONFIRMAÇÕES (PADRÃO APP) */}
+      {/* MODAL DE AVISOS E CONFIRMAÇÕES */}
       <Modal
         visible={confirmModal.visible}
         transparent
@@ -1990,32 +1974,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 6,
   },
-  formContainer: {
-    gap: 8,
-  },
-  formRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  formField: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4DDD0',
-    borderRadius: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  fieldLabel: {
-    fontSize: 10,
-    color: '#6B6F78',
-    fontWeight: '500',
-  },
-  fieldInput: {
-    fontSize: 14,
-    color: '#1E2430',
-    paddingVertical: 2,
-    paddingHorizontal: 0,
-  },
   addressErrorBox: {
     flexDirection: 'row',
     gap: 8,
@@ -2036,7 +1994,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 6,
   },
-  // Modal de Endereço idêntico ao padrão de Meus Endereços
   addressModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -2160,7 +2117,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  // Modal de Avisos e Confirmações
   confirmModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -22,6 +22,8 @@ jest.mock('../src/services/stores', () => ({
   storesService: {
     getStores: jest.fn(),
     getProducts: jest.fn(),
+    getCatalogNotes: jest.fn(),
+    getBrands: jest.fn(),
   },
 }));
 
@@ -95,6 +97,15 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
     jest.clearAllMocks();
     mockSearchParams = {};
     (storesService.getStores as jest.Mock).mockResolvedValue(mockStores);
+    (storesService.getBrands as jest.Mock).mockResolvedValue([]);
+    (storesService.getCatalogNotes as jest.Mock).mockResolvedValue([
+      'Cardamomo',
+      'Íris',
+      'Sândalo',
+      'Rosa',
+      'Âmbar',
+      'Baunilha',
+    ]);
     (storesService.getProducts as jest.Mock).mockImplementation((params) => {
       if (params?.olfactory_family) {
         return Promise.resolve(
@@ -112,22 +123,18 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
 
     const screen = await render(<ExploreScreen />);
 
-    // Deve exibir o badge do filtro ativo de família
     expect(screen.getByTestId('active-family-filter')).toBeTruthy();
     expect(screen.getByText('Família: Oriental')).toBeTruthy();
 
-    // Consulta na API com o filtro de família
     expect(storesService.getProducts).toHaveBeenCalledWith(
       expect.objectContaining({ olfactory_family: 'Oriental' })
     );
 
-    // Deve exibir o perfume retornado pela API para Oriental (Ambre Nocturne) e não exibir Floral
     await waitFor(() => {
       expect(screen.getByText('Ambre Nocturne')).toBeTruthy();
       expect(screen.queryByText('Rose Éternelle')).toBeNull();
     });
 
-    // Toque no botão de detalhes navega para o ID real do produto (/product/103)
     const detailsBtn = screen.getByTestId('product-btn-103');
     fireEvent.press(detailsBtn);
     expect(mockPush).toHaveBeenCalledWith({
@@ -141,15 +148,12 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
 
     const screen = await render(<ExploreScreen />);
 
-    // Deve exibir o badge do filtro ativo de tipo
     expect(screen.getByTestId('active-type-filter')).toBeTruthy();
     expect(screen.getByText('Tipo: Decants')).toBeTruthy();
 
     await waitFor(() => {
-      // Perfumes com decants disponíveis (<= 15ml) devem ser exibidos
       expect(screen.getByText('Santal Majestueux')).toBeTruthy();
       expect(screen.getByText('Ambre Nocturne')).toBeTruthy();
-      // Perfume com apenas 100ml NÃO deve aparecer
       expect(screen.queryByText('Rose Éternelle')).toBeNull();
     });
   });
@@ -159,12 +163,10 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
 
     const screen = await render(<ExploreScreen />);
 
-    // O modal de notas deve estar visível
     const modal = screen.getByTestId('notes-modal');
     expect(modal).toBeTruthy();
     expect(screen.getByText('Descoberta por Notas')).toBeTruthy();
 
-    // Permite fechar o modal
     const closeBtn = screen.getByTestId('close-notes-modal-btn');
     fireEvent.press(closeBtn);
   });
@@ -174,18 +176,15 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
 
     const screen = await render(<ExploreScreen />);
 
-    // O container da aba de lojas deve estar ativo
     expect(screen.getByTestId('stores-tab-content')).toBeTruthy();
     expect(screen.getByText('Todas as Lojas')).toBeTruthy();
 
-    // Carrega e exibe as lojas da API
     await waitFor(() => {
       expect(screen.getByText('Maison Noire')).toBeTruthy();
       expect(screen.getByText('Parfum Atelier')).toBeTruthy();
-      expect(screen.getByText('Novo')).toBeTruthy(); // Loja sem avaliações
+      expect(screen.getByText('Novo')).toBeTruthy();
     });
 
-    // Toque no card da loja navega para a rota de detalhe da loja
     const storeItem = screen.getByTestId('store-list-item-1');
     fireEvent.press(storeItem);
     expect(mockPush).toHaveBeenCalledWith({
@@ -199,11 +198,10 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
 
     const screen = await render(<ExploreScreen />);
 
-    // Inicialmente na aba de perfumes
     await waitFor(() => {
       expect(screen.getByTestId('products-tab-content')).toBeTruthy();
     });
-    // Toca na aba de lojas
+
     const storesTabBtn = screen.getByTestId('tab-stores');
     fireEvent.press(storesTabBtn);
 
@@ -211,7 +209,6 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
       expect(screen.getByTestId('stores-tab-content')).toBeTruthy();
     });
 
-    // Toca de volta na aba de perfumes
     const perfumesTabBtn = screen.getByTestId('tab-perfumes');
     fireEvent.press(perfumesTabBtn);
 
@@ -219,5 +216,4 @@ describe('ExploreScreen (Integração com Parâmetros de URL e Dados Reais - RF-
       expect(screen.getByTestId('products-tab-content')).toBeTruthy();
     });
   });
-
-});
+})

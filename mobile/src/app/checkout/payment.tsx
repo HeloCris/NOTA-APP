@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -69,17 +69,22 @@ export default function PaymentScreen() {
 
   useEffect(() => {
     if (params.store_id) {
-      storesService.getStore(params.store_id as string).then((store: any) => {
-        if (store) {
-          setStoreSettings({
-            max_installments: store.max_installments ?? 6,
-            free_interest_installments: store.free_interest_installments ?? 3,
-            min_installment_amount: store.min_installment_amount ? Number(store.min_installment_amount) : 30,
-          });
-        }
-      }).catch((err) => {
-        console.warn('Erro ao carregar configuracoes de parcelamento da loja:', err);
-      });
+      storesService
+        .getStore(params.store_id as string)
+        .then((store: any) => {
+          if (store) {
+            setStoreSettings({
+              max_installments: store.max_installments ?? 6,
+              free_interest_installments: store.free_interest_installments ?? 3,
+              min_installment_amount: store.min_installment_amount
+                ? Number(store.min_installment_amount)
+                : 30,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Erro ao carregar configuracoes de parcelamento da loja:', err);
+        });
     }
   }, [params.store_id]);
 
@@ -106,73 +111,101 @@ export default function PaymentScreen() {
     })();
   }, []);
 
-  const totalAmount = (params.total_amount as string) || "27.92";
-  const shippingCost = Number(params.shipping_cost) || 12.92;
-  const shippingService = (params.shipping_service as string) || 'SEDEX';
-
   const parseParam = (param: any) => {
-    if (!param) return [];
+    if (!param) return null;
     if (typeof param === 'object') return param;
     try {
       return JSON.parse(param);
     } catch {
-      return [];
+      return null;
     }
   };
 
+  const parsedCartItems = useMemo(() => {
+    const raw = parseParam(params.cartItems);
+    return Array.isArray(raw) ? raw : [];
+  }, [params.cartItems]);
+
+  const itemsCount = useMemo(() => {
+    if (parsedCartItems.length > 0) {
+      return parsedCartItems.reduce(
+        (acc: number, item: any) => acc + (Number(item.quantity) || 1),
+        0,
+      );
+    }
+    return Number(params.items_count) || 1;
+  }, [parsedCartItems, params.items_count]);
+
+  const rawTotalAmount = (params.total_amount as string) || '0.00';
+  const numericTotal = parseFloat(rawTotalAmount.replace(',', '.')) || 0;
+  const formattedTotalBRL = numericTotal.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const shippingCost = Number(params.shipping_cost) || 0;
+  const shippingService = (params.shipping_service as string) || 'SEDEX';
+  const shippingEstimate = (params.shipping_estimate as string) || '1 a 3 dias úteis';
+
   const handlePaymentSubmit = async (paymentData: any) => {
+    if (loading) return;
+
+    const parsedAddress = parseParam(params.address);
+    if (
+      !parsedAddress ||
+      typeof parsedAddress !== 'object' ||
+      Array.isArray(parsedAddress) ||
+      !parsedAddress.street ||
+      !parsedAddress.cep
+    ) {
+      Alert.alert(
+        'Endereço incompleto',
+        'Volte para a etapa de entrega e selecione um endereço válido.',
+      );
+      return;
+    }
+
+    if (parsedCartItems.length === 0) {
+      Alert.alert(
+        'Itens não encontrados',
+        'Não foi possível identificar os itens do pedido. Volte para a sacola e tente novamente.',
+      );
+      return;
+    }
+
     setLoading(true);
     try {
-      const parsedAddress = parseParam(params.address);
-      const safeAddress =
-        parsedAddress &&
-        typeof parsedAddress === 'object' &&
-        !Array.isArray(parsedAddress) &&
-        Object.keys(parsedAddress).length > 0
-          ? parsedAddress
-          : {
-              street: 'Endereço Principal',
-              number: '100',
-              neighborhood: 'Centro',
-              city: 'Goiânia',
-              state: 'GO',
-              cep: '74000-000',
-            };
-
-      const rawItems = parseParam(params.cartItems);
-      const parsedItems =
-        rawItems.length > 0
-          ? rawItems
-          : [{ store_product_id: 16, quantity: 1, unit_price: '15.00' }];
-
-      const sanitizedItems = parsedItems.map((it: any) => ({
-        store_product_id: Number(it.store_product_id || it.storeProductId) || 16,
+      const sanitizedItems = parsedCartItems.map((it: any) => ({
+        store_product_id: Number(it.store_product_id || it.storeProductId),
         quantity: Number(it.quantity) || 1,
-        unit_price: String(it.unit_price || it.price || '15.00'),
+        unit_price: String(it.unit_price || it.price || '0.00'),
       }));
 
       const primaryStoreId =
         (params.store_id as string) ||
-        (parsedItems[0]?.store_id ? String(parsedItems[0].store_id) : '2');
+        (parsedCartItems[0]?.store_id ? String(parsedCartItems[0].store_id) : '1');
 
       const parsedCoupons = params.coupons ? parseParam(params.coupons) : undefined;
       const couponCode = (params.coupon_code as string) || undefined;
 
       const orderResponse = await createOrder({
         store_id: primaryStoreId,
-        total_amount: totalAmount,
+        total_amount: numericTotal.toFixed(2),
         shipping_cost: shippingCost,
         shipping_service: shippingService,
-        shipping_address: safeAddress,
+        shipping_address: parsedAddress,
         items: sanitizedItems,
         coupons: parsedCoupons,
         coupon_code: couponCode,
       });
 
       const orderId = orderResponse?.order_id || orderResponse?.id;
-      const orderIds: number[] = Array.isArray(orderResponse?.order_ids) && orderResponse.order_ids.length > 0
-        ? orderResponse.order_ids
-        : (orderId ? [orderId] : []);
+      const orderIds: number[] =
+        Array.isArray(orderResponse?.order_ids) && orderResponse.order_ids.length > 0
+          ? orderResponse.order_ids
+          : orderId
+            ? [orderId]
+            : [];
 
       if (orderIds.length === 0) {
         throw new Error('Identificador do pedido não retornado pelo servidor.');
@@ -208,7 +241,7 @@ export default function PaymentScreen() {
         }
       }
 
-      // Limpa os itens comprados da sacola com fallback seguro
+      // Limpa os itens comprados da sacola
       try {
         if (typeof clearCart === 'function') {
           clearCart();
@@ -218,17 +251,24 @@ export default function PaymentScreen() {
       }
 
       const ordersList = orderResponse?.orders || [];
-      const orderCodes = ordersList.map((o: any) => o.code).filter(Boolean).join(', ');
+      const orderCodes = ordersList
+        .map((o: any) => o.code)
+        .filter(Boolean)
+        .join(', ');
 
       router.replace({
         pathname: '/checkout/success' as any,
         params: {
-          order_id: String(orderId || '48213'),
+          order_id: String(orderId),
           order_count: String(orderIds.length),
           order_codes: orderCodes,
-          total_amount: totalAmount,
-          address: typeof params.address === 'string' ? params.address : JSON.stringify(safeAddress),
+          total_amount: formattedTotalBRL,
+          address:
+            typeof params.address === 'string'
+              ? params.address
+              : JSON.stringify(parsedAddress),
           shipping_service: shippingService,
+          shipping_estimate: shippingEstimate,
         },
       });
     } catch (error: any) {
@@ -240,15 +280,21 @@ export default function PaymentScreen() {
         error.message;
 
       if (error.response?.status === 400) {
-        Alert.alert("Estoque ou Dados Inválidos", serverMsg || "Um ou mais itens do seu carrinho esgotaram.");
+        Alert.alert(
+          'Estoque ou Dados Inválidos',
+          serverMsg || 'Um ou mais itens do seu carrinho esgotaram.',
+        );
       } else if (error.response?.status === 401) {
-        Alert.alert("Sessão Expirada", "Por favor, faça login para concluir o pagamento.");
+        Alert.alert('Sessão Expirada', 'Por favor, faça login para concluir o pagamento.');
       } else if (error.response?.status === 402) {
-        Alert.alert("Pagamento Recusado", serverMsg || "A transação foi recusada pela operadora do cartão.");
+        Alert.alert(
+          'Pagamento Recusado',
+          serverMsg || 'A transação foi recusada pela operadora do cartão.',
+        );
       } else if (error.response?.status === 404) {
-        Alert.alert("Erro", serverMsg || "Item ou recurso não encontrado ao gerar o pedido.");
+        Alert.alert('Erro', serverMsg || 'Item ou recurso não encontrado ao gerar o pedido.');
       } else {
-        Alert.alert("Erro no Pagamento", serverMsg || "Não foi possível concluir a transação.");
+        Alert.alert('Erro no Pagamento', serverMsg || 'Não foi possível concluir a transação.');
       }
     } finally {
       setLoading(false);
@@ -270,12 +316,15 @@ export default function PaymentScreen() {
       if (Platform.OS === 'web') {
         window.alert('Digite o código CVV de 3 ou 4 dígitos do seu cartão para continuar.');
       } else {
-        Alert.alert('CVV Obrigatório', 'Digite o código CVV de segurança impresso no verso do cartão selecionado.');
+        Alert.alert(
+          'CVV Obrigatório',
+          'Digite o código CVV de segurança impresso no verso do cartão selecionado.',
+        );
       }
       return;
     }
     setCvvError('');
-    handlePaymentSubmit({
+    void handlePaymentSubmit({
       payment_method: 'CREDIT_CARD',
       payment_token: 'tok_saved_card_mock',
       card_number: `453212345678${card.lastDigits}`,
@@ -304,7 +353,7 @@ export default function PaymentScreen() {
           <View style={{ width: 36 }} />
         </View>
 
-        {/* Stepper (1 Sacola concluída, 2 Entrega concluída, 3 Pagamento ativo) */}
+        {/* Stepper */}
         <CheckoutStepper currentStep="pagamento" />
 
         <ScrollView
@@ -318,11 +367,13 @@ export default function PaymentScreen() {
             <View style={styles.summaryRow}>
               <View>
                 <Text style={styles.summaryLabel}>Total a pagar</Text>
-                <Text style={styles.summaryTotal}>R$ {totalAmount}</Text>
+                <Text style={styles.summaryTotal}>R$ {formattedTotalBRL}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.summaryItems}>1 item • {shippingService}</Text>
-                <TouchableOpacity onPress={() => router.push('/checkout/shipping' as any)}>
+                <Text style={styles.summaryItems}>
+                  {itemsCount} {itemsCount === 1 ? 'item' : 'itens'} • {shippingService}
+                </Text>
+                <TouchableOpacity onPress={() => router.back()}>
                   <Text style={styles.summaryLink}>Ver resumo</Text>
                 </TouchableOpacity>
               </View>
@@ -369,17 +420,18 @@ export default function PaymentScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Aviso do Pix */}
-          <View style={styles.pixNoticeRow}>
-            <Text style={styles.pixNoticeSparkle}>✦</Text>
-            <Text style={styles.pixNoticeText}>Com Pix a aprovação é na hora</Text>
-          </View>
+          {/* Aviso do Pix apenas quando Pix estiver ativo */}
+          {activeTab === 'PIX' && (
+            <View style={styles.pixNoticeRow}>
+              <Text style={styles.pixNoticeSparkle}>✦</Text>
+              <Text style={styles.pixNoticeText}>Com Pix a aprovação é na hora</Text>
+            </View>
+          )}
 
           {/* Conteúdo da Aba */}
           {activeTab === 'PIX' ? (
             <PixView onSubmit={handlePaymentSubmit} isLoading={loading} />
           ) : hasSavedCards ? (
-            /* Tela 2 do Mockup: Pagamento com cartões já salvos */
             <View style={styles.savedCardsContainer}>
               <Text style={styles.sectionTitle}>Seus cartões</Text>
 
@@ -400,7 +452,9 @@ export default function PaymentScreen() {
                       <View
                         style={[
                           styles.brandIcon,
-                          card.brand === 'Visa' ? { backgroundColor: '#1E3A8A' } : { backgroundColor: '#EA580C' },
+                          card.brand === 'Visa'
+                            ? { backgroundColor: '#1E3A8A' }
+                            : { backgroundColor: '#EA580C' },
                         ]}
                       >
                         <Text style={styles.brandIconText}>{card.brand.toUpperCase()}</Text>
@@ -447,7 +501,7 @@ export default function PaymentScreen() {
                           >
                             <Text style={styles.miniSelectText} numberOfLines={1}>
                               {selectedInstallmentCount}x de R${' '}
-                              {(Number(totalAmount) / selectedInstallmentCount)
+                              {(numericTotal / selectedInstallmentCount)
                                 .toFixed(2)
                                 .replace('.', ',')}
                               {selectedInstallmentCount <= storeSettings.free_interest_installments
@@ -490,19 +544,23 @@ export default function PaymentScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="lock-closed" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.payButtonText}>Pagar R$ {totalAmount}</Text>
+                    <Ionicons
+                      name="lock-closed"
+                      size={16}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.payButtonText}>Pagar R$ {formattedTotalBRL}</Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
           ) : (
-            /* Tela 3 do Mockup: Formulário completo para quem nunca salvou cartão */
             <View>
               <CreditCardForm
                 onSubmit={handlePaymentSubmit}
                 isLoading={loading}
-                totalFormatted={totalAmount}
+                totalFormatted={formattedTotalBRL}
                 installmentSettings={storeSettings}
               />
               {savedCards.length > 0 && (
@@ -511,7 +569,14 @@ export default function PaymentScreen() {
                   onPress={() => setHasSavedCards(true)}
                   activeOpacity={0.7}
                 >
-                  <Text style={{ fontSize: 13, color: '#1E2B37', textDecorationLine: 'underline', fontWeight: '600' }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: '#1E2B37',
+                      textDecorationLine: 'underline',
+                      fontWeight: '600',
+                    }}
+                  >
                     ← Voltar para cartões salvos
                   </Text>
                 </TouchableOpacity>
@@ -542,7 +607,7 @@ export default function PaymentScreen() {
               </TouchableOpacity>
             </View>
             <InstallmentSelector
-              totalAmount={parseFloat(totalAmount.replace(',', '.')) || 0}
+              totalAmount={numericTotal}
               maxInstallments={storeSettings.max_installments}
               freeInterestInstallments={storeSettings.free_interest_installments}
               minInstallmentAmount={storeSettings.min_installment_amount}

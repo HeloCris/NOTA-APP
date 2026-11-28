@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Animated,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Store, storesService } from '@/services/stores';
@@ -24,8 +31,15 @@ export function StoreHero({
   const [isFollowing, setIsFollowing] = useState<boolean>(Boolean(store.is_following));
   const [followersCount, setFollowersCount] = useState<number>(store.followers_count ?? 0);
 
+  useEffect(() => {
+    setIsFollowing(Boolean(store.is_following));
+  }, [store.is_following]);
+
+  useEffect(() => {
+    setFollowersCount(store.followers_count ?? 0);
+  }, [store.followers_count]);
+
   const handleToggleFollow = async () => {
-    // Atualização otimista
     const nextFollowing = !isFollowing;
     setIsFollowing(nextFollowing);
     setFollowersCount((prev) => (nextFollowing ? prev + 1 : Math.max(0, prev - 1)));
@@ -35,7 +49,6 @@ export function StoreHero({
       setIsFollowing(res.is_following);
       setFollowersCount(res.followers_count);
     } catch {
-      // Reverte em caso de erro (ex: não logado ou falha de rede)
       setIsFollowing(!nextFollowing);
       setFollowersCount((prev) => (!nextFollowing ? prev + 1 : Math.max(0, prev - 1)));
     }
@@ -51,8 +64,10 @@ export function StoreHero({
     store.rating !== null && store.rating !== undefined && store.rating > 0
       ? store.rating.toFixed(1).replace('.', ',')
       : 'Novo';
-  const perfumesCount = productsCount ?? store.products_count ?? 12;
-  const locationText = store.city ? `${store.city}${store.state ? `, ${store.state}` : ''}` : null;
+  const perfumesCount = productsCount ?? store.products_count ?? 0;
+  const locationText = store.city
+    ? `${store.city}${store.state ? `, ${store.state}` : ''}`
+    : null;
 
   return (
     <View style={styles.container}>
@@ -91,7 +106,7 @@ export function StoreHero({
           )}
         </View>
 
-        {/* Nome da Loja + Símbolo Oficial (Apenas o ícone de verificado azul) */}
+        {/* Nome da Loja + Símbolo Oficial */}
         <View style={styles.nameRow}>
           <Text style={styles.name}>{store.name}</Text>
           {(store.is_official || store.is_verified) && (
@@ -105,7 +120,7 @@ export function StoreHero({
           )}
         </View>
 
-        {/* Bio com 'ver mais' / 'ver menos' condicional ao transbordamento real */}
+        {/* Bio com 'ver mais' / 'ver menos' */}
         {store.bio ? (
           <View style={styles.bioContainer}>
             <Text
@@ -130,9 +145,8 @@ export function StoreHero({
           </View>
         ) : null}
 
-        {/* Linha de Estatísticas: Avaliação, Perfumes e Cidade */}
+        {/* Linha de Estatísticas: Avaliação, Perfumes, Seguidores e Cidade */}
         <View style={styles.statsRow}>
-          {/* Avaliação (clicável para abrir avaliações) */}
           <TouchableOpacity
             style={styles.statItem}
             onPress={onOpenReviews}
@@ -144,24 +158,23 @@ export function StoreHero({
             <Text style={styles.statText}>{ratingDisplay}</Text>
           </TouchableOpacity>
 
-          {/* Quantidade de perfumes */}
           <View style={styles.statItem}>
             <MaterialIcons name="local-drink" size={15} color="#4B5563" />
-            <Text style={styles.statText}>{perfumesCount} perfumes</Text>
+            <Text style={styles.statText}>
+              {perfumesCount} {perfumesCount === 1 ? 'perfume' : 'perfumes'}
+            </Text>
           </View>
 
-          {/* Seguidores */}
           <View style={styles.statItem}>
             <MaterialIcons name="people-outline" size={15} color="#4B5563" />
             <Text style={styles.statText}>
               {followersCount >= 1000
                 ? `${(followersCount / 1000).toFixed(1).replace('.', ',')}k`
                 : followersCount}{' '}
-              seguidores
+              {followersCount === 1 ? 'seguidor' : 'seguidores'}
             </Text>
           </View>
 
-          {/* Cidade/Estado se cadastrado */}
           {locationText && (
             <View style={styles.statItem}>
               <MaterialIcons name="location-on" size={15} color="#4B5563" />
@@ -169,8 +182,6 @@ export function StoreHero({
             </View>
           )}
         </View>
-
-        {/* Linha de Estatísticas: Avaliação, Perfumes e Cidade */}
 
         {/* Botões de Ação: Seguir e Falar com a loja */}
         <View style={styles.actionsRow}>
@@ -293,8 +304,8 @@ const styles = StyleSheet.create({
   },
   bioToggleText: {
     fontSize: 13.5,
-    fontWeight: '600',
-    color: '#2563EB',
+    fontWeight: '700',
+    color: '#2C4659',
   },
   statsRow: {
     flexDirection: 'row',
@@ -372,19 +383,5 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  reviewsLinkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginTop: 2,
-    marginBottom: 6,
-    alignSelf: 'flex-start',
-  },
-  reviewsLinkText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#2C4659',
-    textDecorationLine: 'underline',
   },
 });

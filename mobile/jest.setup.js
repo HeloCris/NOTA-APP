@@ -1,3 +1,14 @@
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    SafeAreaProvider: ({ children }) => <View>{children}</View>,
+    SafeAreaView: ({ children, ...props }) => <View {...props}>{children}</View>,
+    useSafeAreaInsets: jest.fn(() => ({ top: 0, bottom: 0, left: 0, right: 0 })),
+    useSafeAreaFrame: jest.fn(() => ({ x: 0, y: 0, width: 390, height: 844 })),
+  };
+});
+
 jest.mock('@expo/vector-icons', () => {
   const { Text } = require('react-native');
   return new Proxy(
@@ -54,7 +65,6 @@ jest.mock('expo-asset', () => ({
 }));
 
 jest.mock('expo-status-bar', () => {
-  const React = require('react');
   return {
     StatusBar: () => null,
   };

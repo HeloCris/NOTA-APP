@@ -211,17 +211,17 @@ export async function disputeCustomerDelivery(
 
 /**
  * Solicita devolução parcial ou total do pedido (até 7 dias após entrega).
- * Envia FormData com motivo, descrição, itens e fotos.
+ * Deixa o boundary do multipart/form-data ser gerado automaticamente pelo XHR/Axios.
  */
 export async function requestCustomerReturn(
-  orderId: string,
-  payload: { reason: string; description: string; items: { order_item_id: string; quantity: number }[] } | FormData
+  orderId: string | number,
+  payload: { reason: string; description: string; items: { order_item_id: string | number; quantity: number }[] } | FormData
 ) {
   const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData;
 
   const response = await api.post(`/orders/${orderId}/returns/`, payload, {
     headers: isFormData
-      ? { 'Content-Type': 'multipart/form-data' }
+      ? { 'Content-Type': undefined }
       : { 'Content-Type': 'application/json' },
   });
 

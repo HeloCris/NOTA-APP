@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { saveToken, getToken } from '../utils/storage';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
+import { saveToken, getToken, deleteToken } from '../utils/storage';
 
 export interface CartItem {
   id: string; // unique cart item id: `${productId}-${volumeMl}-${storeId}`
@@ -10,6 +17,7 @@ export interface CartItem {
   volumeMl: number;
   price: number;
   quantity: number;
+  maxStock?: number;
   imageUrl?: string;
   storeProductId?: number;
   storeId?: number;
@@ -34,7 +42,6 @@ interface CartContextData {
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
-// Ajustado para remover o caractere '@' e evitar erros com SecureStore no Expo
 const CART_STORAGE_KEY = 'app_cart_items';
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -63,6 +70,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Salva no storage quando houver alterações
   useEffect(() => {
     if (!isLoaded) return;
+    if (items.length === 0) {
+      deleteToken(CART_STORAGE_KEY).catch(() => {});
+      return;
+    }
     saveToken(CART_STORAGE_KEY, JSON.stringify(items)).catch((err) => {
       console.error('Erro ao persistir carrinho:', err);
     });
@@ -77,23 +88,38 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (existingIndex > -1) {
           const updated = [...prev];
+          const current = updated[existingIndex];
+          const nextQty = current.quantity + addQty;
+          const cappedQty =
+            typeof item.maxStock === 'number'
+              ? Math.min(nextQty, item.maxStock)
+              : typeof current.maxStock === 'number'
+                ? Math.min(nextQty, current.maxStock)
+                : nextQty;
+
           updated[existingIndex] = {
-            ...updated[existingIndex],
-            quantity: updated[existingIndex].quantity + addQty,
+            ...current,
+            quantity: Math.max(1, cappedQty),
             price: item.price,
+            maxStock: item.maxStock ?? current.maxStock,
           };
           return updated;
         }
 
+        const initialQty =
+          typeof item.maxStock === 'number' ? Math.min(addQty, item.maxStock) : addQty;
+
+        if (initialQty <= 0) return prev;
+
         const newItem: CartItem = {
           ...item,
           id: cartId,
-          quantity: addQty,
+          quantity: initialQty,
         };
         return [...prev, newItem];
       });
     },
-    []
+    [],
   );
 
   const updateQuantity = useCallback((id: string, delta: number) => {
@@ -101,21 +127,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       prev
         .map((item) => {
           if (item.id === id) {
-            const newQty = item.quantity + delta;
+            let newQty = item.quantity + delta;
+            if (delta > 0 && typeof item.maxStock === 'number') {
+              newQty = Math.min(newQty, item.maxStock);
+            }
             return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
           return item;
         })
-        .filter(Boolean) as CartItem[]
+        .filter(Boolean) as CartItem[],
     );
   }, []);
 
   const setQuantity = useCallback((id: string, quantity: number) => {
     setItems((prev) =>
       prev
-        .map((item) => item.id === id
-          ? (quantity > 0 ? { ...item, quantity } : null)
-          : item)
+        .map((item) =>
+          item.id === id ? (quantity > 0 ? { ...item, quantity } : null) : item,
+        )
         .filter(Boolean) as CartItem[],
     );
   }, []);
@@ -128,29 +157,45 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems([]);
   }, []);
 
-  const totalItemsCount = items.reduce((acc, item) => acc + item.quantity, 0);
-  const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const totalItemsCount = useMemo(
+    () => items.reduce((acc, item) => acc + item.quantity, 0),
+    [items],
+  );
+  const subtotal = useMemo(
+    () => items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [items],
+  );
   const shipping = items.length > 0 ? 15.0 : 0;
   const total = subtotal + shipping;
 
-  return (
-    <CartContext.Provider
-      value={{
-        items,
-        addItem,
-        updateQuantity,
-        setQuantity,
-        removeItem,
-        clearCart,
-        totalItemsCount,
-        subtotal,
-        shipping,
-        total,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const value = useMemo(
+    () => ({
+      items,
+      addItem,
+      updateQuantity,
+      setQuantity,
+      removeItem,
+      clearCart,
+      totalItemsCount,
+      subtotal,
+      shipping,
+      total,
+    }),
+    [
+      items,
+      addItem,
+      updateQuantity,
+      setQuantity,
+      removeItem,
+      clearCart,
+      totalItemsCount,
+      subtotal,
+      shipping,
+      total,
+    ],
   );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 export function useCart() {

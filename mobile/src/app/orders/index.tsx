@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -151,52 +151,41 @@ export default function OrdersScreen() {
   const [error, setError] = useState(false);
   const [selectedOrderForReview, setSelectedOrderForReview] = useState<CustomerOrder | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        const data = await listCustomerOrders();
-        if (isMounted) {
-          setOrders(Array.isArray(data) ? data : []);
-          setError(false);
-        }
-      } catch {
-        if (isMounted) {
-          setError(true);
-          setOrders([]);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          setRefreshing(false);
-        }
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (isMountedCheck?: () => boolean) => {
     try {
       const data = await listCustomerOrders();
-      setOrders(Array.isArray(data) ? data : []);
-      setError(false);
+      if (!isMountedCheck || isMountedCheck()) {
+        setOrders(Array.isArray(data) ? data : []);
+        setError(false);
+      }
     } catch {
-      setError(true);
-      setOrders([]);
+      if (!isMountedCheck || isMountedCheck()) {
+        setError(true);
+        setOrders([]);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!isMountedCheck || isMountedCheck()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      void fetchOrders(() => isMounted);
+      return () => {
+        isMounted = false;
+      };
+    }, [fetchOrders]),
+  );
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchOrders();
+    void fetchOrders();
   }, [fetchOrders]);
 
-  // Contagem para as abas baseada nos dados reais retornados da API
   const getTabCount = (tab: TabFilter) => {
     if (!tab.statuses) return orders.length;
     return orders.filter((o) => tab.statuses!.includes(o.status)).length;
@@ -211,8 +200,7 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
-      
-      {/* Header do Protótipo */}
+
       <View style={styles.header}>
         <TouchableOpacity
           accessibilityLabel="Voltar"
@@ -221,7 +209,7 @@ export default function OrdersScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace('/(shop)' as never);
+              router.replace('/(shop)/account' as never);
             }
           }}
           activeOpacity={0.7}
@@ -232,7 +220,6 @@ export default function OrdersScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Abas de Filtros Horizontais */}
       <View style={styles.tabsWrapper}>
         <ScrollView
           horizontal
@@ -261,7 +248,6 @@ export default function OrdersScreen() {
         </ScrollView>
       </View>
 
-      {/* Lista de Pedidos */}
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -285,7 +271,7 @@ export default function OrdersScreen() {
           <View style={styles.centerContainer}>
             <Ionicons name="alert-circle-outline" size={36} color="#C62828" />
             <Text style={styles.errorText}>Não foi possível carregar seus pedidos da API.</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchOrders}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => void fetchOrders()}>
               <Text style={styles.retryBtnText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
@@ -318,11 +304,10 @@ export default function OrdersScreen() {
                 onPress={() =>
                   router.push({
                     pathname: '/orders/[id]',
-                    params: { id: order.id },
+                    params: { id: String(order.id) },
                   } as never)
                 }
               >
-                {/* Cabeçalho do Card */}
                 <View style={styles.cardHeader}>
                   <View>
                     <Text style={styles.orderCode}>Pedido {orderCode}</Text>
@@ -336,7 +321,6 @@ export default function OrdersScreen() {
                   </View>
                 </View>
 
-                {/* Linha do Produto Principal */}
                 <View style={styles.productRow}>
                   <View style={styles.productThumb}>
                     {firstItem?.product_image ? (
@@ -344,6 +328,7 @@ export default function OrdersScreen() {
                         source={{ uri: firstItem.product_image }}
                         style={styles.productImage}
                         contentFit="cover"
+                        cachePolicy="memory-disk"
                         transition={200}
                       />
                     ) : (
@@ -365,7 +350,6 @@ export default function OrdersScreen() {
                   </View>
                 </View>
 
-                {/* Dica / Alerta Contextual do Card */}
                 {hint ? (
                   <View style={styles.hintContainer}>
                     <Ionicons name="information-circle-outline" size={14} color={statusConfig.color} />
@@ -373,7 +357,6 @@ export default function OrdersScreen() {
                   </View>
                 ) : null}
 
-                {/* Rodapé do Card */}
                 <View style={styles.cardFooter}>
                   <Text style={styles.totalPrice}>{formatCurrency(order.total_amount)}</Text>
                   <View style={styles.footerActions}>
@@ -381,26 +364,47 @@ export default function OrdersScreen() {
                       const totalItems = order.items?.length || 0;
                       const hasReviewable = order.items?.some((i) => i.can_review);
                       const hasReviewed = order.items?.some((i) => i.review_id);
+                      const hasReply = order.items?.some((i) => i.review_reply);
 
                       if (!hasReviewable && !hasReviewed) return null;
 
-                      // Se tiver mais de 1 item no pedido, abre a telinha de seleção dos itens
                       if (totalItems > 1) {
                         return (
                           <TouchableOpacity
-                            style={hasReviewable ? styles.reviewBtn : styles.viewReviewBtn}
+                            style={[
+                              hasReviewable ? styles.reviewBtn : styles.viewReviewBtn,
+                              !hasReviewable && hasReply
+                                ? { backgroundColor: '#EBF5FF', borderColor: '#BAE6FD' }
+                                : undefined,
+                            ]}
                             activeOpacity={0.8}
                             onPress={() => setSelectedOrderForReview(order)}
                           >
-                            <Ionicons name="star" size={12} color="#D97706" />
-                            <Text style={hasReviewable ? styles.reviewBtnText : styles.viewReviewBtnText}>
-                              {hasReviewable ? 'Avaliar itens' : 'Ver avaliações'}
+                            <Ionicons
+                              name={
+                                !hasReviewable && hasReply
+                                  ? 'chatbubble-ellipses-outline'
+                                  : 'star'
+                              }
+                              size={12}
+                              color={!hasReviewable && hasReply ? '#0284C7' : '#D97706'}
+                            />
+                            <Text
+                              style={[
+                                hasReviewable ? styles.reviewBtnText : styles.viewReviewBtnText,
+                                !hasReviewable && hasReply ? { color: '#0369A1' } : undefined,
+                              ]}
+                            >
+                              {hasReviewable
+                                ? 'Avaliar itens'
+                                : hasReply
+                                ? 'Loja respondeu'
+                                : 'Ver avaliações'}
                             </Text>
                           </TouchableOpacity>
                         );
                       }
 
-                      // Caso tenha apenas 1 item no pedido, vai direto para a tela de avaliação
                       const singleItem = order.items?.[0];
                       if (!singleItem) return null;
 
@@ -413,7 +417,7 @@ export default function OrdersScreen() {
                               router.push({
                                 pathname: '/reviews/new',
                                 params: {
-                                  order_item_id: singleItem.id,
+                                  order_item_id: String(singleItem.id),
                                   product_name: singleItem.product_name,
                                   product_image: singleItem.product_image || '',
                                 },
@@ -427,15 +431,21 @@ export default function OrdersScreen() {
                       }
 
                       if (singleItem.review_id) {
+                        const replied = Boolean(singleItem.review_reply);
                         return (
                           <TouchableOpacity
-                            style={styles.viewReviewBtn}
+                            style={[
+                              styles.viewReviewBtn,
+                              replied
+                                ? { backgroundColor: '#EBF5FF', borderColor: '#BAE6FD' }
+                                : undefined,
+                            ]}
                             activeOpacity={0.8}
                             onPress={() =>
                               router.push({
                                 pathname: '/reviews/new',
                                 params: {
-                                  review_id: singleItem.review_id,
+                                  review_id: String(singleItem.review_id),
                                   product_name: singleItem.product_name,
                                   product_image: singleItem.product_image || '',
                                   can_edit: singleItem.can_edit_review ? 'true' : 'false',
@@ -443,8 +453,19 @@ export default function OrdersScreen() {
                               } as never)
                             }
                           >
-                            <Ionicons name="star" size={12} color="#D97706" />
-                            <Text style={styles.viewReviewBtnText}>Ver avaliação</Text>
+                            <Ionicons
+                              name={replied ? 'chatbubble-ellipses-outline' : 'star'}
+                              size={12}
+                              color={replied ? '#0284C7' : '#D97706'}
+                            />
+                            <Text
+                              style={[
+                                styles.viewReviewBtnText,
+                                replied ? { color: '#0369A1' } : undefined,
+                              ]}
+                            >
+                              {replied ? 'Loja respondeu' : 'Ver avaliação'}
+                            </Text>
                           </TouchableOpacity>
                         );
                       }
@@ -463,7 +484,6 @@ export default function OrdersScreen() {
           })}
       </ScrollView>
 
-      {/* Modal / Telinha de Seleção de Itens para Avaliar ou Visualizar Avaliação */}
       <Modal
         visible={Boolean(selectedOrderForReview)}
         transparent
@@ -522,7 +542,7 @@ export default function OrdersScreen() {
                         router.push({
                           pathname: '/reviews/new',
                           params: {
-                            order_item_id: targetItem.id,
+                            order_item_id: String(targetItem.id),
                             product_name: targetItem.product_name,
                             product_image: targetItem.product_image || '',
                           },
@@ -545,7 +565,7 @@ export default function OrdersScreen() {
                         router.push({
                           pathname: '/reviews/new',
                           params: {
-                            review_id: targetItem.review_id,
+                            review_id: String(targetItem.review_id),
                             product_name: targetItem.product_name,
                             product_image: targetItem.product_image || '',
                             can_edit: targetItem.can_edit_review ? 'true' : 'false',
@@ -554,9 +574,9 @@ export default function OrdersScreen() {
                       }}
                     >
                       <Ionicons
-                        name={item.review_reply ? "chatbubble-ellipses-outline" : "star"}
+                        name={item.review_reply ? 'chatbubble-ellipses-outline' : 'star'}
                         size={13}
-                        color={item.review_reply ? "#0284C7" : "#D97706"}
+                        color={item.review_reply ? '#0284C7' : '#D97706'}
                       />
                       <Text
                         style={[
@@ -569,7 +589,7 @@ export default function OrdersScreen() {
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.sheetActionDisabled}>
-                      <Text style={styles.sheetActionDisabledText}>Indisponível</Text>
+                      <Text style={styles.sheetActionDisabledText}>Prazo encerrado</Text>
                     </View>
                   )}
                 </View>

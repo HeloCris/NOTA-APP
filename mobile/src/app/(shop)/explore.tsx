@@ -16,7 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams, useGlobalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { storesService, Store, ProductDetails, Brand, CatalogNotesResponse } from '../../services/stores';
+import {
+  storesService,
+  Store,
+  ProductDetails,
+  Brand,
+  CatalogNotesResponse,
+} from '../../services/stores';
 import { authService } from '../../services/auth';
 import Svg, {
   Rect,
@@ -25,7 +31,6 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-// --- Generic dark perfume bottle illustration ---
 function DarkBottleIllustration() {
   return (
     <Svg width={70} height={110} viewBox="0 0 80 130">
@@ -50,7 +55,6 @@ function DarkBottleIllustration() {
   );
 }
 
-// --- Generic soft perfume bottle illustration ---
 function SoftBottleIllustration() {
   return (
     <Svg width={70} height={110} viewBox="0 0 80 130">
@@ -74,7 +78,6 @@ function SoftBottleIllustration() {
   );
 }
 
-// --- Vector Perfume Bottle: Amber/Oriental Style ---
 function AmberBottle() {
   return (
     <Svg width={70} height={110} viewBox="0 0 80 130">
@@ -97,7 +100,13 @@ function BottleIllustration({ family }: { family?: string }) {
   if (fam.includes('oriental') || fam.includes('gourmand')) {
     return <AmberBottle />;
   }
-  if (fam.includes('floral') || fam.includes('cítrico') || fam.includes('citrico') || fam.includes('aquático') || fam.includes('aquatico')) {
+  if (
+    fam.includes('floral') ||
+    fam.includes('cítrico') ||
+    fam.includes('citrico') ||
+    fam.includes('aquático') ||
+    fam.includes('aquatico')
+  ) {
     return <SoftBottleIllustration />;
   }
   return <DarkBottleIllustration />;
@@ -114,16 +123,21 @@ const FAMILIES_LIST = [
   'Aquático',
 ];
 
-const POPULAR_NOTES_MAP: Record<string, string[]> = {
-  'Notas de Saída': ['Bergamota', 'Limão Siciliano', 'Cardamomo', 'Pimenta Rosa', 'Lichia'],
-  'Notas de Corpo': ['Íris', 'Rosa Damascena', 'Jasmim', 'Violeta', 'Lavanda'],
-  'Notas de Fundo': ['Sândalo', 'Cedro', 'Baunilha', 'Âmbar', 'Oud', 'Almíscar'],
-};
-
 const getParam = (val?: string | string[]): string => {
   if (Array.isArray(val)) return val[0] || '';
   return val || '';
 };
+
+function formatPriceLabel(rawPrice: number | string | null | undefined): string {
+  if (rawPrice === null || rawPrice === undefined || rawPrice === '') {
+    return 'Sob consulta';
+  }
+  const numeric = Number(rawPrice);
+  if (Number.isNaN(numeric)) {
+    return 'Sob consulta';
+  }
+  return `A partir de R$ ${numeric.toFixed(2).replace('.', ',')}`;
+}
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -148,23 +162,19 @@ export default function ExploreScreen() {
   const paramTab = getParam(localParams.tab) || getParam(globalParams.tab);
   const paramBrand = getParam(localParams.brand) || getParam(globalParams.brand);
 
-  // Estados principais de navegação e filtros (CA-03, CA-04, RN-05, RN-06, RN-07)
   const [activeTab, setActiveTab] = useState<'products' | 'stores'>(
-    paramTab === 'stores' ? 'stores' : 'products'
+    paramTab === 'stores' ? 'stores' : 'products',
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedFamily, setSelectedFamily] = useState<string>(paramFamily || '');
   const [selectedType, setSelectedType] = useState<string>(
-    paramType === 'decant' ? 'decant' : ''
+    paramType === 'decant' || paramType === 'bottle' ? paramType : '',
   );
   const [selectedBrand, setSelectedBrand] = useState<string>(paramBrand);
-  const [selectedTag, setSelectedTag] = useState<string>(
-    paramType === 'decant' ? 'Decants' : (paramFamily || '')
-  );
-  const [selectedNote, setSelectedNote] = useState<string>('');
   const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
   const [notesCatalog, setNotesCatalog] = useState<CatalogNotesResponse | null>(null);
+  const [loadingNotes, setLoadingNotes] = useState<boolean>(false);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [ordering, setOrdering] = useState<'popular' | 'price_asc' | 'price_desc'>('popular');
   const [isNotesModalOpen, setIsNotesModalOpen] = useState<boolean>(paramOpenNotes === '1');
@@ -172,32 +182,26 @@ export default function ExploreScreen() {
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
 
-  // Sincroniza parâmetros de rota (Deep links, Home push, Tab switches)
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      const currentTab = getParam(localParams.tab) || getParam(globalParams.tab);
-      if (currentTab === 'stores') setActiveTab('stores');
-      else if (currentTab === 'products') setActiveTab('products');
+    const currentTab = getParam(localParams.tab) || getParam(globalParams.tab);
+    if (currentTab === 'stores') setActiveTab('stores');
+    else if (currentTab === 'products') setActiveTab('products');
 
-      const currentFamily = getParam(localParams.family) || getParam(globalParams.family);
-      if (currentFamily) {
-        setSelectedFamily(currentFamily);
-        setSelectedTag(currentFamily);
-      }
+    const currentFamily = getParam(localParams.family) || getParam(globalParams.family);
+    if (currentFamily) {
+      setSelectedFamily(currentFamily);
+    }
 
-      const currentType = getParam(localParams.type) || getParam(globalParams.type);
-      if (currentType === 'decant') {
-        setSelectedType('decant');
-        setSelectedTag('Decants');
-      }
+    const currentType = getParam(localParams.type) || getParam(globalParams.type);
+    if (currentType === 'decant' || currentType === 'bottle') {
+      setSelectedType(currentType);
+    }
 
-      const currentOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
-      if (currentOpenNotes === '1') setIsNotesModalOpen(true);
+    const currentOpenNotes = getParam(localParams.openNotes) || getParam(globalParams.openNotes);
+    if (currentOpenNotes === '1') setIsNotesModalOpen(true);
 
-      const currentBrand = getParam(localParams.brand) || getParam(globalParams.brand);
-      if (currentBrand) setSelectedBrand(currentBrand);
-    }, 0);
-    return () => clearTimeout(timeout);
+    const currentBrand = getParam(localParams.brand) || getParam(globalParams.brand);
+    if (currentBrand) setSelectedBrand(currentBrand);
   }, [
     localParams.tab,
     globalParams.tab,
@@ -216,11 +220,8 @@ export default function ExploreScreen() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  // Carrega produtos reais da API com o contrato de busca do RF-22.
   useEffect(() => {
     let isMounted = true;
-    // The loading state reflects the lifecycle of the external request.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingProducts(true);
 
     storesService
@@ -236,12 +237,15 @@ export default function ExploreScreen() {
       .then((data) => {
         if (isMounted) {
           setProducts(Array.isArray(data) ? data : []);
-          setLoadingProducts(false);
         }
       })
       .catch((err) => {
         console.error('Erro ao carregar produtos na busca:', err);
-        if (isMounted) setLoadingProducts(false);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingProducts(false);
+        }
       });
 
     return () => {
@@ -249,74 +253,121 @@ export default function ExploreScreen() {
     };
   }, [debouncedSearch, selectedFamily, selectedBrand, selectedNotes, selectedType, ordering]);
 
-  // Carrega lojas reais
   useEffect(() => {
-    storesService.getStores(debouncedSearch || undefined)
-      .then(setStores)
+    let isMounted = true;
+    storesService
+      .getStores(debouncedSearch || undefined)
+      .then((data) => {
+        if (isMounted) {
+          setStores(Array.isArray(data) ? data : []);
+        }
+      })
       .catch((error) => console.error('Erro ao carregar lojas:', error));
+
+    return () => {
+      isMounted = false;
+    };
   }, [debouncedSearch]);
 
   useEffect(() => {
-    if (storesService.getCatalogNotes) {
-      storesService.getCatalogNotes()
-        .then(setNotesCatalog)
-        .catch((error) => console.error('Erro ao carregar notas do catálogo:', error));
-    }
-    if (storesService.getBrands) {
-      storesService.getBrands()
-        .then(setBrands)
-        .catch((error) => console.error('Erro ao carregar marcas:', error));
-    }
+    let isMounted = true;
+    setLoadingNotes(true);
+
+    Promise.all([
+      storesService.getCatalogNotes().catch((error) => {
+        console.error('Erro ao carregar notas do catálogo:', error);
+        return null;
+      }),
+      storesService.getBrands().catch((error) => {
+        console.error('Erro ao carregar marcas:', error);
+        return [] as Brand[];
+      }),
+    ])
+      .then(([catalogData, brandsData]) => {
+        if (!isMounted) return;
+        if (catalogData) setNotesCatalog(catalogData);
+        setBrands(Array.isArray(brandsData) ? brandsData : []);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingNotes(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const { width: windowWidth } = useWindowDimensions();
   const containerWidth = Math.min(windowWidth, 460);
+  const productCardWidth = Math.floor((containerWidth - 40 - 12) / 2);
 
-  // Filtragem de produtos por decant e notas
   const filteredProducts = useMemo(() => {
     return products.filter((prod) => {
-      // Filtro de decant (<= 15ml)
-      if (selectedType === 'decant') {
+      const hasVolumeMetadata =
+        (Array.isArray(prod.available_volumes) && prod.available_volumes.length > 0) ||
+        (Array.isArray(prod.store_offers) && prod.store_offers.length > 0);
+
+      if (selectedType === 'decant' && hasVolumeMetadata) {
         const hasDecant =
-          prod.available_volumes?.some((v) => v <= 15) ||
-          prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15);
+          prod.available_volumes?.some((v) => Number(v) <= 15) ||
+          prod.store_offers?.some((o) => Number(o.volume_ml ?? 0) <= 15);
         if (!hasDecant) return false;
       }
-      if (selectedType === 'bottle') {
+      if (selectedType === 'bottle' && hasVolumeMetadata) {
         const hasBottle =
-          prod.available_volumes?.some((v) => v > 15) ||
-          prod.store_offers?.some((o) => (o.volume_ml ?? 0) > 15);
+          prod.available_volumes?.some((v) => Number(v) > 15) ||
+          prod.store_offers?.some((o) => Number(o.volume_ml ?? 0) > 15);
         if (!hasBottle) return false;
-      }
-
-      // Mantém a filtragem local para respostas legadas/mockadas sem ofertas.
-      if (selectedNotes.length || selectedNote) {
-        const allNotes = [
-          ...(prod.top_notes || []),
-          ...(prod.heart_notes || []),
-          ...(prod.base_notes || []),
-        ].map((n) => n.toLowerCase());
-        const notesToMatch = selectedNotes.length ? selectedNotes : [selectedNote];
-        if (!notesToMatch.some((note) => allNotes.some((n) => n.includes(note.toLowerCase())))) {
-          return false;
-        }
       }
 
       return true;
     });
-  }, [products, selectedType, selectedNote, selectedNotes]);
+  }, [products, selectedType]);
 
-  // Filtragem de lojas na aba de Lojas
-  const visibleStores = stores.filter((store) =>
-    store.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
-  );
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedFamily('');
+    setSelectedType('');
+    setSelectedNotes([]);
+    setSelectedBrand('');
+    try {
+      router.setParams({
+        family: '',
+        type: '',
+        openNotes: '',
+        brand: '',
+      });
+    } catch {
+      // Fallback seguro caso setParams não esteja disponível no contexto atual
+    }
+  };
 
-  const featuredBrands = brands;
+  const selectedBrandObj = brands.find((b) => String(b.id) === selectedBrand);
+
+  const pyramidSections = notesCatalog
+    ? [
+        { title: 'Notas de Saída', notes: notesCatalog.top_notes || [] },
+        { title: 'Notas de Coração', notes: notesCatalog.heart_notes || [] },
+        { title: 'Notas de Fundo', notes: notesCatalog.base_notes || [] },
+      ].filter((s) => s.notes.length > 0)
+    : [];
+
+  const hasActiveFilters =
+    selectedFamily !== '' ||
+    selectedType !== '' ||
+    selectedNotes.length > 0 ||
+    selectedBrand !== '';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={[styles.mainWrapper, { maxWidth: containerWidth }]}>
+        {/* --- CABEÇALHO DA TELA --- */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Explorar</Text>
+          <Text style={styles.headerSubtitle}>Encontre fragrâncias, notas e lojas parceiras</Text>
+        </View>
+
         {/* --- SEARCH INPUT BAR --- */}
         <View style={styles.searchBarWrapper}>
           <View style={styles.searchBar}>
@@ -342,7 +393,7 @@ export default function ExploreScreen() {
           </View>
         </View>
 
-        {/* --- SELETOR DE ABAS: PERFUMES / LOJAS (RN-07) --- */}
+        {/* --- SELETOR DE ABAS: PERFUMES / LOJAS --- */}
         <View style={styles.tabSelectorRow} testID="explore-tab-selector">
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'products' && styles.tabButtonActive]}
@@ -382,78 +433,90 @@ export default function ExploreScreen() {
           showsVerticalScrollIndicator={false}
         >
           {activeTab === 'stores' ? (
-            /* ============================================================== */
-            /* --- ABA DE LOJAS (RN-07) --- */
-            /* ============================================================== */
             <View style={styles.section} testID="stores-tab-content">
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Todas as Lojas</Text>
-                <Text style={styles.storeCountBadge}>{visibleStores.length} lojas</Text>
+                <Text style={styles.sectionTitleInline}>Todas as Lojas</Text>
+                <Text style={styles.storeCountBadge}>{stores.length} lojas</Text>
               </View>
 
-              {visibleStores.length === 0 ? (
+              {stores.length === 0 ? (
                 <View style={styles.emptyStateBox}>
                   <Ionicons name="business-outline" size={36} color="#9CA3AF" />
                   <Text style={styles.emptyStateText}>Nenhuma loja encontrada</Text>
                 </View>
               ) : (
                 <View style={styles.storesList}>
-                  {visibleStores.map((store) => (
-                    <TouchableOpacity
-                      key={store.id}
-                      style={styles.storeFullCard}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/store/[id]' as never,
-                          params: { id: store.id.toString() },
-                        })
-                      }
-                      testID={`store-list-item-${store.id}`}
-                    >
-                      <View style={styles.storeAvatarBox}>
-                        <Text style={styles.storeAvatarInitial}>
-                          {store.name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.storeInfoBox}>
-                        <View style={styles.storeNameRow}>
-                          <Text style={styles.storeNameText}>{store.name}</Text>
+                  {stores.map((store) => {
+                    const numericRating = store.rating != null ? Number(store.rating) : 0;
+                    const ratingDisplay =
+                      !Number.isNaN(numericRating) && numericRating > 0
+                        ? numericRating.toFixed(1)
+                        : 'Novo';
+
+                    return (
+                      <TouchableOpacity
+                        key={store.id}
+                        style={styles.storeFullCard}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/store/[id]' as never,
+                            params: { id: store.id.toString() },
+                          })
+                        }
+                        testID={`store-list-item-${store.id}`}
+                      >
+                        <View style={styles.storeLogoWrapper}>
+                          {store.logo_url ? (
+                            <Image
+                              source={{ uri: store.logo_url }}
+                              style={styles.storeAvatarImg}
+                              contentFit="cover"
+                              cachePolicy="memory-disk"
+                            />
+                          ) : (
+                            <View style={styles.storeAvatarBox}>
+                              <Text style={styles.storeAvatarInitial}>
+                                {store.name.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
                           {store.is_official && (
-                            <Ionicons name="checkmark-circle" size={15} color="#2C4659" />
+                            <View style={styles.officialCheckBadge}>
+                              <Ionicons name="checkmark-sharp" size={10} color="#FFFFFF" />
+                            </View>
                           )}
                         </View>
-                        <Text style={styles.storeLocationText}>
-                          {store.city && store.state
-                            ? `${store.city}/${store.state}`
-                            : 'Parceiro verificado'}
-                        </Text>
-                        <View style={styles.storeMetaRow}>
-                          <Ionicons name="star" size={13} color="#EAB308" />
-                          <Text style={styles.storeRatingText}>
-                            {store.rating !== null && store.rating !== undefined && store.rating > 0
-                              ? store.rating.toFixed(1)
-                              : 'Novo'}
+                        <View style={styles.storeInfoBox}>
+                          <View style={styles.storeNameRow}>
+                            <Text style={styles.storeNameText} numberOfLines={1}>
+                              {store.name}
+                            </Text>
+                          </View>
+                          <Text style={styles.storeLocationText} numberOfLines={1}>
+                            {store.city && store.state
+                              ? `${store.city}/${store.state}`
+                              : 'Parceiro verificado'}
                           </Text>
-                          <Text style={styles.storeMetaSeparator}>•</Text>
-                          <Text style={styles.storeFollowersText}>
-                            {store.followers_count || 0} seguidores
-                          </Text>
+                          <View style={styles.storeMetaRow}>
+                            <Ionicons name="star" size={13} color="#EAB308" />
+                            <Text style={styles.storeRatingText}>{ratingDisplay}</Text>
+                            <Text style={styles.storeMetaSeparator}>•</Text>
+                            <Text style={styles.storeFollowersText}>
+                              {store.followers_count || 0} seguidores
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-                    </TouchableOpacity>
-                  ))}
+                        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               )}
             </View>
           ) : (
-            /* ============================================================== */
-            /* --- ABA DE PRODUTOS / PERFUMES (CA-03, CA-04, RN-05, RN-06) --- */
-            /* ============================================================== */
             <View testID="products-tab-content">
-              {/* FILTROS ATIVOS EM DESTAQUE */}
-              {(selectedFamily !== '' || selectedType !== '' || selectedNote !== '' || selectedNotes.length > 0 || selectedBrand !== '') && (
+              {hasActiveFilters && (
                 <View style={styles.activeFiltersRow} testID="active-filters-container">
                   {selectedFamily !== '' && (
                     <View style={styles.activeFilterChip} testID="active-family-filter">
@@ -470,10 +533,7 @@ export default function ExploreScreen() {
                     <View style={styles.activeFilterChip} testID="active-type-filter">
                       <Text style={styles.activeFilterChipText}>Tipo: Decants</Text>
                       <TouchableOpacity
-                        onPress={() => {
-                          setSelectedType('');
-                          setSelectedTag('');
-                        }}
+                        onPress={() => setSelectedType('')}
                         testID="clear-type-filter-btn"
                       >
                         <Ionicons name="close-circle" size={16} color="#2C4659" />
@@ -483,49 +543,42 @@ export default function ExploreScreen() {
                   {selectedType === 'bottle' && (
                     <View style={styles.activeFilterChip} testID="active-type-filter">
                       <Text style={styles.activeFilterChipText}>Tipo: Frascos</Text>
-                      <TouchableOpacity onPress={() => setSelectedType('')} testID="clear-bottle-filter-btn">
+                      <TouchableOpacity
+                        onPress={() => setSelectedType('')}
+                        testID="clear-bottle-filter-btn"
+                      >
                         <Ionicons name="close-circle" size={16} color="#2C4659" />
                       </TouchableOpacity>
                     </View>
                   )}
                   {selectedBrand !== '' && (
                     <View style={styles.activeFilterChip}>
-                      <Text style={styles.activeFilterChipText}>Marca selecionada</Text>
+                      <Text style={styles.activeFilterChipText}>
+                        Marca: {selectedBrandObj?.name || 'Selecionada'}
+                      </Text>
                       <TouchableOpacity onPress={() => setSelectedBrand('')}>
                         <Ionicons name="close-circle" size={16} color="#2C4659" />
                       </TouchableOpacity>
                     </View>
                   )}
-                  {selectedNote !== '' && (
+                  {selectedNotes.length > 0 && (
                     <View style={styles.activeFilterChip} testID="active-note-filter">
-                      <Text style={styles.activeFilterChipText}>Nota: {selectedNote}</Text>
+                      <Text style={styles.activeFilterChipText}>
+                        {selectedNotes.length === 1
+                          ? `Nota: ${selectedNotes[0]}`
+                          : `${selectedNotes.length} notas`}
+                      </Text>
                       <TouchableOpacity
-                        onPress={() => setSelectedNote('')}
+                        onPress={() => setSelectedNotes([])}
                         testID="clear-note-filter-btn"
                       >
                         <Ionicons name="close-circle" size={16} color="#2C4659" />
                       </TouchableOpacity>
                     </View>
                   )}
-                  {selectedNotes.length > 0 && (
-                    <View style={styles.activeFilterChip}>
-                      <Text style={styles.activeFilterChipText}>{selectedNotes.length} notas</Text>
-                      <TouchableOpacity onPress={() => setSelectedNotes([])}>
-                        <Ionicons name="close-circle" size={16} color="#2C4659" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
                   <TouchableOpacity
                     style={styles.clearAllBtn}
-                    onPress={() => {
-                      setSelectedFamily('');
-                      setSelectedType('');
-                      setSelectedNote('');
-                      setSelectedNotes([]);
-                      setSelectedBrand('');
-                      setSearchQuery('');
-                      setSelectedTag('');
-                    }}
+                    onPress={clearAllFilters}
                     testID="clear-all-filters-btn"
                   >
                     <Text style={styles.clearAllBtnText}>Limpar</Text>
@@ -533,12 +586,14 @@ export default function ExploreScreen() {
                 </View>
               )}
 
-              {/* ATALHO PARA SELETOR DE NOTAS OLFATIVAS (RN-06) */}
+              {/* ATALHO PARA SELETOR DE NOTAS OLFATIVAS */}
               <View style={styles.notesDiscoveryBanner}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={styles.notesDiscoveryTitle}>Descoberta Olfativa</Text>
                   <Text style={styles.notesDiscoverySubtitle}>
-                    {selectedNotes.length ? `${selectedNotes.length} notas selecionadas` : 'Filtre por suas notas favoritas'}
+                    {selectedNotes.length
+                      ? `${selectedNotes.length} notas selecionadas`
+                      : 'Filtre por suas notas favoritas'}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -554,10 +609,14 @@ export default function ExploreScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* FAMÍLIAS OLFATIVAS - CHIPS RÁPIDOS (RN-05) */}
+              {/* FORMATO */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Formato</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.familiesScroll}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.familiesScroll}
+                >
                   {[
                     { label: 'Todos', value: '' },
                     { label: '🧪 Decants', value: 'decant' },
@@ -565,11 +624,19 @@ export default function ExploreScreen() {
                   ].map((format) => (
                     <TouchableOpacity
                       key={format.label}
-                      style={[styles.familyChip, selectedType === format.value && styles.familyChipActive]}
+                      style={[
+                        styles.familyChip,
+                        selectedType === format.value && styles.familyChipActive,
+                      ]}
                       onPress={() => setSelectedType(format.value)}
                       testID={`format-chip-${format.value || 'all'}`}
                     >
-                      <Text style={[styles.familyChipText, selectedType === format.value && styles.familyChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.familyChipText,
+                          selectedType === format.value && styles.familyChipTextActive,
+                        ]}
+                      >
                         {format.label}
                       </Text>
                     </TouchableOpacity>
@@ -577,6 +644,7 @@ export default function ExploreScreen() {
                 </ScrollView>
               </View>
 
+              {/* FAMÍLIAS OLFATIVAS */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Famílias Olfativas</Text>
                 <ScrollView
@@ -615,147 +683,14 @@ export default function ExploreScreen() {
                 </ScrollView>
               </View>
 
-              {/* BUSCAS POPULARES / TAGS */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Buscas Populares</Text>
-                <View style={styles.popularTagsContainer}>
-                  <View style={styles.popularTagsRow}>
-                    {['Decants', 'Baccarat Rouge 540'].map((tag) => {
-                      const isSelected = selectedTag === tag || (tag === 'Decants' && selectedType === 'decant');
-                      return (
-                        <TouchableOpacity
-                          key={tag}
-                          style={[styles.popularTag, isSelected && styles.popularTagActive]}
-                          onPress={() => {
-                            if (tag === 'Decants') {
-                              setSelectedType(selectedType === 'decant' ? '' : 'decant');
-                              setSelectedTag(selectedTag === 'Decants' ? '' : 'Decants');
-                            } else {
-                              setSelectedTag(tag);
-                              setSearchQuery(tag);
-                            }
-                          }}
-                          activeOpacity={0.7}
-                          testID={`popular-tag-${tag}`}
-                        >
-                          <Text
-                            style={[
-                              styles.popularTagText,
-                              isSelected && styles.popularTagTextActive,
-                            ]}
-                          >
-                            {tag}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                  <View style={[styles.popularTagsRow, { marginTop: 8 }]}>
-                    {['Amadeirados', 'Presentes'].map((tag) => {
-                      const isSelected = selectedTag === tag;
-                      return (
-                        <TouchableOpacity
-                          key={tag}
-                          style={[styles.popularTag, isSelected && styles.popularTagActive]}
-                          onPress={() => {
-                            setSelectedTag(tag);
-                            if (tag === 'Amadeirados') {
-                              setSelectedFamily('Amadeirado');
-                            }
-                          }}
-                          activeOpacity={0.7}
-                          testID={`popular-tag-${tag}`}
-                        >
-                          <Text
-                            style={[
-                              styles.popularTagText,
-                              isSelected && styles.popularTagTextActive,
-                            ]}
-                          >
-                            {tag}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              </View>
-
-              {/* MARCAS EM DESTAQUE */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Marcas em Destaque</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.brandsScroll}
-                >
-                  {featuredBrands.map((brand) => (
-                    <TouchableOpacity
-                      key={brand.id}
-                      style={[styles.brandCard, selectedBrand === String(brand.id) && styles.popularTagActive]}
-                      activeOpacity={0.7}
-                      onPress={() => setSelectedBrand(selectedBrand === String(brand.id) ? '' : String(brand.id))}
-                    >
-                      <Text style={styles.brandText}>{brand.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.section} testID="explore-stores-section">
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Lojas Encontradas</Text>
-                  <Text style={styles.storeCountBadge}>{visibleStores.length} lojas</Text>
-                </View>
-                {visibleStores.length === 0 ? (
-                  <Text style={styles.emptyStoreHint}>Nenhuma loja encontrada</Text>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.storesScroll}
-                  >
-                    {visibleStores.map((store) => (
-                      <TouchableOpacity
-                        key={store.id}
-                        style={styles.storeExploreCard}
-                        activeOpacity={0.7}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/store/[id]' as never,
-                            params: { id: store.id.toString() },
-                          })
-                        }
-                        testID={`explore-store-item-${store.id}`}
-                      >
-                        <View style={styles.storeAvatarBox}>
-                          <Text style={styles.storeAvatarInitial}>
-                            {store.name.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                        <View style={styles.storeInfoBox}>
-                          <Text style={styles.storeNameText} numberOfLines={1}>
-                            {store.name}
-                          </Text>
-                          <Text style={styles.storeLocationText} numberOfLines={1}>
-                            {store.city && store.state
-                              ? `${store.city}/${store.state}`
-                              : 'Parceiro verificado'}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
-
-              {/* PRODUTOS DO CATÁLOGO / RESULTADOS */}
+              {/* PRODUTOS DO CATÁLOGO */}
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
                   <View>
-                    <Text style={styles.sectionTitle}>Perfumes Encontrados</Text>
-                    <Text style={styles.productCountBadge}>{filteredProducts.length} perfumes encontrados</Text>
+                    <Text style={styles.sectionTitleInline}>Perfumes Encontrados</Text>
+                    <Text style={styles.productCountBadge}>
+                      {filteredProducts.length} perfumes encontrados
+                    </Text>
                   </View>
                   <View style={styles.sortRow}>
                     {[
@@ -764,7 +699,12 @@ export default function ExploreScreen() {
                       { label: 'Maior R$', value: 'price_desc' as const },
                     ].map((option) => (
                       <TouchableOpacity key={option.value} onPress={() => setOrdering(option.value)}>
-                        <Text style={[styles.sortText, ordering === option.value && styles.sortTextActive]}>
+                        <Text
+                          style={[
+                            styles.sortText,
+                            ordering === option.value && styles.sortTextActive,
+                          ]}
+                        >
                           {option.label}
                         </Text>
                       </TouchableOpacity>
@@ -784,14 +724,7 @@ export default function ExploreScreen() {
                     </Text>
                     <TouchableOpacity
                       style={styles.clearEmptyButton}
-                      onPress={() => {
-                        setSearchQuery('');
-                        setSelectedFamily('');
-                        setSelectedType('');
-                        setSelectedBrand('');
-                        setSelectedNote('');
-                        setSelectedNotes([]);
-                      }}
+                      onPress={clearAllFilters}
                     >
                       <Text style={styles.clearEmptyButtonText}>Limpar filtros</Text>
                     </TouchableOpacity>
@@ -799,53 +732,57 @@ export default function ExploreScreen() {
                 ) : (
                   <View style={styles.productsGrid}>
                     {filteredProducts.map((prod) => {
-                      const brandName = typeof prod.brand === 'object' && prod.brand !== null
-                        ? prod.brand.name
-                        : String(prod.brand || 'Marca');
+                      const brandName =
+                        typeof prod.brand === 'object' && prod.brand !== null
+                          ? prod.brand.name
+                          : String(prod.brand || 'Marca');
                       const hasDecantOffer =
-                        prod.available_volumes?.some((v) => v <= 15) ||
-                        prod.store_offers?.some((o) => (o.volume_ml ?? 0) <= 15);
-                      const priceLabel = prod.min_price != null
-                        ? `A partir de R$ ${prod.min_price.toFixed(2).replace('.', ',')}`
-                        : 'Sob consulta';
+                        prod.available_volumes?.some((v) => Number(v) <= 15) ||
+                        prod.store_offers?.some((o) => Number(o.volume_ml ?? 0) <= 15);
+                      const priceLabel = formatPriceLabel(prod.min_price);
 
                       return (
                         <View
                           key={prod.id}
-                          style={styles.productCard}
+                          style={[styles.productCard, { width: productCardWidth }]}
                           testID={`product-card-${prod.id}`}
                         >
-                          <View style={styles.productInnerBox}>
-                            {prod.image_url ? (
-                              <Image
-                                source={{ uri: prod.image_url }}
-                                style={styles.productImg}
-                                contentFit="contain"
-                              />
-                            ) : (
-                              <BottleIllustration family={prod.olfactory_family} />
-                            )}
-                          </View>
-
-                          <View style={styles.productInfo}>
-                            <Text style={styles.productBrand} numberOfLines={1}>
-                              {brandName.toUpperCase()}
-                            </Text>
-                            <Text style={styles.productName} numberOfLines={1}>
-                              {prod.name}
-                            </Text>
-
-                            <View style={styles.badgeRow}>
-                              <View style={styles.tagBadge}>
-                                <Text style={styles.tagBadgeText}>{prod.olfactory_family}</Text>
-                              </View>
-                              {hasDecantOffer ? (
-                                <View style={[styles.tagBadge, styles.decantTagBadge]}>
-                                  <Text style={styles.decantTagBadgeText}>Decant</Text>
-                                </View>
-                              ) : null}
+                          <View>
+                            <View style={styles.productInnerBox}>
+                              {prod.image_url ? (
+                                <Image
+                                  source={{ uri: prod.image_url }}
+                                  style={styles.productImg}
+                                  contentFit="contain"
+                                  cachePolicy="memory-disk"
+                                />
+                              ) : (
+                                <BottleIllustration family={prod.olfactory_family} />
+                              )}
                             </View>
 
+                            <View style={styles.productInfo}>
+                              <Text style={styles.productBrand} numberOfLines={1}>
+                                {brandName.toUpperCase()}
+                              </Text>
+                              <Text style={styles.productName} numberOfLines={2}>
+                                {prod.name}
+                              </Text>
+
+                              <View style={styles.badgeRow}>
+                                <View style={styles.tagBadge}>
+                                  <Text style={styles.tagBadgeText}>{prod.olfactory_family}</Text>
+                                </View>
+                                {hasDecantOffer ? (
+                                  <View style={[styles.tagBadge, styles.decantTagBadge]}>
+                                    <Text style={styles.decantTagBadgeText}>Decant</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            </View>
+                          </View>
+
+                          <View style={styles.productFooterBox}>
                             <View style={styles.priceRow}>
                               <Text style={styles.priceText}>{priceLabel}</Text>
                             </View>
@@ -876,9 +813,7 @@ export default function ExploreScreen() {
           <View style={{ height: 32 }} />
         </ScrollView>
 
-        {/* ============================================================== */}
-        {/* --- MODAL DO SELETOR DE NOTAS OLFATIVAS (RN-06) --- */}
-        {/* ============================================================== */}
+        {/* --- MODAL DO SELETOR DE NOTAS OLFATIVAS --- */}
         <Modal
           visible={isNotesModalOpen}
           animationType="slide"
@@ -909,12 +844,11 @@ export default function ExploreScreen() {
                 style={styles.favoriteNotesButton}
                 onPress={async () => {
                   try {
-                    const profile = await authService.getMe();
+                    const profile = await authService.me();
                     const notes = Array.isArray(profile?.preferred_notes)
                       ? profile.preferred_notes.slice(0, 5)
                       : [];
                     setSelectedNotes(notes);
-                    setSelectedNote(notes[0] || '');
                   } catch (error) {
                     console.error('Erro ao carregar notas favoritas:', error);
                   }
@@ -927,51 +861,56 @@ export default function ExploreScreen() {
                 showsVerticalScrollIndicator={false}
                 style={styles.modalNotesScroll}
               >
-                {Object.entries(
-                  notesCatalog
-                    ? {
-                        'Notas de Saída': notesCatalog.top_notes,
-                        'Notas de Coração': notesCatalog.heart_notes,
-                        'Notas de Fundo': notesCatalog.base_notes,
-                      }
-                    : POPULAR_NOTES_MAP
-                ).map(([pyramid, notes]) => (
-                  <View key={pyramid} style={styles.pyramidGroup}>
-                    <Text style={styles.pyramidTitle}>{pyramid}</Text>
-                    <View style={styles.notesGrid}>
-                      {notes.map((note) => {
-                        const isSelected = selectedNotes.includes(note) || selectedNote === note;
-                        return (
-                          <TouchableOpacity
-                            key={note}
-                            style={[
-                              styles.noteSelectChip,
-                              isSelected && styles.noteSelectChipActive,
-                            ]}
-                            onPress={() => {
-                              setSelectedNote(isSelected ? '' : note);
-                              setSelectedNotes((current) => {
-                                if (isSelected) return current.filter((item) => item !== note);
-                                return current.length >= 5 ? current : [...current, note];
-                              });
-                            }}
-                            activeOpacity={0.7}
-                            testID={`note-option-${note}`}
-                          >
-                            <Text
-                              style={[
-                                styles.noteSelectChipText,
-                                isSelected && styles.noteSelectChipTextActive,
-                              ]}
-                            >
-                              {note}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                {loadingNotes ? (
+                  <View style={styles.loadingBox}>
+                    <ActivityIndicator size="small" color="#9E4732" />
                   </View>
-                ))}
+                ) : pyramidSections.length === 0 ? (
+                  <View style={styles.emptyStateBox}>
+                    <Text style={styles.emptyStateText}>
+                      Nenhuma nota olfativa disponível no catálogo.
+                    </Text>
+                  </View>
+                ) : (
+                  pyramidSections.map(({ title: pyramid, notes }) => (
+                    <View key={pyramid} style={styles.pyramidGroup}>
+                      <Text style={styles.pyramidTitle}>{pyramid}</Text>
+                      <View style={styles.notesGrid}>
+                        {notes.map((note) => {
+                          const isSelected = selectedNotes.includes(note);
+                          return (
+                            <TouchableOpacity
+                              key={note}
+                              style={[
+                                styles.noteSelectChip,
+                                isSelected && styles.noteSelectChipActive,
+                              ]}
+                              onPress={() => {
+                                setSelectedNotes((current) => {
+                                  if (isSelected) {
+                                    return current.filter((item) => item !== note);
+                                  }
+                                  return current.length >= 5 ? current : [...current, note];
+                                });
+                              }}
+                              activeOpacity={0.7}
+                              testID={`note-option-${note}`}
+                            >
+                              <Text
+                                style={[
+                                  styles.noteSelectChipText,
+                                  isSelected && styles.noteSelectChipTextActive,
+                                ]}
+                              >
+                                {note}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))
+                )}
               </ScrollView>
             </View>
           </View>
@@ -1000,11 +939,24 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 24,
   },
-
-  // --- Search Bar ---
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  headerSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
   searchBarWrapper: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 16 : 12,
+    paddingTop: 8,
     paddingBottom: 10,
     width: '100%',
   },
@@ -1039,8 +991,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-
-  // --- Abas Segmentadas ---
   tabSelectorRow: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -1066,8 +1016,6 @@ const styles = StyleSheet.create({
   tabButtonTextActive: {
     color: '#FFFFFF',
   },
-
-  // --- Active Filters ---
   activeFiltersRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1099,8 +1047,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#9E4732',
   },
-
-  // --- Notes Discovery Banner ---
   notesDiscoveryBanner: {
     marginHorizontal: 20,
     marginTop: 6,
@@ -1137,8 +1083,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // --- Section Common ---
   section: {
     marginTop: 14,
   },
@@ -1156,10 +1100,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
+  sectionTitleInline: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1C252E',
+  },
   productCountBadge: {
     fontSize: 12,
     color: '#78716C',
     fontWeight: '600',
+    marginTop: 2,
   },
   sortRow: {
     flexDirection: 'row',
@@ -1167,7 +1117,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sortText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#78716C',
   },
   sortTextActive: {
@@ -1179,8 +1129,6 @@ const styles = StyleSheet.create({
     color: '#78716C',
     fontWeight: '600',
   },
-
-  // --- Famílias Olfativas Chips ---
   familiesScroll: {
     paddingHorizontal: 20,
     gap: 8,
@@ -1205,101 +1153,18 @@ const styles = StyleSheet.create({
   familyChipTextActive: {
     color: '#FFFFFF',
   },
-
-  // --- Buscas Populares ---
-  popularTagsContainer: {
-    paddingHorizontal: 20,
-  },
-  popularTagsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  popularTag: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EFECE4',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  popularTagActive: {
-    backgroundColor: '#273847',
-    borderColor: '#273847',
-  },
-  popularTagText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  popularTagTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // --- Marcas em Destaque ---
-  brandsScroll: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  storesScroll: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  storeExploreCard: {
-    width: 250,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#EFECE4',
-    gap: 10,
-  },
-  emptyStoreHint: {
-    paddingHorizontal: 20,
-    color: '#78716C',
-    fontSize: 13,
-  },
-  brandCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#EFECE4',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  brandText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1C252E',
-  },
-
-  // --- Loading Box ---
   loadingBox: {
     paddingVertical: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // --- Grid de Perfumes ---
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 14,
+    paddingHorizontal: 20,
     gap: 12,
   },
   productCard: {
-    width: '47.5%',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
@@ -1310,9 +1175,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
+    justifyContent: 'space-between',
   },
   productInnerBox: {
-    height: 130,
+    height: 120,
     borderRadius: 12,
     backgroundColor: '#FAF9F5',
     justifyContent: 'center',
@@ -1321,8 +1187,8 @@ const styles = StyleSheet.create({
     borderColor: '#F0EDE4',
   },
   productImg: {
-    width: '100%',
-    height: '100%',
+    width: '85%',
+    height: '85%',
   },
   productInfo: {
     paddingTop: 10,
@@ -1339,14 +1205,13 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#1C252E',
-    minHeight: 18,
     marginBottom: 6,
   },
   badgeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     marginBottom: 8,
-    minHeight: 20,
     gap: 4,
   },
   tagBadge: {
@@ -1367,6 +1232,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#92400E',
+  },
+  productFooterBox: {
+    paddingHorizontal: 2,
   },
   priceRow: {
     flexDirection: 'row',
@@ -1392,8 +1260,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2C4659',
   },
-
-  // --- Lista de Lojas (Aba Lojas) ---
   storesList: {
     paddingHorizontal: 20,
     gap: 12,
@@ -1413,6 +1279,17 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  storeLogoWrapper: {
+    position: 'relative',
+    width: 46,
+    height: 46,
+  },
+  storeAvatarImg: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#F1F5F9',
+  },
   storeAvatarBox: {
     width: 46,
     height: 46,
@@ -1425,6 +1302,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+  },
+  officialCheckBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1D9BF0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   storeInfoBox: {
     flex: 1,
@@ -1463,8 +1353,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#78716C',
   },
-
-  // --- Empty State ---
   emptyStateBox: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1489,8 +1377,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-
-  // --- Modal de Notas Olfativas ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',

@@ -19,6 +19,17 @@ import Feather from '@expo/vector-icons/Feather';
 import { useAuth } from '../../../context/AuthContext';
 import { useUnreadNotifications } from '../../../hooks/use-unread-notifications';
 
+function formatPhoneMask(rawValue: string): string {
+  const digits = rawValue.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function AccountScreen() {
   const router = useRouter();
   const { user, signOut, updateProfile } = useAuth();
@@ -34,8 +45,8 @@ export default function AccountScreen() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
 
-  // Leitura dinâmica dos dados do usuário no AuthContext
   const displayEmail = user?.email || '';
+  const displayPhone = user?.phone || '';
   const displayName =
     [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
     (displayEmail ? displayEmail.split('@')[0] : 'Usuário');
@@ -43,19 +54,18 @@ export default function AccountScreen() {
   const olfactoryFamilies = user?.olfactory_families ?? [];
   const preferredNotes = user?.preferred_notes ?? [];
   const hasOlfactoryProfile = olfactoryFamilies.length > 0 || preferredNotes.length > 0;
-  
-  // Perfil olfativo é restrito a clientes (CUSTOMER ou não definido nos mocks de teste)
+
   const isCustomer = !user?.role || user?.role === 'CUSTOMER';
 
   const confirmSignOut = async () => {
     setShowLogoutModal(false);
     await signOut();
-    router.replace('/(auth)/login' as any);
+    router.replace('/(auth)/login' as never);
   };
 
   const openEditProfile = () => {
     setFullNameInput([user?.first_name, user?.last_name].filter(Boolean).join(' '));
-    setPhoneInput(user?.phone ?? '');
+    setPhoneInput(formatPhoneMask(user?.phone ?? ''));
     setProfileError(null);
     setShowEditProfileModal(true);
   };
@@ -64,6 +74,12 @@ export default function AccountScreen() {
     const nameParts = fullNameInput.trim().split(/\s+/).filter(Boolean);
     if (nameParts.length === 0) {
       setProfileError('Informe seu nome completo.');
+      return;
+    }
+
+    const phoneDigits = phoneInput.replace(/\D/g, '');
+    if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+      setProfileError('Informe um telefone válido com DDD.');
       return;
     }
 
@@ -89,25 +105,25 @@ export default function AccountScreen() {
       id: 'orders',
       label: 'Meus Pedidos',
       icon: <Feather name="package" size={19} color="#4A6072" />,
-      onPress: () => router.push('/orders' as any),
+      onPress: () => router.push('/orders' as never),
     },
     {
       id: 'addresses',
       label: 'Endereços Salvos',
       icon: <Ionicons name="location-outline" size={20} color="#4A6072" />,
-      onPress: () => router.push('/(shop)/account/addresses' as any),
+      onPress: () => router.push('/(shop)/account/addresses' as never),
     },
     {
       id: 'payments',
       label: 'Meios de Pagamento',
       icon: <Ionicons name="card-outline" size={20} color="#4A6072" />,
-      onPress: () => router.push('/(shop)/account/payment-methods' as any),
+      onPress: () => router.push('/(shop)/account/payment-methods' as never),
     },
     {
       id: 'following',
       label: 'Lojas que Sigo',
       icon: <Ionicons name="heart-outline" size={20} color="#4A6072" />,
-      onPress: () => router.push('/(shop)/account/following' as any),
+      onPress: () => router.push('/(shop)/account/following' as never),
     },
   ];
 
@@ -133,7 +149,7 @@ export default function AccountScreen() {
             <TouchableOpacity
               style={styles.notificationButton}
               activeOpacity={0.7}
-              onPress={() => router.push('/(shop)/notifications' as never)}
+              onPress={() => router.push('/notifications' as never)}
               accessibilityRole="button"
               accessibilityLabel="Abrir notificações"
             >
@@ -152,14 +168,14 @@ export default function AccountScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* --- BANNER PERFIL OLFATIVO (Apenas para CUSTOMER) --- */}
+          {/* --- BANNER PERFIL OLFATIVO --- */}
           {isCustomer && (
             hasOlfactoryProfile ? (
               <View style={styles.olfactoryBanner}>
                 <View style={styles.olfactoryHeaderRow}>
                   <Text style={styles.olfactorySectionTitle}>Perfil Olfativo</Text>
                   <TouchableOpacity
-                    onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
+                    onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as never)}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.editOlfactoryText}>Editar</Text>
@@ -204,7 +220,7 @@ export default function AccountScreen() {
                 <TouchableOpacity
                   style={styles.olfactoryBtn}
                   activeOpacity={0.85}
-                  onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as any)}
+                  onPress={() => router.push('/(shop)/account/edit-olfactory-profile' as never)}
                 >
                   <Text style={styles.olfactoryBtnText}>Completar agora</Text>
                 </TouchableOpacity>
@@ -226,6 +242,9 @@ export default function AccountScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.personalEmail}>{displayEmail}</Text>
+              {displayPhone ? (
+                <Text style={styles.personalPhone}>{displayPhone}</Text>
+              ) : null}
               {profileSuccess ? (
                 <Text style={styles.profileSuccess}>{profileSuccess}</Text>
               ) : null}
@@ -315,7 +334,9 @@ export default function AccountScreen() {
         visible={showEditProfileModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEditProfileModal(false)}
+        onRequestClose={() => {
+          if (!isSavingProfile) setShowEditProfileModal(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, styles.editProfileCard]}>
@@ -328,7 +349,10 @@ export default function AccountScreen() {
             <TextInput
               style={styles.textInput}
               value={fullNameInput}
-              onChangeText={setFullNameInput}
+              onChangeText={(text) => {
+                setFullNameInput(text);
+                if (profileError) setProfileError(null);
+              }}
               placeholder="Ana Ferreira"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="words"
@@ -346,10 +370,14 @@ export default function AccountScreen() {
             <TextInput
               style={styles.textInput}
               value={phoneInput}
-              onChangeText={setPhoneInput}
+              onChangeText={(text) => {
+                setPhoneInput(formatPhoneMask(text));
+                if (profileError) setProfileError(null);
+              }}
               placeholder="(11) 99999-0000"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
+              maxLength={15}
               editable={!isSavingProfile}
             />
 
@@ -476,8 +504,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
   },
-
-  // --- Banner Perfil Olfativo ---
   olfactoryBanner: {
     marginHorizontal: 20,
     marginBottom: 20,
@@ -544,8 +570,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-
-  // --- Dados Pessoais ---
   personalSection: {
     marginHorizontal: 20,
     marginBottom: 20,
@@ -559,14 +583,13 @@ const styles = StyleSheet.create({
   personalTitle: { color: '#273847', fontSize: 16, fontWeight: '800' },
   editText: { color: '#A85A38', fontSize: 13, fontWeight: '700' },
   personalEmail: { color: '#78716C', fontSize: 13 },
+  personalPhone: { color: '#78716C', fontSize: 13, marginTop: 3 },
   profileSuccess: {
     color: '#3A5C30',
     fontSize: 12.5,
     fontWeight: '700',
     marginTop: 8,
   },
-
-  // --- Menu Card ---
   menuCard: {
     marginHorizontal: 20,
     backgroundColor: '#FFFFFF',
@@ -605,8 +628,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1C252E',
   },
-
-  // --- Botão Sair ---
   logoutWrapper: {
     paddingHorizontal: 20,
     marginTop: 20,
@@ -630,8 +651,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#A85A38',
   },
-
-  // --- Modal de Confirmação ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
@@ -679,6 +698,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     width: '100%',
+    marginTop: 16,
   },
   modalCancelBtn: {
     flex: 1,
@@ -706,7 +726,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
   editProfileCard: {
     alignItems: 'stretch',
     maxWidth: 380,

@@ -9,6 +9,16 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  useFocusEffect: (cb: any) => {
+    const React = require('react');
+    const ran = React.useRef(false);
+    React.useEffect(() => {
+      if (!ran.current) {
+        ran.current = true;
+        return cb();
+      }
+    }, []);
+  },
 }));
 
 const mockUser = {
@@ -96,17 +106,14 @@ describe('ShopIndex (Home Dinâmica - RF-21)', () => {
 
     const screen = await render(<ShopIndex />);
 
-    // Header dinâmico
     expect(screen.getByText(/Olá, Letícia/)).toBeTruthy();
     expect(screen.getByText('L')).toBeTruthy();
 
-    // Loja em destaque
     await waitFor(() => {
       expect(screen.getByText('Maison Noire')).toBeTruthy();
       expect(screen.getByText(/4\.9/)).toBeTruthy();
     });
 
-    // Produto da seção "Para Você"
     await waitFor(() => {
       expect(screen.getAllByText('Santal Blanc').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/✨ 92% Match/)).toBeTruthy();
@@ -126,7 +133,10 @@ describe('ShopIndex (Home Dinâmica - RF-21)', () => {
     const storeCard = screen.getByTestId('store-card-10');
     fireEvent.press(storeCard);
 
-    expect(mockPush).toHaveBeenCalledWith('/store/10');
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/store/[id]',
+      params: { id: '10' },
+    });
   });
 
   it('navega para o produto ao tocar no card de produto', async () => {
@@ -141,7 +151,10 @@ describe('ShopIndex (Home Dinâmica - RF-21)', () => {
     const productCard = screen.getByTestId('product-card-101');
     fireEvent.press(productCard);
 
-    expect(mockPush).toHaveBeenCalledWith('/product/101');
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/product/[id]',
+      params: { id: '101' },
+    });
   });
 
   it('navega para a aba de busca ao tocar em uma família olfativa das 7 categorias', async () => {
